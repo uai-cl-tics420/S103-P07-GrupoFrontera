@@ -1,0 +1,39 @@
+/**
+* Definición de categorías (enums)
+* Esto limita las opciones a solo las permitidas por el sistema.
+*/
+
+export enum Category {
+  CINE = 'Cine',
+  TEATRO = 'Teatro',
+  PARQUE = 'Parque',
+  MUSEO = 'Museo'
+}
+
+/**
+* Interfaz del usuario
+* Define la estructura de los datos de quien usa la app.
+*/
+export interface User {
+  id: string; // ID único
+  name: string; // Nombre del usuario
+  preferences: Category[]; // Lista de gustos o preferencias
+  currentLocation: { // Ubicación actual
+    lat: number;
+    lng: number;
+  };
+}
+
+/**
+* Interfaz de actividad
+* Define qué datos tiene cada panorama recomendado.
+*/
+export interface Activity {
+  name: string; // Nombre de la actividad
+  category: Category; // Categoría (Cine, Parque, etc.)
+  tagClima: 'Rainy' | 'Sunny' | 'Any'; // Indica qué clima le favorece
+  coordinates: { // Coordenadas para Google Maps
+    lat: number;
+    lng: number;
+  };
+}
