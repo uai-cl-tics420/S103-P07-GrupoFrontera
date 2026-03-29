@@ -1,2 +1,2 @@
-# S107-P07-MYA
+# S103-P07-GrupoFrontera
 Trabajo de semestre
