@@ -5,7 +5,7 @@ FROM oven/bun:latest
 WORKDIR /app
 
 # Copiar archivos de dependencias primero (optimiza caché de Docker)
-COPY package.json bun.lockb* ./
+COPY package.json bun.lock* ./
 
 # Instalar dependencias
 RUN bun install
