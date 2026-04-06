@@ -29,6 +29,7 @@ export interface User {
 * Define qué datos tiene cada panorama recomendado.
 */
 export interface Activity {
+  id: string // Agregué esta línea!!
   name: string; // Nombre de la actividad
   category: Category; // Categoría (Cine, Parque, etc.)
   tagClima: 'Rainy' | 'Sunny' | 'Any'; // Indica qué clima le favorece
