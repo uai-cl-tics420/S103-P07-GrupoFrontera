@@ -7,7 +7,8 @@ export enum Category {
   CINE = 'Cine',
   TEATRO = 'Teatro',
   PARQUE = 'Parque',
-  MUSEO = 'Museo'
+  MUSEO = 'Museo',
+  RESTAURANTE = 'Restaurante'
 }
 
 /**

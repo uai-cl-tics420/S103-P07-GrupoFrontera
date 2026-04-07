@@ -35,5 +35,19 @@ export const MOCK_ACTIVITIES: Activity[] = [
         category: Category.PARQUE,
         tagClima: 'Sunny',
         coordinates: { lat: -33.39, lng: -70.59 }
+    },
+    {
+        id: 'act-06',
+        name: 'Bocanáriz',
+        category: Category.RESTAURANTE,
+        tagClima: 'Any',
+        coordinates: { lat: -33.43, lng: -70.64 }
+    },
+    {
+        id: 'act-07',
+        name: 'Liguria Lastarria',
+        category: Category.RESTAURANTE,
+        tagClima: 'Any',
+        coordinates: { lat: -33.43, lng: -70.64 }
     }
 ];

@@ -18,7 +18,7 @@ const server = serve({
   routes: {
     "/*": index,
   },
-  development: true,
+  development: process.env.NODE_ENV !== "production",
 });
 
 console.log(`🚀 PROYECTO LISTO en http://localhost:4000`);
