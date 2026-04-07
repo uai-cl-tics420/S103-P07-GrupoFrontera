@@ -3,10 +3,20 @@ import { MOCK_ACTIVITIES } from './mockActivities';
 import './index.css';
 import { CategoryFilter } from "@/components/CategoryFilter";
 import { useCategoryFilter } from "@/hooks/useCategoryFilter";
+import { useUserPreferences } from "@/hooks/useUserPreferences";
 
 export function App() {
-  // Integramos tu cerebro matemático
-  const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(MOCK_ACTIVITIES);
+  // Leemos la preferencia guardada en localStorage (si existe)
+  const { preferredCategory, setPreferredCategory } = useUserPreferences();
+
+  // Le pasamos la preferencia como categoría inicial al filtro
+  const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(MOCK_ACTIVITIES, preferredCategory);
+
+  // Cuando el usuario cambia el filtro, actualizamos ambos: el estado local y el localStorage
+  const handleSelectCategory = (category: typeof selectedCategory) => {
+    setSelectedCategory(category);
+    setPreferredCategory(category);
+  };
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] font-sans pb-20">
@@ -25,7 +35,7 @@ export function App() {
         <div className="mb-10">
           <CategoryFilter
             selectedCategory={selectedCategory}
-            onSelectCategory={setSelectedCategory}
+            onSelectCategory={handleSelectCategory}
           />
         </div>
 
