@@ -1,41 +1,24 @@
 import { serve } from "bun";
 import index from "./index.html";
 
-const server = serve({
-  routes: {
-    // Serve index.html for all unmatched routes.
-    "/*": index,
-
-    "/api/hello": {
-      async GET(req) {
-        return Response.json({
-          message: "Hello, world!",
-          method: "GET",
-        });
-      },
-      async PUT(req) {
-        return Response.json({
-          message: "Hello, world!",
-          method: "PUT",
-        });
-      },
-    },
-
-    "/api/hello/:name": async req => {
-      const name = req.params.name;
-      return Response.json({
-        message: `Hello, ${name}!`,
-      });
-    },
-  },
-
-  development: process.env.NODE_ENV !== "production" && {
-    // Enable browser hot reloading in development
-    hmr: true,
-
-    // Echo console logs from the browser to the server
-    console: true,
-  },
+// 1. FORZAMOS EL BUILD (Esto crea el archivo que el navegador necesita)
+const build = await Bun.build({
+  entrypoints: ["./src/main.tsx"],
+  outdir: "./public",
+  minify: false, // Lo dejamos en false para que sea más fácil de leer
 });
 
-console.log(`🚀 Bienvenido al sistema Proyecto de Grupo Frontera,  servidor corriendo en ${server.url}`);
+if (!build.success) {
+  console.error("❌ Error en el Build:", build.logs);
+}
+
+const server = serve({
+  // Cambiamos al puerto 4000 para que el navegador NO use la memoria vieja
+  port: 4000,
+  routes: {
+    "/*": index,
+  },
+  development: true,
+});
+
+console.log(`🚀 PROYECTO LISTO en http://localhost:4000`);

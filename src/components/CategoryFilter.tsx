@@ -31,8 +31,8 @@ export function CategoryFilter({ selectedCategory, onSelectCategory }: CategoryF
                         key={cat.label}
                         variant={isActive ? "default" : "secondary"}
                         className={`rounded-full px-5 transition-all duration-300 font-medium ${isActive
-                                ? 'shadow-lg shadow-primary/20 scale-105'
-                                : 'hover:scale-105 opacity-80 hover:bg-secondary/80'
+                            ? 'shadow-lg shadow-primary/20 scale-105'
+                            : 'hover:scale-105 opacity-80 hover:bg-secondary/80'
                             }`}
                         onClick={() => onSelectCategory(cat.value)}
                     >

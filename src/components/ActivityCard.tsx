@@ -1,0 +1,37 @@
+import { type Activity } from '../types/index';
+
+const ActivityCard = ({ activity }: { activity: any }) => {
+  if (!activity) return null;
+
+  return (
+    <div className="w-full bg-white rounded-[32px] overflow-hidden border border-gray-100 shadow-sm mb-6 hover:shadow-xl transition-all duration-300 font-sans">
+      <div className="aspect-square w-full bg-gray-50 flex items-center justify-center relative border-b border-gray-50">
+        <span className="text-6xl animate-bounce-short">
+          {activity.category === 'Cine' ? '🍿' : 
+           activity.category === 'Parque' ? '🌳' : 
+           activity.category === 'Teatro' ? '🎭' : '🖼️'}
+        </span>
+        <div className="absolute top-5 right-5 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 border border-gray-100 shadow-sm">
+           {activity.tagClima === 'Sunny' ? '☀️ SOLEADO' : '✨ TODO CLIMA'}
+        </div>
+      </div>
+
+      <div className="p-8">
+        <div className="mb-6">
+          <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-orange-500 block mb-2">
+            {activity.category}
+          </span>
+          <h3 className="text-2xl font-black text-gray-900 tracking-tighter leading-tight">
+            {activity.name}
+          </h3>
+        </div>
+
+        <button className="w-full bg-black text-white text-xs font-black py-4 rounded-2xl hover:bg-zinc-800 active:scale-[0.95] transition-all duration-200 shadow-lg shadow-black/10 uppercase tracking-widest">
+          Ver detalles
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default ActivityCard;
