@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: proyecto_dev
     ports:
-      - "3000:3000"
+      - "4000:4000"
     volumes:
       # Refleja cambios locales en tiempo real dentro del contenedor
       - .:/app
@@ -16,3 +16,18 @@ services:
     environment:
       - NODE_ENV=development
     restart: unless-stopped
+  db:
+    image: postgres:alpine
+    container_name: frontera-db
+    ports:
+      - "5433:5432"
+    env_file:
+      - .env
+    environment:
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

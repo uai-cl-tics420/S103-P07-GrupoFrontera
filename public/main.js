@@ -287,8 +287,9 @@ var require_scheduler_development = __commonJS((exports) => {
 
 // node_modules/scheduler/index.js
 var require_scheduler = __commonJS((exports, module) => {
+  var scheduler_development = __toESM(require_scheduler_development());
   if (false) {} else {
-    module.exports = require_scheduler_development();
+    module.exports = scheduler_development;
   }
 });
 
@@ -1117,8 +1118,9 @@ See https://react.dev/link/invalid-hook-call for tips about how to debug and fix
 
 // node_modules/react/index.js
 var require_react = __commonJS((exports, module) => {
+  var react_development = __toESM(require_react_development());
   if (false) {} else {
-    module.exports = require_react_development();
+    module.exports = react_development;
   }
 });
 
@@ -1307,8 +1309,9 @@ See https://react.dev/link/invalid-hook-call for tips about how to debug and fix
 
 // node_modules/react-dom/index.js
 var require_react_dom = __commonJS((exports, module) => {
+  var react_dom_development = __toESM(require_react_dom_development());
   if (false) {} else {
-    module.exports = require_react_dom_development();
+    module.exports = react_dom_development;
   }
 });
 
@@ -16882,8 +16885,9 @@ You might need to use a local HTTP server (instead of file://): https://react.de
 
 // node_modules/react-dom/client.js
 var require_client = __commonJS((exports, module) => {
+  var react_dom_client_development = __toESM(require_react_dom_client_development());
   if (false) {} else {
-    module.exports = require_react_dom_client_development();
+    module.exports = react_dom_client_development;
   }
 });
 
@@ -17104,8 +17108,9 @@ React keys must be passed directly to JSX without using spread:
 
 // node_modules/react/jsx-dev-runtime.js
 var require_jsx_dev_runtime = __commonJS((exports, module) => {
+  var react_jsx_dev_runtime_development = __toESM(require_react_jsx_dev_runtime_development());
   if (false) {} else {
-    module.exports = require_react_jsx_dev_runtime_development();
+    module.exports = react_jsx_dev_runtime_development;
   }
 });
 
@@ -17330,8 +17335,9 @@ React keys must be passed directly to JSX without using spread:
 
 // node_modules/react/jsx-runtime.js
 var require_jsx_runtime = __commonJS((exports, module) => {
+  var react_jsx_runtime_development = __toESM(require_react_jsx_runtime_development());
   if (false) {} else {
-    module.exports = require_react_jsx_runtime_development();
+    module.exports = react_jsx_runtime_development;
   }
 });
 
@@ -17422,6 +17428,20 @@ var MOCK_ACTIVITIES = [
     category: "Parque" /* PARQUE */,
     tagClima: "Sunny",
     coordinates: { lat: -33.39, lng: -70.59 }
+  },
+  {
+    id: "act-06",
+    name: "Bocanáriz",
+    category: "Restaurante" /* RESTAURANTE */,
+    tagClima: "Any",
+    coordinates: { lat: -33.43, lng: -70.64 }
+  },
+  {
+    id: "act-07",
+    name: "Liguria Lastarria",
+    category: "Restaurante" /* RESTAURANTE */,
+    tagClima: "Any",
+    coordinates: { lat: -33.43, lng: -70.64 }
   }
 ];
 
@@ -19526,8 +19546,15 @@ var __iconNode = [
   ["rect", { x: "3", y: "3", width: "18", height: "18", rx: "2", key: "h1oib" }]
 ];
 var Grid2x2 = createLucideIcon("grid-2x2", __iconNode);
-// node_modules/lucide-react/dist/esm/icons/clapperboard.js
+// node_modules/lucide-react/dist/esm/icons/utensils.js
 var __iconNode2 = [
+  ["path", { d: "M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2", key: "cjf0a3" }],
+  ["path", { d: "M7 2v20", key: "1473qp" }],
+  ["path", { d: "M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7", key: "j28e5" }]
+];
+var Utensils = createLucideIcon("utensils", __iconNode2);
+// node_modules/lucide-react/dist/esm/icons/clapperboard.js
+var __iconNode3 = [
   [
     "path",
     { d: "M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z", key: "1tn4o7" }
@@ -19536,9 +19563,9 @@ var __iconNode2 = [
   ["path", { d: "m12.4 3.4 3.1 4", key: "6hsd6n" }],
   ["path", { d: "M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z", key: "ltgou9" }]
 ];
-var Clapperboard = createLucideIcon("clapperboard", __iconNode2);
+var Clapperboard = createLucideIcon("clapperboard", __iconNode3);
 // node_modules/lucide-react/dist/esm/icons/drama.js
-var __iconNode3 = [
+var __iconNode4 = [
   ["path", { d: "M10 11h.01", key: "d2at3l" }],
   ["path", { d: "M14 6h.01", key: "k028ub" }],
   ["path", { d: "M18 6h.01", key: "1v4wsw" }],
@@ -19554,9 +19581,9 @@ var __iconNode3 = [
   ],
   ["path", { d: "M9.1 16.5c.3-1.1 1.4-1.7 2.4-1.4", key: "1mr6wy" }]
 ];
-var Drama = createLucideIcon("drama", __iconNode3);
+var Drama = createLucideIcon("drama", __iconNode4);
 // node_modules/lucide-react/dist/esm/icons/landmark.js
-var __iconNode4 = [
+var __iconNode5 = [
   ["path", { d: "M10 18v-7", key: "wt116b" }],
   [
     "path",
@@ -19570,15 +19597,15 @@ var __iconNode4 = [
   ["path", { d: "M3 22h18", key: "8prr45" }],
   ["path", { d: "M6 18v-7", key: "1ivflk" }]
 ];
-var Landmark = createLucideIcon("landmark", __iconNode4);
+var Landmark = createLucideIcon("landmark", __iconNode5);
 // node_modules/lucide-react/dist/esm/icons/tent.js
-var __iconNode5 = [
+var __iconNode6 = [
   ["path", { d: "M3.5 21 14 3", key: "1szst5" }],
   ["path", { d: "M20.5 21 10 3", key: "1310c3" }],
   ["path", { d: "M15.5 21 12 15l-3.5 6", key: "1ddtfw" }],
   ["path", { d: "M2 21h20", key: "1nyx9w" }]
 ];
-var Tent = createLucideIcon("tent", __iconNode5);
+var Tent = createLucideIcon("tent", __iconNode6);
 // src/components/CategoryFilter.tsx
 var jsx_dev_runtime3 = __toESM(require_jsx_dev_runtime(), 1);
 function CategoryFilter({ selectedCategory, onSelectCategory }) {
@@ -19587,7 +19614,8 @@ function CategoryFilter({ selectedCategory, onSelectCategory }) {
     { value: "Cine" /* CINE */, label: "Cine" /* CINE */, icon: Clapperboard },
     { value: "Parque" /* PARQUE */, label: "Parque" /* PARQUE */, icon: Tent },
     { value: "Teatro" /* TEATRO */, label: "Teatro" /* TEATRO */, icon: Drama },
-    { value: "Museo" /* MUSEO */, label: "Museo" /* MUSEO */, icon: Landmark }
+    { value: "Museo" /* MUSEO */, label: "Museo" /* MUSEO */, icon: Landmark },
+    { value: "Restaurante" /* RESTAURANTE */, label: "Restaurante" /* RESTAURANTE */, icon: Utensils }
   ];
   return /* @__PURE__ */ jsx_dev_runtime3.jsxDEV("div", {
     className: "flex w-full items-center gap-3 overflow-x-auto pb-4 pt-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
@@ -19651,12 +19679,25 @@ function App() {
         className: "max-w-6xl mx-auto px-8",
         children: [
           /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("div", {
-            className: "mb-10",
-            children: /* @__PURE__ */ jsx_dev_runtime4.jsxDEV(CategoryFilter, {
-              selectedCategory,
-              onSelectCategory: setSelectedCategory
-            }, undefined, false, undefined, this)
-          }, undefined, false, undefined, this),
+            className: "mb-10 flex flex-col gap-3",
+            children: [
+              /* @__PURE__ */ jsx_dev_runtime4.jsxDEV(CategoryFilter, {
+                selectedCategory,
+                onSelectCategory: setSelectedCategory
+              }, undefined, false, undefined, this),
+              /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("div", {
+                className: "px-2",
+                children: /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("span", {
+                  className: "text-xs font-bold text-gray-500 uppercase tracking-widest bg-gray-200/50 py-1 px-3 rounded-full",
+                  children: [
+                    filteredActivities.length,
+                    " ",
+                    filteredActivities.length === 1 ? "Panorama encontrado" : "Panoramas encontrados"
+                  ]
+                }, undefined, true, undefined, this)
+              }, undefined, false, undefined, this)
+            ]
+          }, undefined, true, undefined, this),
           /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("div", {
             className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10",
             children: filteredActivities.length === 0 ? /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("p", {

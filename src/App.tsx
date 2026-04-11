@@ -32,11 +32,16 @@ export function App() {
       <main className="max-w-6xl mx-auto px-8">
 
         {/* Aquí insertamos tu filtro visual conectándolo al cerebro */}
-        <div className="mb-10">
+        <div className="mb-10 flex flex-col gap-3">
           <CategoryFilter
             selectedCategory={selectedCategory}
             onSelectCategory={handleSelectCategory}
           />
+          <div className="px-2">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest bg-gray-200/50 py-1 px-3 rounded-full">
+              {filteredActivities.length} {filteredActivities.length === 1 ? 'Panorama encontrado' : 'Panoramas encontrados'}
+            </span>
+          </div>
         </div>
 
         {/* Aquí conectamos los componentes diseñados por FAu con TUS arrays ya procesados */}
