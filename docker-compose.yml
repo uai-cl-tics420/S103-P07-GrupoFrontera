@@ -25,6 +25,7 @@ services:
       - .env
     environment:
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+      PGDATA: "/var/lib/postgresql/data/db"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     restart: unless-stopped
