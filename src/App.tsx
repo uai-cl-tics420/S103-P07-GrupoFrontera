@@ -1,11 +1,26 @@
+import React, { useState } from 'react';
+import LoginForm from './components/auth/LoginForm';
+import OTPVerify from './components/auth/OTPVerify';
 import ActivityCard from './components/ActivityCard';
 import { MOCK_ACTIVITIES } from './mockActivities';
 import './index.css';
-import { CategoryFilter } from "@/components/CategoryFilter";
-import { useCategoryFilter } from "@/hooks/useCategoryFilter";
-import { useUserPreferences } from "@/hooks/useUserPreferences";
+import { CategoryFilter } from "./components/CategoryFilter";
+import { useCategoryFilter } from "./hooks/useCategoryFilter";
+import { useUserPreferences } from "./hooks/useUserPreferences";
 
 export function App() {
+  //Lógica de seguridad
+  const [step, setStep] = useState<'login' | 'otp' | 'dashboard'>('login');
+  const [tempToken, setTempToken] = useState('');
+
+  const handleOTPVerify = async (code: string) => {
+    if (code === "123456") {
+      setStep('dashboard'); //Si el código es correcto entramos al app real
+    } else {
+      alert("Código incorrecto");
+    }
+  };
+
   // Leemos la preferencia guardada en localStorage (si existe)
   const { preferredCategory, setPreferredCategory } = useUserPreferences();
 
@@ -18,6 +33,27 @@ export function App() {
     setPreferredCategory(category);
   };
 
+  //Renderizado condicional
+  
+  //a) Pantalla de Login (sso)
+  if (step === 'login') {
+    return (
+      <LoginForm
+        onLoginSuccess={(token) => {
+          setTempToken(token); //Guardamos el token que viene del backend
+          setStep('otp'); //Saltamos al paso de los números
+        }}
+      />
+    );
+  }
+
+  //b) Pantalla de verificación (otp)
+  if (step === 'otp') {
+    return <OTPVerify onVerify={handleOTPVerify} />;
+  }
+
+
+  //App principal (dashboard panoramas)
   return (
     <div className="min-h-screen bg-[#FAFAFA] font-sans pb-20">
       <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 p-6 mb-12">

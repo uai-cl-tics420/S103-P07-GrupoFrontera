@@ -12,6 +12,9 @@ export const activities = pgTable('activities', {
 });
 
 // 2. Tabla de Preferencias de Usuario
+//añadimos esto para manejar los roles user y admin
+export const rolesEnum = ['user', 'admin'] as const;
+
 export const userPreferences = pgTable('user_preferences', {
     id: text('id')
         .primaryKey()
@@ -19,4 +22,5 @@ export const userPreferences = pgTable('user_preferences', {
     userId: text('user_id')
         .references(() => user.id, { onDelete: 'cascade' }), // Lo unimos al Usuario
     preferredCategories: text('preferred_categories').array(),
+    role: text('role', { enum: rolesEnum }).default('user'), //Añadimos esto para manejar el rol en las preferencias
 });

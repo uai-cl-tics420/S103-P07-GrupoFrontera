@@ -17116,7 +17116,7 @@ var require_jsx_dev_runtime = __commonJS((exports, module) => {
 
 // node_modules/react/cjs/react-jsx-runtime.development.js
 var require_react_jsx_runtime_development = __commonJS((exports) => {
-  var React2 = __toESM(require_react());
+  var React3 = __toESM(require_react());
   (function() {
     function getComponentNameFromType(type) {
       if (type == null)
@@ -17308,17 +17308,17 @@ React keys must be passed directly to JSX without using spread:
     function isValidElement(object) {
       return typeof object === "object" && object !== null && object.$$typeof === REACT_ELEMENT_TYPE;
     }
-    var REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy"), REACT_ACTIVITY_TYPE = Symbol.for("react.activity"), REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), ReactSharedInternals = React2.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, hasOwnProperty = Object.prototype.hasOwnProperty, isArrayImpl = Array.isArray, createTask = console.createTask ? console.createTask : function() {
+    var REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy"), REACT_ACTIVITY_TYPE = Symbol.for("react.activity"), REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), ReactSharedInternals = React3.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, hasOwnProperty = Object.prototype.hasOwnProperty, isArrayImpl = Array.isArray, createTask = console.createTask ? console.createTask : function() {
       return null;
     };
-    React2 = {
+    React3 = {
       react_stack_bottom_frame: function(callStackForError) {
         return callStackForError();
       }
     };
     var specialPropKeyWarningShown;
     var didWarnAboutElementRef = {};
-    var unknownOwnerDebugStack = React2.react_stack_bottom_frame.bind(React2, UnknownOwner)();
+    var unknownOwnerDebugStack = React3.react_stack_bottom_frame.bind(React3, UnknownOwner)();
     var unknownOwnerDebugTask = createTask(getTaskName(UnknownOwner));
     var didWarnAboutKeySpread = {};
     exports.Fragment = REACT_FRAGMENT_TYPE;
@@ -17344,44 +17344,147 @@ var require_jsx_runtime = __commonJS((exports, module) => {
 // src/main.tsx
 var import_client = __toESM(require_client(), 1);
 
-// src/components/ActivityCard.tsx
+// src/App.tsx
+var import_react6 = __toESM(require_react(), 1);
+
+// src/components/auth/LoginForm.tsx
 var jsx_dev_runtime = __toESM(require_jsx_dev_runtime(), 1);
+var LoginForm = ({ onLoginSuccess }) => {
+  const handleLogin = async () => {
+    try {
+      const response = await fetch("http://localhost:4000/auth/login");
+      const data = await response.json();
+      if (data.temp_token) {
+        onLoginSuccess(data.temp_token);
+      }
+    } catch (error) {
+      console.error("Error al conectar con el servidor:", error);
+      alert("El servidor no responde.");
+    }
+  };
+  return /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
+    className: "min-h-screen flex items-center justify-center bg-[#FAFAFA] font-sans",
+    children: /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
+      className: "max-w-md w-full p-10 bg-white rounded-[40px] shadow-sm border border-gray-100 text-center",
+      children: [
+        /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
+          className: "mb-8 flex justify-center",
+          children: /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
+            className: "w-12 h-12 bg-black rounded-2xl flex items-center justify-center text-white font-black text-xl",
+            children: "P"
+          }, undefined, false, undefined, this)
+        }, undefined, false, undefined, this),
+        /* @__PURE__ */ jsx_dev_runtime.jsxDEV("h1", {
+          className: "text-4xl font-black tracking-tighter mb-2 text-gray-900 uppercase",
+          children: "Panoramas"
+        }, undefined, false, undefined, this),
+        /* @__PURE__ */ jsx_dev_runtime.jsxDEV("p", {
+          className: "text-gray-400 text-sm mb-10 font-medium",
+          children: "Grupo Frontera • 2026"
+        }, undefined, false, undefined, this),
+        /* @__PURE__ */ jsx_dev_runtime.jsxDEV("button", {
+          onClick: handleLogin,
+          className: "w-full flex items-center justify-center gap-3 bg-black text-white py-4 px-6 rounded-2xl font-bold hover:bg-zinc-800 transition-all active:scale-95 shadow-lg shadow-black/5",
+          children: [
+            /* @__PURE__ */ jsx_dev_runtime.jsxDEV("img", {
+              src: "https://fonts.gstatic.com/s/i/productlogos/googleg/v6/24px.svg",
+              alt: "Google",
+              className: "w-5 h-5 bg-white rounded-full p-0.5"
+            }, undefined, false, undefined, this),
+            /* @__PURE__ */ jsx_dev_runtime.jsxDEV("span", {
+              className: "tracking-tight text-sm",
+              children: "Continuar con Google"
+            }, undefined, false, undefined, this)
+          ]
+        }, undefined, true, undefined, this),
+        /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
+          className: "mt-10 pt-6 border-t border-gray-50",
+          children: /* @__PURE__ */ jsx_dev_runtime.jsxDEV("p", {
+            className: "text-[10px] text-gray-300 uppercase tracking-[0.2em] font-bold",
+            children: "Autenticación Segura (SSO + OTP)"
+          }, undefined, false, undefined, this)
+        }, undefined, false, undefined, this)
+      ]
+    }, undefined, true, undefined, this)
+  }, undefined, false, undefined, this);
+};
+var LoginForm_default = LoginForm;
+
+// src/components/auth/OTPVerify.tsx
+var import_react = __toESM(require_react(), 1);
+var jsx_dev_runtime2 = __toESM(require_jsx_dev_runtime(), 1);
+var OTPVerify = ({ onVerify }) => {
+  const [code, setCode] = import_react.useState("");
+  return /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
+    className: "min-h-screen flex items-center justify-center bg-[#FAFAFA]",
+    children: /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
+      className: "max-w-md w-full p-10 bg-white rounded-[40px] shadow-sm border border-gray-100 text-center",
+      children: [
+        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("h2", {
+          className: "text-2xl font-black tracking-tighter mb-4",
+          children: "Verificación de Seguridad"
+        }, undefined, false, undefined, this),
+        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("p", {
+          className: "text-gray-400 text-sm mb-8",
+          children: "Ingresa el código de 6 dígitos para confirmar tu identidad."
+        }, undefined, false, undefined, this),
+        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("input", {
+          type: "text",
+          maxLength: 6,
+          value: code,
+          onChange: (e) => setCode(e.target.value),
+          placeholder: "000000",
+          className: "w-full text-center text-4xl font-mono tracking-[0.5em] p-5 bg-gray-50 rounded-2xl mb-6 focus:ring-2 focus:ring-black outline-none transition-all"
+        }, undefined, false, undefined, this),
+        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("button", {
+          onClick: () => onVerify(code),
+          className: "w-full bg-black text-white py-4 rounded-2xl font-bold hover:bg-zinc-800 transition-all active:scale-95",
+          children: "Verificar Código"
+        }, undefined, false, undefined, this)
+      ]
+    }, undefined, true, undefined, this)
+  }, undefined, false, undefined, this);
+};
+var OTPVerify_default = OTPVerify;
+
+// src/components/ActivityCard.tsx
+var jsx_dev_runtime3 = __toESM(require_jsx_dev_runtime(), 1);
 var ActivityCard = ({ activity }) => {
   if (!activity)
     return null;
-  return /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
+  return /* @__PURE__ */ jsx_dev_runtime3.jsxDEV("div", {
     className: "w-full bg-white rounded-[32px] overflow-hidden border border-gray-100 shadow-sm mb-6 hover:shadow-xl transition-all duration-300 font-sans",
     children: [
-      /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
+      /* @__PURE__ */ jsx_dev_runtime3.jsxDEV("div", {
         className: "aspect-square w-full bg-gray-50 flex items-center justify-center relative border-b border-gray-50",
         children: [
-          /* @__PURE__ */ jsx_dev_runtime.jsxDEV("span", {
+          /* @__PURE__ */ jsx_dev_runtime3.jsxDEV("span", {
             className: "text-6xl animate-bounce-short",
             children: activity.category === "Cine" ? "\uD83C\uDF7F" : activity.category === "Parque" ? "\uD83C\uDF33" : activity.category === "Teatro" ? "\uD83C\uDFAD" : "\uD83D\uDDBC️"
           }, undefined, false, undefined, this),
-          /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
+          /* @__PURE__ */ jsx_dev_runtime3.jsxDEV("div", {
             className: "absolute top-5 right-5 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 border border-gray-100 shadow-sm",
             children: activity.tagClima === "Sunny" ? "☀️ SOLEADO" : "✨ TODO CLIMA"
           }, undefined, false, undefined, this)
         ]
       }, undefined, true, undefined, this),
-      /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
+      /* @__PURE__ */ jsx_dev_runtime3.jsxDEV("div", {
         className: "p-8",
         children: [
-          /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
+          /* @__PURE__ */ jsx_dev_runtime3.jsxDEV("div", {
             className: "mb-6",
             children: [
-              /* @__PURE__ */ jsx_dev_runtime.jsxDEV("span", {
+              /* @__PURE__ */ jsx_dev_runtime3.jsxDEV("span", {
                 className: "text-[10px] font-bold uppercase tracking-[0.3em] text-orange-500 block mb-2",
                 children: activity.category
               }, undefined, false, undefined, this),
-              /* @__PURE__ */ jsx_dev_runtime.jsxDEV("h3", {
+              /* @__PURE__ */ jsx_dev_runtime3.jsxDEV("h3", {
                 className: "text-2xl font-black text-gray-900 tracking-tighter leading-tight",
                 children: activity.name
               }, undefined, false, undefined, this)
             ]
           }, undefined, true, undefined, this),
-          /* @__PURE__ */ jsx_dev_runtime.jsxDEV("button", {
+          /* @__PURE__ */ jsx_dev_runtime3.jsxDEV("button", {
             className: "w-full bg-black text-white text-xs font-black py-4 rounded-2xl hover:bg-zinc-800 active:scale-[0.95] transition-all duration-200 shadow-lg shadow-black/10 uppercase tracking-widest",
             children: "Ver detalles"
           }, undefined, false, undefined, this)
@@ -17391,6 +17494,16 @@ var ActivityCard = ({ activity }) => {
   }, undefined, true, undefined, this);
 };
 var ActivityCard_default = ActivityCard;
+
+// src/types/index.ts
+var Category;
+((Category2) => {
+  Category2["CINE"] = "Cine";
+  Category2["TEATRO"] = "Teatro";
+  Category2["PARQUE"] = "Parque";
+  Category2["MUSEO"] = "Museo";
+  Category2["RESTAURANTE"] = "Restaurante";
+})(Category ||= {});
 
 // src/mockActivities.ts
 var MOCK_ACTIVITIES = [
@@ -17446,10 +17559,10 @@ var MOCK_ACTIVITIES = [
 ];
 
 // node_modules/@radix-ui/react-slot/dist/index.mjs
-var React2 = __toESM(require_react(), 1);
+var React3 = __toESM(require_react(), 1);
 
 // node_modules/@radix-ui/react-compose-refs/dist/index.mjs
-var React = __toESM(require_react(), 1);
+var React2 = __toESM(require_react(), 1);
 function setRef(ref, value) {
   if (typeof ref === "function") {
     return ref(value);
@@ -17485,7 +17598,7 @@ function composeRefs(...refs) {
 // node_modules/@radix-ui/react-slot/dist/index.mjs
 var import_jsx_runtime = __toESM(require_jsx_runtime(), 1);
 var REACT_LAZY_TYPE = Symbol.for("react.lazy");
-var use = React2[" use ".trim().toString()];
+var use = React3[" use ".trim().toString()];
 function isPromiseLike(value) {
   return typeof value === "object" && value !== null && "then" in value;
 }
@@ -17494,25 +17607,25 @@ function isLazyComponent(element) {
 }
 function createSlot(ownerName) {
   const SlotClone = /* @__PURE__ */ createSlotClone(ownerName);
-  const Slot2 = React2.forwardRef((props, forwardedRef) => {
+  const Slot2 = React3.forwardRef((props, forwardedRef) => {
     let { children, ...slotProps } = props;
     if (isLazyComponent(children) && typeof use === "function") {
       children = use(children._payload);
     }
-    const childrenArray = React2.Children.toArray(children);
+    const childrenArray = React3.Children.toArray(children);
     const slottable = childrenArray.find(isSlottable);
     if (slottable) {
       const newElement = slottable.props.children;
       const newChildren = childrenArray.map((child) => {
         if (child === slottable) {
-          if (React2.Children.count(newElement) > 1)
-            return React2.Children.only(null);
-          return React2.isValidElement(newElement) ? newElement.props.children : null;
+          if (React3.Children.count(newElement) > 1)
+            return React3.Children.only(null);
+          return React3.isValidElement(newElement) ? newElement.props.children : null;
         } else {
           return child;
         }
       });
-      return /* @__PURE__ */ import_jsx_runtime.jsx(SlotClone, { ...slotProps, ref: forwardedRef, children: React2.isValidElement(newElement) ? React2.cloneElement(newElement, undefined, newChildren) : null });
+      return /* @__PURE__ */ import_jsx_runtime.jsx(SlotClone, { ...slotProps, ref: forwardedRef, children: React3.isValidElement(newElement) ? React3.cloneElement(newElement, undefined, newChildren) : null });
     }
     return /* @__PURE__ */ import_jsx_runtime.jsx(SlotClone, { ...slotProps, ref: forwardedRef, children });
   });
@@ -17521,27 +17634,27 @@ function createSlot(ownerName) {
 }
 var Slot = /* @__PURE__ */ createSlot("Slot");
 function createSlotClone(ownerName) {
-  const SlotClone = React2.forwardRef((props, forwardedRef) => {
+  const SlotClone = React3.forwardRef((props, forwardedRef) => {
     let { children, ...slotProps } = props;
     if (isLazyComponent(children) && typeof use === "function") {
       children = use(children._payload);
     }
-    if (React2.isValidElement(children)) {
+    if (React3.isValidElement(children)) {
       const childrenRef = getElementRef(children);
       const props2 = mergeProps(slotProps, children.props);
-      if (children.type !== React2.Fragment) {
+      if (children.type !== React3.Fragment) {
         props2.ref = forwardedRef ? composeRefs(forwardedRef, childrenRef) : childrenRef;
       }
-      return React2.cloneElement(children, props2);
+      return React3.cloneElement(children, props2);
     }
-    return React2.Children.count(children) > 1 ? React2.Children.only(null) : null;
+    return React3.Children.count(children) > 1 ? React3.Children.only(null) : null;
   });
   SlotClone.displayName = `${ownerName}.SlotClone`;
   return SlotClone;
 }
 var SLOTTABLE_IDENTIFIER = Symbol("radix.slottable");
 function isSlottable(child) {
-  return React2.isValidElement(child) && typeof child.type === "function" && "__radixId" in child.type && child.type.__radixId === SLOTTABLE_IDENTIFIER;
+  return React3.isValidElement(child) && typeof child.type === "function" && "__radixId" in child.type && child.type.__radixId === SLOTTABLE_IDENTIFIER;
 }
 function mergeProps(slotProps, childProps) {
   const overrideProps = { ...childProps };
@@ -19426,7 +19539,7 @@ function cn(...inputs) {
 }
 
 // src/components/ui/button.tsx
-var jsx_dev_runtime2 = __toESM(require_jsx_dev_runtime(), 1);
+var jsx_dev_runtime4 = __toESM(require_jsx_dev_runtime(), 1);
 var buttonVariants = cva("inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive", {
   variants: {
     variant: {
@@ -19459,14 +19572,14 @@ function Button({
   ...props
 }) {
   const Comp = asChild ? Slot : "button";
-  return /* @__PURE__ */ jsx_dev_runtime2.jsxDEV(Comp, {
+  return /* @__PURE__ */ jsx_dev_runtime4.jsxDEV(Comp, {
     "data-slot": "button",
     className: cn(buttonVariants({ variant, size, className })),
     ...props
   }, undefined, false, undefined, this);
 }
 // node_modules/lucide-react/dist/esm/createLucideIcon.js
-var import_react2 = __toESM(require_react(), 1);
+var import_react3 = __toESM(require_react(), 1);
 
 // node_modules/lucide-react/dist/esm/shared/src/utils.js
 var toKebabCase = (string) => string.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
@@ -19487,7 +19600,7 @@ var hasA11yProp = (props) => {
 };
 
 // node_modules/lucide-react/dist/esm/Icon.js
-var import_react = __toESM(require_react(), 1);
+var import_react2 = __toESM(require_react(), 1);
 
 // node_modules/lucide-react/dist/esm/defaultAttributes.js
 var defaultAttributes = {
@@ -19503,7 +19616,7 @@ var defaultAttributes = {
 };
 
 // node_modules/lucide-react/dist/esm/Icon.js
-var Icon = import_react.forwardRef(({
+var Icon = import_react2.forwardRef(({
   color = "currentColor",
   size = 24,
   strokeWidth = 2,
@@ -19512,7 +19625,7 @@ var Icon = import_react.forwardRef(({
   children,
   iconNode,
   ...rest
-}, ref) => import_react.createElement("svg", {
+}, ref) => import_react2.createElement("svg", {
   ref,
   ...defaultAttributes,
   width: size,
@@ -19523,13 +19636,13 @@ var Icon = import_react.forwardRef(({
   ...!children && !hasA11yProp(rest) && { "aria-hidden": "true" },
   ...rest
 }, [
-  ...iconNode.map(([tag, attrs]) => import_react.createElement(tag, attrs)),
+  ...iconNode.map(([tag, attrs]) => import_react2.createElement(tag, attrs)),
   ...Array.isArray(children) ? children : [children]
 ]));
 
 // node_modules/lucide-react/dist/esm/createLucideIcon.js
 var createLucideIcon = (iconName, iconNode) => {
-  const Component = import_react2.forwardRef(({ className, ...props }, ref) => import_react2.createElement(Icon, {
+  const Component = import_react3.forwardRef(({ className, ...props }, ref) => import_react3.createElement(Icon, {
     ref,
     iconNode,
     className: mergeClasses(`lucide-${toKebabCase(toPascalCase(iconName))}`, `lucide-${iconName}`, className),
@@ -19607,7 +19720,7 @@ var __iconNode6 = [
 ];
 var Tent = createLucideIcon("tent", __iconNode6);
 // src/components/CategoryFilter.tsx
-var jsx_dev_runtime3 = __toESM(require_jsx_dev_runtime(), 1);
+var jsx_dev_runtime5 = __toESM(require_jsx_dev_runtime(), 1);
 function CategoryFilter({ selectedCategory, onSelectCategory }) {
   const categories = [
     { value: null, label: "Todas", icon: Grid2x2 },
@@ -19617,17 +19730,17 @@ function CategoryFilter({ selectedCategory, onSelectCategory }) {
     { value: "Museo" /* MUSEO */, label: "Museo" /* MUSEO */, icon: Landmark },
     { value: "Restaurante" /* RESTAURANTE */, label: "Restaurante" /* RESTAURANTE */, icon: Utensils }
   ];
-  return /* @__PURE__ */ jsx_dev_runtime3.jsxDEV("div", {
+  return /* @__PURE__ */ jsx_dev_runtime5.jsxDEV("div", {
     className: "flex w-full items-center gap-3 overflow-x-auto pb-4 pt-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
     children: categories.map((cat) => {
       const isActive = selectedCategory === cat.value;
       const Icon2 = cat.icon;
-      return /* @__PURE__ */ jsx_dev_runtime3.jsxDEV(Button, {
+      return /* @__PURE__ */ jsx_dev_runtime5.jsxDEV(Button, {
         variant: isActive ? "default" : "secondary",
         className: `rounded-full px-5 transition-all duration-300 font-medium ${isActive ? "shadow-lg shadow-primary/20 scale-105" : "hover:scale-105 opacity-80 hover:bg-secondary/80"}`,
         onClick: () => onSelectCategory(cat.value),
         children: [
-          /* @__PURE__ */ jsx_dev_runtime3.jsxDEV(Icon2, {
+          /* @__PURE__ */ jsx_dev_runtime5.jsxDEV(Icon2, {
             className: `w-4 h-4 mr-2 ${isActive ? "text-primary-foreground" : "text-muted-foreground"}`
           }, undefined, false, undefined, this),
           cat.label
@@ -19638,10 +19751,10 @@ function CategoryFilter({ selectedCategory, onSelectCategory }) {
 }
 
 // src/hooks/useCategoryFilter.ts
-var import_react3 = __toESM(require_react(), 1);
-function useCategoryFilter(activities) {
-  const [selectedCategory, setSelectedCategory] = import_react3.useState(null);
-  const filteredActivities = import_react3.useMemo(() => {
+var import_react4 = __toESM(require_react(), 1);
+function useCategoryFilter(activities, initialCategory = null) {
+  const [selectedCategory, setSelectedCategory] = import_react4.useState(initialCategory);
+  const filteredActivities = import_react4.useMemo(() => {
     if (!selectedCategory)
       return activities;
     return activities.filter((act) => act.category === selectedCategory);
@@ -19653,41 +19766,92 @@ function useCategoryFilter(activities) {
   };
 }
 
+// src/hooks/useUserPreferences.ts
+var import_react5 = __toESM(require_react(), 1);
+var STORAGE_KEY = "panoramas_categoria_preferida";
+function useUserPreferences() {
+  const [preferredCategory, setPreferredCategory] = import_react5.useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved && Object.values(Category).includes(saved)) {
+      return saved;
+    }
+    return null;
+  });
+  import_react5.useEffect(() => {
+    if (preferredCategory === null) {
+      localStorage.removeItem(STORAGE_KEY);
+    } else {
+      localStorage.setItem(STORAGE_KEY, preferredCategory);
+    }
+  }, [preferredCategory]);
+  return {
+    preferredCategory,
+    setPreferredCategory
+  };
+}
+
 // src/App.tsx
-var jsx_dev_runtime4 = __toESM(require_jsx_dev_runtime(), 1);
+var jsx_dev_runtime6 = __toESM(require_jsx_dev_runtime(), 1);
 function App() {
-  const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(MOCK_ACTIVITIES);
-  return /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("div", {
+  const [step, setStep] = import_react6.useState("login");
+  const [tempToken, setTempToken] = import_react6.useState("");
+  const handleOTPVerify = async (code) => {
+    if (code === "123456") {
+      setStep("dashboard");
+    } else {
+      alert("Código incorrecto");
+    }
+  };
+  const { preferredCategory, setPreferredCategory } = useUserPreferences();
+  const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(MOCK_ACTIVITIES, preferredCategory);
+  const handleSelectCategory = (category) => {
+    setSelectedCategory(category);
+    setPreferredCategory(category);
+  };
+  if (step === "login") {
+    return /* @__PURE__ */ jsx_dev_runtime6.jsxDEV(LoginForm_default, {
+      onLoginSuccess: (token) => {
+        setTempToken(token);
+        setStep("otp");
+      }
+    }, undefined, false, undefined, this);
+  }
+  if (step === "otp") {
+    return /* @__PURE__ */ jsx_dev_runtime6.jsxDEV(OTPVerify_default, {
+      onVerify: handleOTPVerify
+    }, undefined, false, undefined, this);
+  }
+  return /* @__PURE__ */ jsx_dev_runtime6.jsxDEV("div", {
     className: "min-h-screen bg-[#FAFAFA] font-sans pb-20",
     children: [
-      /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("nav", {
+      /* @__PURE__ */ jsx_dev_runtime6.jsxDEV("nav", {
         className: "sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 p-6 mb-12",
-        children: /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("div", {
+        children: /* @__PURE__ */ jsx_dev_runtime6.jsxDEV("div", {
           className: "max-w-5xl mx-auto flex justify-between items-center",
           children: [
-            /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("h1", {
+            /* @__PURE__ */ jsx_dev_runtime6.jsxDEV("h1", {
               className: "text-2xl font-black tracking-tighter text-gray-900 italic",
               children: "PANORAMAS"
             }, undefined, false, undefined, this),
-            /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("div", {
+            /* @__PURE__ */ jsx_dev_runtime6.jsxDEV("div", {
               className: "w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-fuchsia-600 border-2 border-white shadow-md"
             }, undefined, false, undefined, this)
           ]
         }, undefined, true, undefined, this)
       }, undefined, false, undefined, this),
-      /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("main", {
+      /* @__PURE__ */ jsx_dev_runtime6.jsxDEV("main", {
         className: "max-w-6xl mx-auto px-8",
         children: [
-          /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("div", {
+          /* @__PURE__ */ jsx_dev_runtime6.jsxDEV("div", {
             className: "mb-10 flex flex-col gap-3",
             children: [
-              /* @__PURE__ */ jsx_dev_runtime4.jsxDEV(CategoryFilter, {
+              /* @__PURE__ */ jsx_dev_runtime6.jsxDEV(CategoryFilter, {
                 selectedCategory,
-                onSelectCategory: setSelectedCategory
+                onSelectCategory: handleSelectCategory
               }, undefined, false, undefined, this),
-              /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("div", {
+              /* @__PURE__ */ jsx_dev_runtime6.jsxDEV("div", {
                 className: "px-2",
-                children: /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("span", {
+                children: /* @__PURE__ */ jsx_dev_runtime6.jsxDEV("span", {
                   className: "text-xs font-bold text-gray-500 uppercase tracking-widest bg-gray-200/50 py-1 px-3 rounded-full",
                   children: [
                     filteredActivities.length,
@@ -19698,18 +19862,18 @@ function App() {
               }, undefined, false, undefined, this)
             ]
           }, undefined, true, undefined, this),
-          /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("div", {
+          /* @__PURE__ */ jsx_dev_runtime6.jsxDEV("div", {
             className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10",
-            children: filteredActivities.length === 0 ? /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("p", {
+            children: filteredActivities.length === 0 ? /* @__PURE__ */ jsx_dev_runtime6.jsxDEV("p", {
               className: "text-muted-foreground col-span-3 text-center py-8",
               children: "No hay actividades publicadas para esta categoría todavía."
-            }, undefined, false, undefined, this) : filteredActivities.map((act) => /* @__PURE__ */ jsx_dev_runtime4.jsxDEV(ActivityCard_default, {
+            }, undefined, false, undefined, this) : filteredActivities.map((act) => /* @__PURE__ */ jsx_dev_runtime6.jsxDEV(ActivityCard_default, {
               activity: act
             }, act.id, false, undefined, this))
           }, undefined, false, undefined, this)
         ]
       }, undefined, true, undefined, this),
-      /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("footer", {
+      /* @__PURE__ */ jsx_dev_runtime6.jsxDEV("footer", {
         className: "mt-20 text-center opacity-20 font-black text-[10px] tracking-[0.5em] uppercase",
         children: "Grupo Frontera • 2026"
       }, undefined, false, undefined, this)
@@ -19719,9 +19883,9 @@ function App() {
 var App_default = App;
 
 // src/main.tsx
-var jsx_dev_runtime5 = __toESM(require_jsx_dev_runtime(), 1);
+var jsx_dev_runtime7 = __toESM(require_jsx_dev_runtime(), 1);
 var container = document.getElementById("root");
 if (container) {
   const root = import_client.createRoot(container);
-  root.render(/* @__PURE__ */ jsx_dev_runtime5.jsxDEV(App_default, {}, undefined, false, undefined, this));
+  root.render(/* @__PURE__ */ jsx_dev_runtime7.jsxDEV(App_default, {}, undefined, false, undefined, this));
 }
