@@ -1,8 +1,12 @@
 import { useState, useMemo } from 'react';
 import { type Activity, Category } from '../types';
 
-export function useCategoryFilter(activities: Activity[]) {
-    const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+/**
+ * Hook que filtra actividades por categoría.
+ * Acepta una categoría inicial (viene de localStorage via useUserPreferences).
+ */
+export function useCategoryFilter(activities: Activity[], initialCategory: Category | null = null) {
+    const [selectedCategory, setSelectedCategory] = useState<Category | null>(initialCategory);
 
     const filteredActivities = useMemo(() => {
         if (!selectedCategory) return activities;
