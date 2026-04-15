@@ -57,12 +57,12 @@ app.get('/api/auth/get-my-otp/:userId', async ({ params }) => {
     if (!foundUser) return { status: "error", message: "Usuario no encontrado" };
 
     const ahora = new Date();
-    const ultimaActualizacion = foundUser.updatedAt || foundUser.createdAt;
+    const ultimaActualizacion = foundUser.updatedAt || foundUser.createdAt || ahora;
     const diferenciaMinutos = (ahora.getTime() - ultimaActualizacion.getTime()) / 60000;
 
     let secretoActual = foundUser.otpSecret;
 
-    if (diferenciaMinutos >= 10 || !secretoActual) {
+    if (!secretoActual || diferenciaMinutos >= 10) {
         const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
         secretoActual = '';
         for (let i = 0; i < 20; i++) {
@@ -73,11 +73,11 @@ app.get('/api/auth/get-my-otp/:userId', async ({ params }) => {
             .set({ 
                 otpSecret: secretoActual, 
                 otpVerified: false, 
-                updatedAt: new Date() 
+                updatedAt: ahora 
             })
             .where(eq(user.id, userId));
         
-        console.log(`🔄 SECRETO ACTUALIZADO para: ${foundUser.email}`);
+        console.log(`✨ SISTEMA: Secreto generado/actualizado para: ${foundUser.email}`);
     }
 
     //GENERADOR MATEMÁTICO PROPIO, otplib no funcionaba :(
@@ -88,9 +88,9 @@ app.get('/api/auth/get-my-otp/:userId', async ({ params }) => {
     const token = ((seed * timeStep) % 1000000).toString().padStart(6, '0');
 
     console.log("-----------------------------------------");
-    console.log(`CÓDIGO OTP GENERADO: ${token}`);
-    console.log(`USUARIO: ${foundUser.email}`);
-    console.log(`EXPIRA EN: ${Math.max(0, Math.floor(10 - diferenciaMinutos))} MINUTOS`);
+    console.log(`📱 CÓDIGO OTP GENERADO: ${token}`);
+    console.log(`👤 USUARIO: ${foundUser.email}`);
+    console.log(`⏳ EXPIRA EN: ${Math.max(0, Math.floor(10 - (secretoActual === foundUser.otpSecret ? diferenciaMinutos : 0)))} MINUTOS`);
     console.log("-----------------------------------------");
 
     return {
@@ -118,7 +118,7 @@ app.post('/api/auth/verify-otp', async ({ body }) => {
       .set({ otpVerified: true })
       .where(eq(user.id, userId));
     
-    console.log(`OTP VERIFICADO con éxito para: ${foundUser.email}`);
+    console.log(`✅ OTP VERIFICADO con éxito para: ${foundUser.email}`);
 
     return {
         status: "success",
@@ -127,11 +127,11 @@ app.post('/api/auth/verify-otp', async ({ body }) => {
     };
   }
 
-  console.log(`INTENTO FALLIDO de OTP para: ${foundUser.email}`);
+  console.log(`❌ INTENTO FALLIDO de OTP para: ${foundUser.email}`);
   return { status: "error", message: "Código inválido o expirado" };
 });
 
-//PROTECCIÓN POR ROLES Y SERVIDO DE ARCHIVOS
+// --- PROTECCIÓN POR ROLES Y SERVIDO DE ARCHIVOS ---
 
 app.guard({
   beforeHandle: protectMiddleware('admin')

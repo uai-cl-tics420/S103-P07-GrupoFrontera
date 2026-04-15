@@ -17344,9 +17344,6 @@ var require_jsx_runtime = __commonJS((exports, module) => {
 // src/main.tsx
 var import_client20 = __toESM(require_client(), 1);
 
-// src/App.tsx
-var import_react8 = __toESM(require_react(), 1);
-
 // node_modules/@better-auth/core/dist/env/env-impl.mjs
 var _envShim = Object.create(null);
 var _getEnv = (useShim) => globalThis.process?.env || globalThis.Deno?.env.toObject() || globalThis.__env__ || (useShim ? _envShim : globalThis);
@@ -19359,7 +19356,7 @@ var LoginForm = () => {
     try {
       await authClient.signIn.social({
         provider: "google",
-        callbackURL: "/dashboard"
+        callbackURL: window.location.origin
       });
     } catch (error) {
       console.error("Error al iniciar sesión con Google:", error);
@@ -19417,8 +19414,42 @@ var LoginForm_default = LoginForm;
 // src/components/auth/OTPVerify.tsx
 var import_react3 = __toESM(require_react(), 1);
 var jsx_dev_runtime2 = __toESM(require_jsx_dev_runtime(), 1);
-var OTPVerify = ({ onVerify }) => {
+var OTPVerify = ({ userId, onVerified }) => {
   const [code, setCode] = import_react3.useState("");
+  const [loading, setLoading] = import_react3.useState(false);
+  const [error, setError] = import_react3.useState("");
+  import_react3.useEffect(() => {
+    const fetchCode = async () => {
+      try {
+        await fetch(`http://localhost:4000/api/auth/get-my-otp/${userId}`);
+        console.log("Petición de código enviada al servidor...");
+      } catch (err) {
+        console.error("Error al pedir el código inicial:", err);
+      }
+    };
+    fetchCode();
+  }, [userId]);
+  const handleVerify = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch("http://localhost:4000/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, code })
+      });
+      const data = await response.json();
+      if (data.status === "success") {
+        onVerified();
+      } else {
+        setError("Código incorrecto o expirado");
+      }
+    } catch (err) {
+      setError("Error de conexión con el servidor");
+    } finally {
+      setLoading(false);
+    }
+  };
   return /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
     className: "min-h-screen flex items-center justify-center bg-[#FAFAFA]",
     children: /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
@@ -19440,10 +19471,15 @@ var OTPVerify = ({ onVerify }) => {
           placeholder: "000000",
           className: "w-full text-center text-4xl font-mono tracking-[0.5em] p-5 bg-gray-50 rounded-2xl mb-6 focus:ring-2 focus:ring-black outline-none transition-all"
         }, undefined, false, undefined, this),
+        error && /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("p", {
+          className: "text-red-500 text-xs mb-4",
+          children: error
+        }, undefined, false, undefined, this),
         /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("button", {
-          onClick: () => onVerify(code),
+          onClick: handleVerify,
+          disabled: loading || code.length < 6,
           className: "w-full bg-black text-white py-4 rounded-2xl font-bold hover:bg-zinc-800 transition-all active:scale-95",
-          children: "Verificar Código"
+          children: loading ? "Verificando..." : "Verificar Código"
         }, undefined, false, undefined, this)
       ]
     }, undefined, true, undefined, this)
@@ -21797,32 +21833,29 @@ function useUserPreferences() {
 // src/App.tsx
 var jsx_dev_runtime6 = __toESM(require_jsx_dev_runtime(), 1);
 function App() {
-  const [step, setStep] = import_react8.useState("login");
-  const [tempToken, setTempToken] = import_react8.useState("");
-  const handleOTPVerify = async (code) => {
-    if (code === "123456") {
-      setStep("dashboard");
-    } else {
-      alert("Código incorrecto");
-    }
-  };
+  const { data: session, isPending } = authClient.useSession();
   const { preferredCategory, setPreferredCategory } = useUserPreferences();
   const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(MOCK_ACTIVITIES, preferredCategory);
   const handleSelectCategory = (category) => {
     setSelectedCategory(category);
     setPreferredCategory(category);
   };
-  if (step === "login") {
-    return /* @__PURE__ */ jsx_dev_runtime6.jsxDEV(LoginForm_default, {
-      onLoginSuccess: (token) => {
-        setTempToken(token);
-        setStep("otp");
-      }
+  if (isPending) {
+    return /* @__PURE__ */ jsx_dev_runtime6.jsxDEV("div", {
+      className: "min-h-screen flex items-center justify-center bg-[#FAFAFA]",
+      children: /* @__PURE__ */ jsx_dev_runtime6.jsxDEV("p", {
+        className: "font-black italic text-gray-400 animate-pulse",
+        children: "Cargando..."
+      }, undefined, false, undefined, this)
     }, undefined, false, undefined, this);
   }
-  if (step === "otp") {
+  if (!session) {
+    return /* @__PURE__ */ jsx_dev_runtime6.jsxDEV(LoginForm_default, {}, undefined, false, undefined, this);
+  }
+  if (session.user && !session.user.otpVerified) {
     return /* @__PURE__ */ jsx_dev_runtime6.jsxDEV(OTPVerify_default, {
-      onVerify: handleOTPVerify
+      userId: session.user.id,
+      onVerified: () => window.location.reload()
     }, undefined, false, undefined, this);
   }
   return /* @__PURE__ */ jsx_dev_runtime6.jsxDEV("div", {
@@ -21836,6 +21869,13 @@ function App() {
             /* @__PURE__ */ jsx_dev_runtime6.jsxDEV("h1", {
               className: "text-2xl font-black tracking-tighter text-gray-900 italic",
               children: "PANORAMAS"
+            }, undefined, false, undefined, this),
+            /* @__PURE__ */ jsx_dev_runtime6.jsxDEV("div", {
+              className: "flex items-center gap-4",
+              children: /* @__PURE__ */ jsx_dev_runtime6.jsxDEV("span", {
+                className: "text-[10px] font-bold text-gray-400 uppercase tracking-tighter",
+                children: session.user.email
+              }, undefined, false, undefined, this)
             }, undefined, false, undefined, this),
             /* @__PURE__ */ jsx_dev_runtime6.jsxDEV("div", {
               className: "w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-fuchsia-600 border-2 border-white shadow-md"

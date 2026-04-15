@@ -7,7 +7,7 @@ const LoginForm = () => {
             //Función que abre Google
             await authClient.signIn.social({
                 provider: "google",
-                callbackURL: "/dashboard", //a donde irá el usuario después de loguearse
+                callbackURL: window.location.origin, //a donde irá el usuario después de loguearse
             });
         } catch (error) {
             console.error("Error al iniciar sesión con Google:", error);

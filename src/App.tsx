@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import LoginForm from './components/auth/LoginForm';
 import OTPVerify from './components/auth/OTPVerify';
 import ActivityCard from './components/ActivityCard';
@@ -7,21 +7,13 @@ import './index.css';
 import { CategoryFilter } from "./components/CategoryFilter";
 import { useCategoryFilter } from "./hooks/useCategoryFilter";
 import { useUserPreferences } from "./hooks/useUserPreferences";
+import { authClient } from "./lib/auth-client";
 
 export function App() {
-  //Lógica de seguridad
-  const [step, setStep] = useState<'login' | 'otp' | 'dashboard'>('login');
-  const [tempToken, setTempToken] = useState('');
+  //Lógica de sesión con betterauth
+  const { data: session, isPending } = authClient.useSession();
 
-  const handleOTPVerify = async (code: string) => {
-    if (code === "123456") {
-      setStep('dashboard'); //Si el código es correcto entramos al app real
-    } else {
-      alert("Código incorrecto");
-    }
-  };
-
-  // Leemos la preferencia guardada en localStorage (si existe)
+  // Leemos la preferencia guardada (si existe)
   const { preferredCategory, setPreferredCategory } = useUserPreferences();
 
   // Le pasamos la preferencia como categoría inicial al filtro
@@ -34,22 +26,28 @@ export function App() {
   };
 
   //Renderizado condicional
-  
-  //a) Pantalla de Login (sso)
-  if (step === 'login') {
+  //a) mientras verifica si hay sesión
+  if (isPending) {
     return (
-      <LoginForm
-        onLoginSuccess={(token) => {
-          setTempToken(token); //Guardamos el token que viene del backend
-          setStep('otp'); //Saltamos al paso de los números
-        }}
-      />
+      <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA]">
+        <p className="font-black italic text-gray-400 animate-pulse">Cargando...</p>
+      </div>
     );
   }
 
-  //b) Pantalla de verificación (otp)
-  if (step === 'otp') {
-    return <OTPVerify onVerify={handleOTPVerify} />;
+  //b) Pantalla de Login (si no hay nadie logueado)
+  if (!session) {
+    return <LoginForm />;
+  }
+
+  //c) pantalla de verificación OTP (si hay sesión pero no está verificado)
+  if (session.user && !(session.user as any).otpVerified) {
+    return (
+      <OTPVerify
+        userId={session.user.id}
+        onVerified={() => window.location.reload()}
+      />
+    );
   }
 
 
@@ -61,6 +59,11 @@ export function App() {
           <h1 className="text-2xl font-black tracking-tighter text-gray-900 italic">
             PANORAMAS
           </h1>
+          <div className="flex items-center gap-4">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
+              {session.user.email}
+            </span>
+          </div>
           <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-fuchsia-600 border-2 border-white shadow-md"></div>
         </div>
       </nav>
