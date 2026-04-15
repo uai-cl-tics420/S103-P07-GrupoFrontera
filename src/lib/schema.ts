@@ -16,7 +16,7 @@ export const userPreferences = pgTable('user_preferences', {
     id: text('id')
         .primaryKey()
         .$defaultFn(() => crypto.randomUUID()), // Crea un ID único automático
-    userId: text('user_id')
-        .references(() => user.id, { onDelete: 'cascade' }), // Lo unimos al Usuario
+    userId: text('user_id'),
+    // FK a user.id se agrega cuando #32 (auth) mergee y haya usuarios reales
     preferredCategories: text('preferred_categories').array(),
 });

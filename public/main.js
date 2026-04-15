@@ -17392,59 +17392,6 @@ var ActivityCard = ({ activity }) => {
 };
 var ActivityCard_default = ActivityCard;
 
-// src/mockActivities.ts
-var MOCK_ACTIVITIES = [
-  {
-    id: "act-01",
-    name: "Cine Hoyts La Reina",
-    category: "Cine" /* CINE */,
-    tagClima: "Any",
-    coordinates: { lat: -33.45, lng: -70.66 }
-  },
-  {
-    id: "act-02",
-    name: "Parque Araucano",
-    category: "Parque" /* PARQUE */,
-    tagClima: "Sunny",
-    coordinates: { lat: -33.4, lng: -70.57 }
-  },
-  {
-    id: "act-03",
-    name: "Teatro Municipal de Santiago",
-    category: "Teatro" /* TEATRO */,
-    tagClima: "Any",
-    coordinates: { lat: -33.44, lng: -70.64 }
-  },
-  {
-    id: "act-04",
-    name: "Museo Nacional de Bellas Artes",
-    category: "Museo" /* MUSEO */,
-    tagClima: "Any",
-    coordinates: { lat: -33.43, lng: -70.64 }
-  },
-  {
-    id: "act-05",
-    name: "Parque Bicentenario Vitacura",
-    category: "Parque" /* PARQUE */,
-    tagClima: "Sunny",
-    coordinates: { lat: -33.39, lng: -70.59 }
-  },
-  {
-    id: "act-06",
-    name: "Bocanáriz",
-    category: "Restaurante" /* RESTAURANTE */,
-    tagClima: "Any",
-    coordinates: { lat: -33.43, lng: -70.64 }
-  },
-  {
-    id: "act-07",
-    name: "Liguria Lastarria",
-    category: "Restaurante" /* RESTAURANTE */,
-    tagClima: "Any",
-    coordinates: { lat: -33.43, lng: -70.64 }
-  }
-];
-
 // node_modules/@radix-ui/react-slot/dist/index.mjs
 var React2 = __toESM(require_react(), 1);
 
@@ -19465,6 +19412,16 @@ function Button({
     ...props
   }, undefined, false, undefined, this);
 }
+
+// src/types/index.ts
+var Category;
+((Category2) => {
+  Category2["CINE"] = "Cine";
+  Category2["TEATRO"] = "Teatro";
+  Category2["PARQUE"] = "Parque";
+  Category2["MUSEO"] = "Museo";
+  Category2["RESTAURANTE"] = "Restaurante";
+})(Category ||= {});
 // node_modules/lucide-react/dist/esm/createLucideIcon.js
 var import_react2 = __toESM(require_react(), 1);
 
@@ -19639,8 +19596,8 @@ function CategoryFilter({ selectedCategory, onSelectCategory }) {
 
 // src/hooks/useCategoryFilter.ts
 var import_react3 = __toESM(require_react(), 1);
-function useCategoryFilter(activities) {
-  const [selectedCategory, setSelectedCategory] = import_react3.useState(null);
+function useCategoryFilter(activities, initialCategory = null) {
+  const [selectedCategory, setSelectedCategory] = import_react3.useState(initialCategory);
   const filteredActivities = import_react3.useMemo(() => {
     if (!selectedCategory)
       return activities;
@@ -19653,10 +19610,117 @@ function useCategoryFilter(activities) {
   };
 }
 
+// src/hooks/useUserPreferences.ts
+var import_react4 = __toESM(require_react(), 1);
+var STORAGE_KEY = "panoramas_categoria_preferida";
+function useUserPreferences() {
+  const [preferredCategory, setPreferredCategory] = import_react4.useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved && Object.values(Category).includes(saved)) {
+      return saved;
+    }
+    return null;
+  });
+  import_react4.useEffect(() => {
+    fetch("/api/preferences").then((r2) => r2.json()).then((data) => {
+      const first = data.categories[0];
+      if (first && Object.values(Category).includes(first)) {
+        setPreferredCategory(first);
+      }
+    }).catch(() => {});
+  }, []);
+  import_react4.useEffect(() => {
+    if (preferredCategory === null) {
+      localStorage.removeItem(STORAGE_KEY);
+    } else {
+      localStorage.setItem(STORAGE_KEY, preferredCategory);
+    }
+    const categories = preferredCategory ? [preferredCategory] : [];
+    fetch("/api/preferences", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ categories })
+    }).catch(() => {});
+  }, [preferredCategory]);
+  return {
+    preferredCategory,
+    setPreferredCategory
+  };
+}
+
+// src/hooks/useActivities.ts
+var import_react5 = __toESM(require_react(), 1);
+function useActivities() {
+  const [activities, setActivities] = import_react5.useState([]);
+  const [loading, setLoading] = import_react5.useState(true);
+  const [error, setError] = import_react5.useState(null);
+  import_react5.useEffect(() => {
+    fetch("/api/activities").then((r2) => {
+      if (!r2.ok)
+        throw new Error(`HTTP ${r2.status}`);
+      return r2.json();
+    }).then((data) => {
+      setActivities(data);
+      setLoading(false);
+    }).catch((err) => {
+      setError(err.message);
+      setLoading(false);
+    });
+  }, []);
+  return { activities, loading, error };
+}
+
+// src/recommendationService.ts
+var getRecommendedActivities = (user, activities) => {
+  return [...activities].sort((a, b) => {
+    const aEsFavorito = user.preferences.includes(a.category);
+    const bEsFavorito = user.preferences.includes(b.category);
+    if (aEsFavorito && !bEsFavorito)
+      return -1;
+    if (!aEsFavorito && bEsFavorito)
+      return 1;
+    return 0;
+  });
+};
+
 // src/App.tsx
 var jsx_dev_runtime4 = __toESM(require_jsx_dev_runtime(), 1);
 function App() {
-  const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(MOCK_ACTIVITIES);
+  const { activities, loading, error } = useActivities();
+  const { preferredCategory, setPreferredCategory } = useUserPreferences();
+  const mockUser = {
+    id: "mock-user-1",
+    name: "Usuario",
+    preferences: preferredCategory ? [preferredCategory] : [],
+    currentLocation: { lat: -33.4569, lng: -70.6483 }
+  };
+  const recommendedActivities = getRecommendedActivities(mockUser, activities);
+  const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(recommendedActivities, preferredCategory);
+  const handleSelectCategory = (category) => {
+    setSelectedCategory(category);
+    setPreferredCategory(category);
+  };
+  if (loading) {
+    return /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("div", {
+      className: "min-h-screen bg-[#FAFAFA] flex items-center justify-center",
+      children: /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("p", {
+        className: "text-gray-400 font-bold tracking-widest uppercase text-sm",
+        children: "Cargando panoramas…"
+      }, undefined, false, undefined, this)
+    }, undefined, false, undefined, this);
+  }
+  if (error) {
+    return /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("div", {
+      className: "min-h-screen bg-[#FAFAFA] flex items-center justify-center",
+      children: /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("p", {
+        className: "text-red-400 font-bold tracking-widest uppercase text-sm",
+        children: [
+          "Error: ",
+          error
+        ]
+      }, undefined, true, undefined, this)
+    }, undefined, false, undefined, this);
+  }
   return /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("div", {
     className: "min-h-screen bg-[#FAFAFA] font-sans pb-20",
     children: [
@@ -19683,7 +19747,7 @@ function App() {
             children: [
               /* @__PURE__ */ jsx_dev_runtime4.jsxDEV(CategoryFilter, {
                 selectedCategory,
-                onSelectCategory: setSelectedCategory
+                onSelectCategory: handleSelectCategory
               }, undefined, false, undefined, this),
               /* @__PURE__ */ jsx_dev_runtime4.jsxDEV("div", {
                 className: "px-2",

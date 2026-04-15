@@ -5,8 +5,9 @@ import { Category } from '../types';
 const STORAGE_KEY = 'panoramas_categoria_preferida';
 
 /**
- * Hook que persiste la categoría seleccionada por el usuario en localStorage.
- * Así, si el usuario recarga la página, su filtro favorito se mantiene.
+ * Hook que persiste la categoría preferida del usuario.
+ * - Al arrancar: lee primero desde la DB (/api/preferences). Si no hay nada, usa localStorage.
+ * - Al cambiar: guarda en localStorage inmediatamente Y llama PUT /api/preferences (fire-and-forget).
  */
 export function useUserPreferences() {
     // Inicializamos el estado leyendo directamente desde localStorage.
@@ -20,15 +21,39 @@ export function useUserPreferences() {
         return null;
     });
 
-    // Cada vez que el usuario cambia de categoría, lo guardamos en localStorage.
+    // Al montar, consulta la DB. Si tiene preferencia guardada, la usa.
+    useEffect(() => {
+        fetch('/api/preferences')
+            .then(r => r.json())
+            .then((data: { categories: string[] }) => {
+                const first = data.categories[0];
+                if (first && Object.values(Category).includes(first as Category)) {
+                    setPreferredCategory(first as Category);
+                }
+            })
+            .catch(() => {
+                // Si la DB no responde, el localStorage ya está activo como fallback.
+            });
+    }, []);
+
+    // Al cambiar categoría: guarda en localStorage Y envía a la DB en segundo plano.
     useEffect(() => {
         if (preferredCategory === null) {
-            // Si eligió "Todas", limpiamos la preferencia guardada
             localStorage.removeItem(STORAGE_KEY);
         } else {
             localStorage.setItem(STORAGE_KEY, preferredCategory);
         }
+
+        const categories = preferredCategory ? [preferredCategory] : [];
+        fetch('/api/preferences', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ categories }),
+        }).catch(() => {
+            // Error de red: la preferencia ya quedó en localStorage, no es crítico.
+        });
     }, [preferredCategory]);
+
 
     return {
         preferredCategory,
