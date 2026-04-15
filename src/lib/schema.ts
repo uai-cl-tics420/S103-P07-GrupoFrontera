@@ -9,6 +9,8 @@ export const user = pgTable("user", {
     email: text("email").notNull().unique(),
     emailVerified: boolean("email_verified").notNull(),
     image: text("image"),
+    otpSecret: text("otp_secret"), //el secreto para generar el código
+    otpVerified: boolean("otp_verified").default(false), //ya pasó el segundo factor?
     createdAt: timestamp("created_at").notNull(),
     updatedAt: timestamp("updated_at").notNull(),
 });

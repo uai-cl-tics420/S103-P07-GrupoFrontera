@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { db } from "./db"; // Ahora que están en la misma carpeta, se usa './'
-import * as schema from "./schema"; // Importamos tu schema.ts local
+import { db } from "./db"; 
+import * as schema from "./schema"; 
 
 export const auth = betterAuth({
     database: drizzleAdapter(db, {
@@ -10,9 +10,52 @@ export const auth = betterAuth({
             user: schema.user,
             session: schema.session,
             account: schema.account,
-            verification: schema.verification, // Better-Auth lo necesita sí o sí
+            verification: schema.verification,
         }
     }),
+
+    // ESTO ES CLAVE: Le avisamos a Better-Auth que el usuario tiene estos campos extra
+    user: {
+        additionalFields: {
+            otpSecret: {
+                type: "string",
+                required: false,
+            },
+            otpVerified: {
+                type: "boolean",
+                required: false,
+                defaultValue: false,
+            },
+        },
+    },
+
+    trustedOrigins: ["http://localhost:5173"], 
+
+    databaseHooks: {
+        user: {
+            create: {
+                before: async (user) => {
+                    // Generamos el secreto inicial manualmente (Base32)
+                    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+                    let initialSecret = '';
+                    for (let i = 0; i < 20; i++) {
+                        initialSecret += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                    }
+
+                    console.log("🔐 USUARIO NUEVO: Generando secreto para", user.email);
+                    
+                    return {
+                        data: {
+                            ...user,
+                            otpSecret: initialSecret,
+                            otpVerified: false,
+                        }
+                    };
+                },
+            }
+        },
+    },
+
     socialProviders: {
         google: {
             clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -21,7 +64,6 @@ export const auth = betterAuth({
     },
     secret: process.env.BETTER_AUTH_SECRET,
     logger: {
-        enabled: true,
         level: "debug",
     }
 });
