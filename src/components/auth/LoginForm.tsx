@@ -1,19 +1,17 @@
 import React from 'react';
+import { authClient } from "@/lib/auth-client";
 
-const LoginForm = ({ onLoginSuccess }: { onLoginSuccess: (token: string) => void }) => {
-    const handleLogin = async () => {
+const LoginForm = () => {
+    const handleGoogleLogin = async () => {
         try {
-            //Hacemos la petición al backend sin irnos de la página
-            const response = await fetch('http://localhost:4000/auth/login');
-            const data = await response.json();
-
-            if (data.temp_token) {
-                //Si el backend nos da el token, le avisamos a App.tsx
-                onLoginSuccess(data.temp_token);
-            }
+            //Función que abre Google
+            await authClient.signIn.social({
+                provider: "google",
+                callbackURL: "/dashboard", //a donde irá el usuario después de loguearse
+            });
         } catch (error) {
-            console.error("Error al conectar con el servidor:", error);
-            alert("El servidor no responde.");
+            console.error("Error al iniciar sesión con Google:", error);
+            alert("Hubo un problema al conectar con Google.");
         }
     };
 
@@ -34,7 +32,7 @@ const LoginForm = ({ onLoginSuccess }: { onLoginSuccess: (token: string) => void
                 </p>
 
                 <button
-                    onClick={handleLogin}
+                    onClick={handleGoogleLogin} //cambiamos la función que antes era handleLogin
                     className="w-full flex items-center justify-center gap-3 bg-black text-white py-4 px-6 rounded-2xl font-bold hover:bg-zinc-800 transition-all active:scale-95 shadow-lg shadow-black/5"
                 >
                     {/* Ícono de Google */}

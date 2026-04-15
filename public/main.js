@@ -17342,24 +17342,2028 @@ var require_jsx_runtime = __commonJS((exports, module) => {
 });
 
 // src/main.tsx
-var import_client = __toESM(require_client(), 1);
+var import_client20 = __toESM(require_client(), 1);
 
 // src/App.tsx
-var import_react6 = __toESM(require_react(), 1);
+var import_react8 = __toESM(require_react(), 1);
+
+// node_modules/@better-auth/core/dist/env/env-impl.mjs
+var _envShim = Object.create(null);
+var _getEnv = (useShim) => globalThis.process?.env || globalThis.Deno?.env.toObject() || globalThis.__env__ || (useShim ? _envShim : globalThis);
+var env = new Proxy(_envShim, {
+  get(_, prop) {
+    return _getEnv()[prop] ?? _envShim[prop];
+  },
+  has(_, prop) {
+    return prop in _getEnv() || prop in _envShim;
+  },
+  set(_, prop, value) {
+    const env2 = _getEnv(true);
+    env2[prop] = value;
+    return true;
+  },
+  deleteProperty(_, prop) {
+    if (!prop)
+      return false;
+    const env2 = _getEnv(true);
+    delete env2[prop];
+    return true;
+  },
+  ownKeys() {
+    const env2 = _getEnv(true);
+    return Object.keys(env2);
+  }
+});
+var nodeENV = typeof process !== "undefined" && process.env && "development" || "";
+function getEnvVar(key, fallback) {
+  if (typeof process !== "undefined" && process.env)
+    return process.env[key] ?? fallback;
+  if (typeof Deno !== "undefined")
+    return Deno.env.get(key) ?? fallback;
+  if (typeof Bun !== "undefined")
+    return Bun.env[key] ?? fallback;
+  return fallback;
+}
+var ENV = Object.freeze({
+  get BETTER_AUTH_SECRET() {
+    return getEnvVar("BETTER_AUTH_SECRET");
+  },
+  get AUTH_SECRET() {
+    return getEnvVar("AUTH_SECRET");
+  },
+  get BETTER_AUTH_TELEMETRY() {
+    return getEnvVar("BETTER_AUTH_TELEMETRY");
+  },
+  get BETTER_AUTH_TELEMETRY_ID() {
+    return getEnvVar("BETTER_AUTH_TELEMETRY_ID");
+  },
+  get NODE_ENV() {
+    return getEnvVar("NODE_ENV", "development");
+  },
+  get PACKAGE_VERSION() {
+    return getEnvVar("PACKAGE_VERSION", "0.0.0");
+  },
+  get BETTER_AUTH_TELEMETRY_ENDPOINT() {
+    return getEnvVar("BETTER_AUTH_TELEMETRY_ENDPOINT", "");
+  }
+});
+// node_modules/@better-auth/core/dist/utils/error-codes.mjs
+function defineErrorCodes(codes) {
+  return Object.fromEntries(Object.entries(codes).map(([key, value]) => [key, {
+    code: key,
+    message: value,
+    toString: () => key
+  }]));
+}
+
+// node_modules/better-call/dist/error.mjs
+function isErrorStackTraceLimitWritable() {
+  const desc = Object.getOwnPropertyDescriptor(Error, "stackTraceLimit");
+  if (desc === undefined)
+    return Object.isExtensible(Error);
+  return Object.prototype.hasOwnProperty.call(desc, "writable") ? desc.writable : desc.set !== undefined;
+}
+function hideInternalStackFrames(stack) {
+  const lines = stack.split(`
+    at `);
+  if (lines.length <= 1)
+    return stack;
+  lines.splice(1, 1);
+  return lines.join(`
+    at `);
+}
+function makeErrorForHideStackFrame(Base, clazz) {
+
+  class HideStackFramesError extends Base {
+    #hiddenStack;
+    constructor(...args) {
+      if (isErrorStackTraceLimitWritable()) {
+        const limit = Error.stackTraceLimit;
+        Error.stackTraceLimit = 0;
+        super(...args);
+        Error.stackTraceLimit = limit;
+      } else
+        super(...args);
+      const stack = (/* @__PURE__ */ new Error()).stack;
+      if (stack)
+        this.#hiddenStack = hideInternalStackFrames(stack.replace(/^Error/, this.name));
+    }
+    get errorStack() {
+      return this.#hiddenStack;
+    }
+  }
+  Object.defineProperty(HideStackFramesError.prototype, "constructor", {
+    get() {
+      return clazz;
+    },
+    enumerable: false,
+    configurable: true
+  });
+  return HideStackFramesError;
+}
+var statusCodes = {
+  OK: 200,
+  CREATED: 201,
+  ACCEPTED: 202,
+  NO_CONTENT: 204,
+  MULTIPLE_CHOICES: 300,
+  MOVED_PERMANENTLY: 301,
+  FOUND: 302,
+  SEE_OTHER: 303,
+  NOT_MODIFIED: 304,
+  TEMPORARY_REDIRECT: 307,
+  BAD_REQUEST: 400,
+  UNAUTHORIZED: 401,
+  PAYMENT_REQUIRED: 402,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  METHOD_NOT_ALLOWED: 405,
+  NOT_ACCEPTABLE: 406,
+  PROXY_AUTHENTICATION_REQUIRED: 407,
+  REQUEST_TIMEOUT: 408,
+  CONFLICT: 409,
+  GONE: 410,
+  LENGTH_REQUIRED: 411,
+  PRECONDITION_FAILED: 412,
+  PAYLOAD_TOO_LARGE: 413,
+  URI_TOO_LONG: 414,
+  UNSUPPORTED_MEDIA_TYPE: 415,
+  RANGE_NOT_SATISFIABLE: 416,
+  EXPECTATION_FAILED: 417,
+  "I'M_A_TEAPOT": 418,
+  MISDIRECTED_REQUEST: 421,
+  UNPROCESSABLE_ENTITY: 422,
+  LOCKED: 423,
+  FAILED_DEPENDENCY: 424,
+  TOO_EARLY: 425,
+  UPGRADE_REQUIRED: 426,
+  PRECONDITION_REQUIRED: 428,
+  TOO_MANY_REQUESTS: 429,
+  REQUEST_HEADER_FIELDS_TOO_LARGE: 431,
+  UNAVAILABLE_FOR_LEGAL_REASONS: 451,
+  INTERNAL_SERVER_ERROR: 500,
+  NOT_IMPLEMENTED: 501,
+  BAD_GATEWAY: 502,
+  SERVICE_UNAVAILABLE: 503,
+  GATEWAY_TIMEOUT: 504,
+  HTTP_VERSION_NOT_SUPPORTED: 505,
+  VARIANT_ALSO_NEGOTIATES: 506,
+  INSUFFICIENT_STORAGE: 507,
+  LOOP_DETECTED: 508,
+  NOT_EXTENDED: 510,
+  NETWORK_AUTHENTICATION_REQUIRED: 511
+};
+var InternalAPIError = class extends Error {
+  constructor(status = "INTERNAL_SERVER_ERROR", body = undefined, headers = {}, statusCode = typeof status === "number" ? status : statusCodes[status]) {
+    super(body?.message, body?.cause ? { cause: body.cause } : undefined);
+    this.status = status;
+    this.body = body;
+    this.headers = headers;
+    this.statusCode = statusCode;
+    this.name = "APIError";
+    this.status = status;
+    this.headers = headers;
+    this.statusCode = statusCode;
+    this.body = body;
+  }
+};
+var kAPIErrorHeaderSymbol = Symbol.for("better-call:api-error-headers");
+var APIError = makeErrorForHideStackFrame(InternalAPIError, Error);
+
+// node_modules/@better-auth/core/dist/error/index.mjs
+var BetterAuthError = class extends Error {
+  constructor(message, options) {
+    super(message, options);
+    this.name = "BetterAuthError";
+    this.message = message;
+    this.stack = "";
+  }
+};
+
+// node_modules/better-auth/dist/utils/url.mjs
+function checkHasPath(url) {
+  try {
+    return (new URL(url).pathname.replace(/\/+$/, "") || "/") !== "/";
+  } catch {
+    throw new BetterAuthError(`Invalid base URL: ${url}. Please provide a valid base URL.`);
+  }
+}
+function assertHasProtocol(url) {
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:")
+      throw new BetterAuthError(`Invalid base URL: ${url}. URL must include 'http://' or 'https://'`);
+  } catch (error) {
+    if (error instanceof BetterAuthError)
+      throw error;
+    throw new BetterAuthError(`Invalid base URL: ${url}. Please provide a valid base URL.`, { cause: error });
+  }
+}
+function withPath(url, path = "/api/auth") {
+  assertHasProtocol(url);
+  if (checkHasPath(url))
+    return url;
+  const trimmedUrl = url.replace(/\/+$/, "");
+  if (!path || path === "/")
+    return trimmedUrl;
+  path = path.startsWith("/") ? path : `/${path}`;
+  return `${trimmedUrl}${path}`;
+}
+function validateProxyHeader(header, type) {
+  if (!header || header.trim() === "")
+    return false;
+  if (type === "proto")
+    return header === "http" || header === "https";
+  if (type === "host") {
+    if ([
+      /\.\./,
+      /\0/,
+      /[\s]/,
+      /^[.]/,
+      /[<>'"]/,
+      /javascript:/i,
+      /file:/i,
+      /data:/i
+    ].some((pattern) => pattern.test(header)))
+      return false;
+    return /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?$/.test(header) || /^(\d{1,3}\.){3}\d{1,3}(:[0-9]{1,5})?$/.test(header) || /^\[[0-9a-fA-F:]+\](:[0-9]{1,5})?$/.test(header) || /^localhost(:[0-9]{1,5})?$/i.test(header);
+  }
+  return false;
+}
+function getBaseURL(url, path, request, loadEnv, trustedProxyHeaders) {
+  if (url)
+    return withPath(url, path);
+  if (loadEnv !== false) {
+    const fromEnv = env.BETTER_AUTH_URL || env.NEXT_PUBLIC_BETTER_AUTH_URL || env.PUBLIC_BETTER_AUTH_URL || env.NUXT_PUBLIC_BETTER_AUTH_URL || env.NUXT_PUBLIC_AUTH_URL || (env.BASE_URL !== "/" ? env.BASE_URL : undefined);
+    if (fromEnv)
+      return withPath(fromEnv, path);
+  }
+  const fromRequest = request?.headers.get("x-forwarded-host");
+  const fromRequestProto = request?.headers.get("x-forwarded-proto");
+  if (fromRequest && fromRequestProto && trustedProxyHeaders) {
+    if (validateProxyHeader(fromRequestProto, "proto") && validateProxyHeader(fromRequest, "host"))
+      try {
+        return withPath(`${fromRequestProto}://${fromRequest}`, path);
+      } catch (_error) {}
+  }
+  if (request) {
+    const url2 = getOrigin(request.url);
+    if (!url2)
+      throw new BetterAuthError("Could not get origin from request. Please provide a valid base URL.");
+    return withPath(url2, path);
+  }
+  if (typeof window !== "undefined" && window.location)
+    return withPath(window.location.origin, path);
+}
+function getOrigin(url) {
+  try {
+    const parsedUrl = new URL(url);
+    return parsedUrl.origin === "null" ? null : parsedUrl.origin;
+  } catch {
+    return null;
+  }
+}
+
+// node_modules/better-auth/dist/client/parser.mjs
+var PROTO_POLLUTION_PATTERNS = {
+  proto: /"(?:_|\\u0{2}5[Ff]){2}(?:p|\\u0{2}70)(?:r|\\u0{2}72)(?:o|\\u0{2}6[Ff])(?:t|\\u0{2}74)(?:o|\\u0{2}6[Ff])(?:_|\\u0{2}5[Ff]){2}"\s*:/,
+  constructor: /"(?:c|\\u0063)(?:o|\\u006[Ff])(?:n|\\u006[Ee])(?:s|\\u0073)(?:t|\\u0074)(?:r|\\u0072)(?:u|\\u0075)(?:c|\\u0063)(?:t|\\u0074)(?:o|\\u006[Ff])(?:r|\\u0072)"\s*:/,
+  protoShort: /"__proto__"\s*:/,
+  constructorShort: /"constructor"\s*:/
+};
+var JSON_SIGNATURE = /^\s*["[{]|^\s*-?\d{1,16}(\.\d{1,17})?([Ee][+-]?\d+)?\s*$/;
+var SPECIAL_VALUES = {
+  true: true,
+  false: false,
+  null: null,
+  undefined: undefined,
+  nan: NaN,
+  infinity: Number.POSITIVE_INFINITY,
+  "-infinity": Number.NEGATIVE_INFINITY
+};
+var ISO_DATE_REGEX = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,7}))?(?:Z|([+-])(\d{2}):(\d{2}))$/;
+function isValidDate(date) {
+  return date instanceof Date && !isNaN(date.getTime());
+}
+function parseISODate(value) {
+  const match = ISO_DATE_REGEX.exec(value);
+  if (!match)
+    return null;
+  const [, year, month, day, hour, minute, second, ms, offsetSign, offsetHour, offsetMinute] = match;
+  const date = new Date(Date.UTC(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10), parseInt(hour, 10), parseInt(minute, 10), parseInt(second, 10), ms ? parseInt(ms.padEnd(3, "0"), 10) : 0));
+  if (offsetSign) {
+    const offset = (parseInt(offsetHour, 10) * 60 + parseInt(offsetMinute, 10)) * (offsetSign === "+" ? -1 : 1);
+    date.setUTCMinutes(date.getUTCMinutes() + offset);
+  }
+  return isValidDate(date) ? date : null;
+}
+function betterJSONParse(value, options = {}) {
+  const { strict = false, warnings = false, reviver, parseDates = true } = options;
+  if (typeof value !== "string")
+    return value;
+  const trimmed = value.trim();
+  if (trimmed.length > 0 && trimmed[0] === '"' && trimmed.endsWith('"') && !trimmed.slice(1, -1).includes('"'))
+    return trimmed.slice(1, -1);
+  const lowerValue = trimmed.toLowerCase();
+  if (lowerValue.length <= 9 && lowerValue in SPECIAL_VALUES)
+    return SPECIAL_VALUES[lowerValue];
+  if (!JSON_SIGNATURE.test(trimmed)) {
+    if (strict)
+      throw new SyntaxError("[better-json] Invalid JSON");
+    return value;
+  }
+  if (Object.entries(PROTO_POLLUTION_PATTERNS).some(([key, pattern]) => {
+    const matches = pattern.test(trimmed);
+    if (matches && warnings)
+      console.warn(`[better-json] Detected potential prototype pollution attempt using ${key} pattern`);
+    return matches;
+  }) && strict)
+    throw new Error("[better-json] Potential prototype pollution attempt detected");
+  try {
+    const secureReviver = (key, value2) => {
+      if (key === "__proto__" || key === "constructor" && value2 && typeof value2 === "object" && "prototype" in value2) {
+        if (warnings)
+          console.warn(`[better-json] Dropping "${key}" key to prevent prototype pollution`);
+        return;
+      }
+      if (parseDates && typeof value2 === "string") {
+        const date = parseISODate(value2);
+        if (date)
+          return date;
+      }
+      return reviver ? reviver(key, value2) : value2;
+    };
+    return JSON.parse(trimmed, secureReviver);
+  } catch (error) {
+    if (strict)
+      throw error;
+    return value;
+  }
+}
+function parseJSON(value, options = { strict: true }) {
+  return betterJSONParse(value, options);
+}
+
+// node_modules/better-auth/dist/client/fetch-plugins.mjs
+var redirectPlugin = {
+  id: "redirect",
+  name: "Redirect",
+  hooks: { onSuccess(context) {
+    if (context.data?.url && context.data?.redirect) {
+      if (typeof window !== "undefined" && window.location) {
+        if (window.location)
+          try {
+            window.location.href = context.data.url;
+          } catch {}
+      }
+    }
+  } }
+};
+
+// node_modules/nanostores/clean-stores/index.js
+var clean = Symbol("clean");
+
+// node_modules/nanostores/atom/index.js
+var listenerQueue = [];
+var lqIndex = 0;
+var QUEUE_ITEMS_PER_LISTENER = 4;
+var epoch = 0;
+var atom = (initialValue) => {
+  let listeners = [];
+  let $atom = {
+    get() {
+      if (!$atom.lc) {
+        $atom.listen(() => {})();
+      }
+      return $atom.value;
+    },
+    init: initialValue,
+    lc: 0,
+    listen(listener) {
+      $atom.lc = listeners.push(listener);
+      return () => {
+        for (let i = lqIndex + QUEUE_ITEMS_PER_LISTENER;i < listenerQueue.length; ) {
+          if (listenerQueue[i] === listener) {
+            listenerQueue.splice(i, QUEUE_ITEMS_PER_LISTENER);
+          } else {
+            i += QUEUE_ITEMS_PER_LISTENER;
+          }
+        }
+        let index = listeners.indexOf(listener);
+        if (~index) {
+          listeners.splice(index, 1);
+          if (!--$atom.lc)
+            $atom.off();
+        }
+      };
+    },
+    notify(oldValue, changedKey) {
+      epoch++;
+      let runListenerQueue = !listenerQueue.length;
+      for (let listener of listeners) {
+        listenerQueue.push(listener, $atom.value, oldValue, changedKey);
+      }
+      if (runListenerQueue) {
+        for (lqIndex = 0;lqIndex < listenerQueue.length; lqIndex += QUEUE_ITEMS_PER_LISTENER) {
+          listenerQueue[lqIndex](listenerQueue[lqIndex + 1], listenerQueue[lqIndex + 2], listenerQueue[lqIndex + 3]);
+        }
+        listenerQueue.length = 0;
+      }
+    },
+    off() {},
+    set(newValue) {
+      let oldValue = $atom.value;
+      if (oldValue !== newValue) {
+        $atom.value = newValue;
+        $atom.notify(oldValue);
+      }
+    },
+    subscribe(listener) {
+      let unbind = $atom.listen(listener);
+      listener($atom.value);
+      return unbind;
+    },
+    value: initialValue
+  };
+  if (true) {
+    $atom[clean] = () => {
+      listeners = [];
+      $atom.lc = 0;
+      $atom.off();
+    };
+  }
+  return $atom;
+};
+// node_modules/nanostores/lifecycle/index.js
+var MOUNT = 5;
+var UNMOUNT = 6;
+var REVERT_MUTATION = 10;
+var on = (object, listener, eventKey, mutateStore) => {
+  object.events = object.events || {};
+  if (!object.events[eventKey + REVERT_MUTATION]) {
+    object.events[eventKey + REVERT_MUTATION] = mutateStore((eventProps) => {
+      object.events[eventKey].reduceRight((event, l) => (l(event), event), {
+        shared: {},
+        ...eventProps
+      });
+    });
+  }
+  object.events[eventKey] = object.events[eventKey] || [];
+  object.events[eventKey].push(listener);
+  return () => {
+    let currentListeners = object.events[eventKey];
+    let index = currentListeners.indexOf(listener);
+    currentListeners.splice(index, 1);
+    if (!currentListeners.length) {
+      delete object.events[eventKey];
+      object.events[eventKey + REVERT_MUTATION]();
+      delete object.events[eventKey + REVERT_MUTATION];
+    }
+  };
+};
+var STORE_UNMOUNT_DELAY = 1000;
+var onMount = ($store, initialize) => {
+  let listener = (payload) => {
+    let destroy = initialize(payload);
+    if (destroy)
+      $store.events[UNMOUNT].push(destroy);
+  };
+  return on($store, listener, MOUNT, (runListeners) => {
+    let originListen = $store.listen;
+    $store.listen = (...args) => {
+      if (!$store.lc && !$store.active) {
+        $store.active = true;
+        runListeners();
+      }
+      return originListen(...args);
+    };
+    let originOff = $store.off;
+    $store.events[UNMOUNT] = [];
+    $store.off = () => {
+      originOff();
+      setTimeout(() => {
+        if ($store.active && !$store.lc) {
+          $store.active = false;
+          for (let destroy of $store.events[UNMOUNT])
+            destroy();
+          $store.events[UNMOUNT] = [];
+        }
+      }, STORE_UNMOUNT_DELAY);
+    };
+    if (true) {
+      let originClean = $store[clean];
+      $store[clean] = () => {
+        for (let destroy of $store.events[UNMOUNT])
+          destroy();
+        $store.events[UNMOUNT] = [];
+        $store.active = false;
+        originClean();
+      };
+    }
+    return () => {
+      $store.listen = originListen;
+      $store.off = originOff;
+    };
+  });
+};
+// node_modules/nanostores/listen-keys/index.js
+function listenKeys($store, keys, listener) {
+  let keysSet = new Set(keys).add(undefined);
+  return $store.listen((value, oldValue, changed) => {
+    if (keysSet.has(changed)) {
+      listener(value, oldValue, changed);
+    }
+  });
+}
+// node_modules/better-auth/dist/client/query.mjs
+var isServer = () => typeof window === "undefined";
+var useAuthQuery = (initializedAtom, path, $fetch, options) => {
+  const value = atom({
+    data: null,
+    error: null,
+    isPending: true,
+    isRefetching: false,
+    refetch: (queryParams) => fn(queryParams)
+  });
+  const fn = async (queryParams) => {
+    return new Promise((resolve) => {
+      const opts = typeof options === "function" ? options({
+        data: value.get().data,
+        error: value.get().error,
+        isPending: value.get().isPending
+      }) : options;
+      $fetch(path, {
+        ...opts,
+        query: {
+          ...opts?.query,
+          ...queryParams?.query
+        },
+        async onSuccess(context) {
+          value.set({
+            data: context.data,
+            error: null,
+            isPending: false,
+            isRefetching: false,
+            refetch: value.value.refetch
+          });
+          await opts?.onSuccess?.(context);
+        },
+        async onError(context) {
+          const { request } = context;
+          const retryAttempts = typeof request.retry === "number" ? request.retry : request.retry?.attempts;
+          const retryAttempt = request.retryAttempt || 0;
+          if (retryAttempts && retryAttempt < retryAttempts)
+            return;
+          const isUnauthorized = context.error.status === 401;
+          value.set({
+            error: context.error,
+            data: isUnauthorized ? null : value.get().data,
+            isPending: false,
+            isRefetching: false,
+            refetch: value.value.refetch
+          });
+          await opts?.onError?.(context);
+        },
+        async onRequest(context) {
+          const currentValue = value.get();
+          value.set({
+            isPending: currentValue.data === null,
+            data: currentValue.data,
+            error: null,
+            isRefetching: true,
+            refetch: value.value.refetch
+          });
+          await opts?.onRequest?.(context);
+        }
+      }).catch((error) => {
+        value.set({
+          error,
+          data: value.get().data,
+          isPending: false,
+          isRefetching: false,
+          refetch: value.value.refetch
+        });
+      }).finally(() => {
+        resolve(undefined);
+      });
+    });
+  };
+  initializedAtom = Array.isArray(initializedAtom) ? initializedAtom : [initializedAtom];
+  let isMounted = false;
+  for (const initAtom of initializedAtom)
+    initAtom.subscribe(async () => {
+      if (isServer())
+        return;
+      if (isMounted)
+        await fn();
+      else
+        onMount(value, () => {
+          const timeoutId = setTimeout(async () => {
+            if (!isMounted) {
+              await fn();
+              isMounted = true;
+            }
+          }, 0);
+          return () => {
+            value.off();
+            initAtom.off();
+            clearTimeout(timeoutId);
+          };
+        });
+    });
+  return value;
+};
+
+// node_modules/better-auth/dist/client/broadcast-channel.mjs
+var kBroadcastChannel = Symbol.for("better-auth:broadcast-channel");
+var now = () => Math.floor(Date.now() / 1000);
+var WindowBroadcastChannel = class {
+  listeners = /* @__PURE__ */ new Set;
+  name;
+  constructor(name = "better-auth.message") {
+    this.name = name;
+  }
+  subscribe(listener) {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+  post(message) {
+    if (typeof window === "undefined")
+      return;
+    try {
+      localStorage.setItem(this.name, JSON.stringify({
+        ...message,
+        timestamp: now()
+      }));
+    } catch {}
+  }
+  setup() {
+    if (typeof window === "undefined" || typeof window.addEventListener === "undefined")
+      return () => {};
+    const handler = (event) => {
+      if (event.key !== this.name)
+        return;
+      const message = JSON.parse(event.newValue ?? "{}");
+      if (message?.event !== "session" || !message?.data)
+        return;
+      this.listeners.forEach((listener) => listener(message));
+    };
+    window.addEventListener("storage", handler);
+    return () => {
+      window.removeEventListener("storage", handler);
+    };
+  }
+};
+function getGlobalBroadcastChannel(name = "better-auth.message") {
+  if (!globalThis[kBroadcastChannel])
+    globalThis[kBroadcastChannel] = new WindowBroadcastChannel(name);
+  return globalThis[kBroadcastChannel];
+}
+
+// node_modules/better-auth/dist/client/focus-manager.mjs
+var kFocusManager = Symbol.for("better-auth:focus-manager");
+var WindowFocusManager = class {
+  listeners = /* @__PURE__ */ new Set;
+  subscribe(listener) {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+  setFocused(focused) {
+    this.listeners.forEach((listener) => listener(focused));
+  }
+  setup() {
+    if (typeof window === "undefined" || typeof document === "undefined" || typeof window.addEventListener === "undefined")
+      return () => {};
+    const visibilityHandler = () => {
+      if (document.visibilityState === "visible")
+        this.setFocused(true);
+    };
+    document.addEventListener("visibilitychange", visibilityHandler, false);
+    return () => {
+      document.removeEventListener("visibilitychange", visibilityHandler, false);
+    };
+  }
+};
+function getGlobalFocusManager() {
+  if (!globalThis[kFocusManager])
+    globalThis[kFocusManager] = new WindowFocusManager;
+  return globalThis[kFocusManager];
+}
+
+// node_modules/better-auth/dist/client/online-manager.mjs
+var kOnlineManager = Symbol.for("better-auth:online-manager");
+var WindowOnlineManager = class {
+  listeners = /* @__PURE__ */ new Set;
+  isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
+  subscribe(listener) {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+  setOnline(online) {
+    this.isOnline = online;
+    this.listeners.forEach((listener) => listener(online));
+  }
+  setup() {
+    if (typeof window === "undefined" || typeof window.addEventListener === "undefined")
+      return () => {};
+    const onOnline = () => this.setOnline(true);
+    const onOffline = () => this.setOnline(false);
+    window.addEventListener("online", onOnline, false);
+    window.addEventListener("offline", onOffline, false);
+    return () => {
+      window.removeEventListener("online", onOnline, false);
+      window.removeEventListener("offline", onOffline, false);
+    };
+  }
+};
+function getGlobalOnlineManager() {
+  if (!globalThis[kOnlineManager])
+    globalThis[kOnlineManager] = new WindowOnlineManager;
+  return globalThis[kOnlineManager];
+}
+
+// node_modules/better-auth/dist/client/session-refresh.mjs
+var now2 = () => Math.floor(Date.now() / 1000);
+function normalizeSessionResponse(res) {
+  if (typeof res === "object" && res !== null && "data" in res && "error" in res)
+    return res;
+  return {
+    data: res,
+    error: null
+  };
+}
+var FOCUS_REFETCH_RATE_LIMIT_SECONDS = 5;
+function createSessionRefreshManager(opts) {
+  const { sessionAtom, sessionSignal, $fetch, options = {} } = opts;
+  const refetchInterval = options.sessionOptions?.refetchInterval ?? 0;
+  const refetchOnWindowFocus = options.sessionOptions?.refetchOnWindowFocus ?? true;
+  const refetchWhenOffline = options.sessionOptions?.refetchWhenOffline ?? false;
+  const state = {
+    lastSync: 0,
+    lastSessionRequest: 0,
+    cachedSession: undefined
+  };
+  const shouldRefetch = () => {
+    return refetchWhenOffline || getGlobalOnlineManager().isOnline;
+  };
+  const triggerRefetch = (event) => {
+    if (!shouldRefetch())
+      return;
+    if (event?.event === "storage") {
+      state.lastSync = now2();
+      sessionSignal.set(!sessionSignal.get());
+      return;
+    }
+    const currentSession = sessionAtom.get();
+    const fetchSessionWithRefresh = () => {
+      state.lastSessionRequest = now2();
+      $fetch("/get-session").then(async (res) => {
+        let { data, error } = normalizeSessionResponse(res);
+        if (data?.needsRefresh)
+          try {
+            const refreshRes = await $fetch("/get-session", { method: "POST" });
+            ({ data, error } = normalizeSessionResponse(refreshRes));
+          } catch {}
+        const sessionData = data?.session && data?.user ? data : null;
+        sessionAtom.set({
+          ...currentSession,
+          data: sessionData,
+          error
+        });
+        state.lastSync = now2();
+        sessionSignal.set(!sessionSignal.get());
+      }).catch(() => {});
+    };
+    if (event?.event === "poll") {
+      fetchSessionWithRefresh();
+      return;
+    }
+    if (event?.event === "visibilitychange") {
+      if (now2() - state.lastSessionRequest < FOCUS_REFETCH_RATE_LIMIT_SECONDS)
+        return;
+      state.lastSessionRequest = now2();
+    }
+    if (event?.event === "visibilitychange") {
+      fetchSessionWithRefresh();
+      return;
+    }
+    if (currentSession?.data === null || currentSession?.data === undefined) {
+      state.lastSync = now2();
+      sessionSignal.set(!sessionSignal.get());
+    }
+  };
+  const broadcastSessionUpdate = (trigger) => {
+    getGlobalBroadcastChannel().post({
+      event: "session",
+      data: { trigger },
+      clientId: Math.random().toString(36).substring(7)
+    });
+  };
+  const setupPolling = () => {
+    if (refetchInterval && refetchInterval > 0)
+      state.pollInterval = setInterval(() => {
+        if (sessionAtom.get()?.data)
+          triggerRefetch({ event: "poll" });
+      }, refetchInterval * 1000);
+  };
+  const setupBroadcast = () => {
+    state.unsubscribeBroadcast = getGlobalBroadcastChannel().subscribe(() => {
+      triggerRefetch({ event: "storage" });
+    });
+  };
+  const setupFocusRefetch = () => {
+    if (!refetchOnWindowFocus)
+      return;
+    state.unsubscribeFocus = getGlobalFocusManager().subscribe(() => {
+      triggerRefetch({ event: "visibilitychange" });
+    });
+  };
+  const setupOnlineRefetch = () => {
+    state.unsubscribeOnline = getGlobalOnlineManager().subscribe((online) => {
+      if (online)
+        triggerRefetch({ event: "visibilitychange" });
+    });
+  };
+  const init = () => {
+    setupPolling();
+    setupBroadcast();
+    setupFocusRefetch();
+    setupOnlineRefetch();
+    getGlobalBroadcastChannel().setup();
+    getGlobalFocusManager().setup();
+    getGlobalOnlineManager().setup();
+  };
+  const cleanup = () => {
+    if (state.pollInterval) {
+      clearInterval(state.pollInterval);
+      state.pollInterval = undefined;
+    }
+    if (state.unsubscribeBroadcast) {
+      state.unsubscribeBroadcast();
+      state.unsubscribeBroadcast = undefined;
+    }
+    if (state.unsubscribeFocus) {
+      state.unsubscribeFocus();
+      state.unsubscribeFocus = undefined;
+    }
+    if (state.unsubscribeOnline) {
+      state.unsubscribeOnline();
+      state.unsubscribeOnline = undefined;
+    }
+    state.lastSync = 0;
+    state.lastSessionRequest = 0;
+    state.cachedSession = undefined;
+  };
+  return {
+    init,
+    cleanup,
+    triggerRefetch,
+    broadcastSessionUpdate
+  };
+}
+
+// node_modules/better-auth/dist/client/session-atom.mjs
+function getSessionAtom($fetch, options) {
+  const $signal = atom(false);
+  const session = useAuthQuery($signal, "/get-session", $fetch, { method: "GET" });
+  let broadcastSessionUpdate = () => {};
+  onMount(session, () => {
+    const refreshManager = createSessionRefreshManager({
+      sessionAtom: session,
+      sessionSignal: $signal,
+      $fetch,
+      options
+    });
+    refreshManager.init();
+    broadcastSessionUpdate = refreshManager.broadcastSessionUpdate;
+    return () => {
+      refreshManager.cleanup();
+    };
+  });
+  return {
+    session,
+    $sessionSignal: $signal,
+    broadcastSessionUpdate: (trigger) => broadcastSessionUpdate(trigger)
+  };
+}
+
+// node_modules/defu/dist/defu.mjs
+function isPlainObject(value) {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== null && prototype !== Object.prototype && Object.getPrototypeOf(prototype) !== null) {
+    return false;
+  }
+  if (Symbol.iterator in value) {
+    return false;
+  }
+  if (Symbol.toStringTag in value) {
+    return Object.prototype.toString.call(value) === "[object Module]";
+  }
+  return true;
+}
+function _defu(baseObject, defaults, namespace = ".", merger) {
+  if (!isPlainObject(defaults)) {
+    return _defu(baseObject, {}, namespace, merger);
+  }
+  const object = { ...defaults };
+  for (const key of Object.keys(baseObject)) {
+    if (key === "__proto__" || key === "constructor") {
+      continue;
+    }
+    const value = baseObject[key];
+    if (value === null || value === undefined) {
+      continue;
+    }
+    if (merger && merger(object, key, value, namespace)) {
+      continue;
+    }
+    if (Array.isArray(value) && Array.isArray(object[key])) {
+      object[key] = [...value, ...object[key]];
+    } else if (isPlainObject(value) && isPlainObject(object[key])) {
+      object[key] = _defu(value, object[key], (namespace ? `${namespace}.` : "") + key.toString(), merger);
+    } else {
+      object[key] = value;
+    }
+  }
+  return object;
+}
+function createDefu(merger) {
+  return (...arguments_) => arguments_.reduce((p, c) => _defu(p, c, "", merger), {});
+}
+var defu = createDefu();
+var defuFn = createDefu((object, key, currentValue) => {
+  if (object[key] !== undefined && typeof currentValue === "function") {
+    object[key] = currentValue(object[key]);
+    return true;
+  }
+});
+var defuArrayFn = createDefu((object, key, currentValue) => {
+  if (Array.isArray(object[key]) && typeof currentValue === "function") {
+    object[key] = currentValue(object[key]);
+    return true;
+  }
+});
+
+// node_modules/@better-fetch/fetch/dist/index.js
+var __defProp2 = Object.defineProperty;
+var __defProps = Object.defineProperties;
+var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
+var __getOwnPropSymbols = Object.getOwnPropertySymbols;
+var __hasOwnProp2 = Object.prototype.hasOwnProperty;
+var __propIsEnum = Object.prototype.propertyIsEnumerable;
+var __defNormalProp = (obj, key, value) => (key in obj) ? __defProp2(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __spreadValues = (a, b) => {
+  for (var prop in b || (b = {}))
+    if (__hasOwnProp2.call(b, prop))
+      __defNormalProp(a, prop, b[prop]);
+  if (__getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(b)) {
+      if (__propIsEnum.call(b, prop))
+        __defNormalProp(a, prop, b[prop]);
+    }
+  return a;
+};
+var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
+var BetterFetchError = class extends Error {
+  constructor(status, statusText, error) {
+    super(statusText || status.toString(), {
+      cause: error
+    });
+    this.status = status;
+    this.statusText = statusText;
+    this.error = error;
+    Error.captureStackTrace(this, this.constructor);
+  }
+};
+var initializePlugins = async (url, options) => {
+  var _a, _b, _c, _d, _e, _f;
+  let opts = options || {};
+  const hooks = {
+    onRequest: [options == null ? undefined : options.onRequest],
+    onResponse: [options == null ? undefined : options.onResponse],
+    onSuccess: [options == null ? undefined : options.onSuccess],
+    onError: [options == null ? undefined : options.onError],
+    onRetry: [options == null ? undefined : options.onRetry]
+  };
+  if (!options || !(options == null ? undefined : options.plugins)) {
+    return {
+      url,
+      options: opts,
+      hooks
+    };
+  }
+  for (const plugin of (options == null ? undefined : options.plugins) || []) {
+    if (plugin.init) {
+      const pluginRes = await ((_a = plugin.init) == null ? undefined : _a.call(plugin, url.toString(), options));
+      opts = pluginRes.options || opts;
+      url = pluginRes.url;
+    }
+    hooks.onRequest.push((_b = plugin.hooks) == null ? undefined : _b.onRequest);
+    hooks.onResponse.push((_c = plugin.hooks) == null ? undefined : _c.onResponse);
+    hooks.onSuccess.push((_d = plugin.hooks) == null ? undefined : _d.onSuccess);
+    hooks.onError.push((_e = plugin.hooks) == null ? undefined : _e.onError);
+    hooks.onRetry.push((_f = plugin.hooks) == null ? undefined : _f.onRetry);
+  }
+  return {
+    url,
+    options: opts,
+    hooks
+  };
+};
+var LinearRetryStrategy = class {
+  constructor(options) {
+    this.options = options;
+  }
+  shouldAttemptRetry(attempt, response) {
+    if (this.options.shouldRetry) {
+      return Promise.resolve(attempt < this.options.attempts && this.options.shouldRetry(response));
+    }
+    return Promise.resolve(attempt < this.options.attempts);
+  }
+  getDelay() {
+    return this.options.delay;
+  }
+};
+var ExponentialRetryStrategy = class {
+  constructor(options) {
+    this.options = options;
+  }
+  shouldAttemptRetry(attempt, response) {
+    if (this.options.shouldRetry) {
+      return Promise.resolve(attempt < this.options.attempts && this.options.shouldRetry(response));
+    }
+    return Promise.resolve(attempt < this.options.attempts);
+  }
+  getDelay(attempt) {
+    const delay = Math.min(this.options.maxDelay, this.options.baseDelay * 2 ** attempt);
+    return delay;
+  }
+};
+function createRetryStrategy(options) {
+  if (typeof options === "number") {
+    return new LinearRetryStrategy({
+      type: "linear",
+      attempts: options,
+      delay: 1000
+    });
+  }
+  switch (options.type) {
+    case "linear":
+      return new LinearRetryStrategy(options);
+    case "exponential":
+      return new ExponentialRetryStrategy(options);
+    default:
+      throw new Error("Invalid retry strategy");
+  }
+}
+var getAuthHeader = async (options) => {
+  const headers = {};
+  const getValue = async (value) => typeof value === "function" ? await value() : value;
+  if (options == null ? undefined : options.auth) {
+    if (options.auth.type === "Bearer") {
+      const token = await getValue(options.auth.token);
+      if (!token) {
+        return headers;
+      }
+      headers["authorization"] = `Bearer ${token}`;
+    } else if (options.auth.type === "Basic") {
+      const [username, password] = await Promise.all([
+        getValue(options.auth.username),
+        getValue(options.auth.password)
+      ]);
+      if (!username || !password) {
+        return headers;
+      }
+      headers["authorization"] = `Basic ${btoa(`${username}:${password}`)}`;
+    } else if (options.auth.type === "Custom") {
+      const [prefix, value] = await Promise.all([
+        getValue(options.auth.prefix),
+        getValue(options.auth.value)
+      ]);
+      if (!value) {
+        return headers;
+      }
+      headers["authorization"] = `${prefix != null ? prefix : ""} ${value}`;
+    }
+  }
+  return headers;
+};
+var JSON_RE = /^application\/(?:[\w!#$%&*.^`~-]*\+)?json(;.+)?$/i;
+function detectResponseType(request) {
+  const _contentType = request.headers.get("content-type");
+  const textTypes = /* @__PURE__ */ new Set([
+    "image/svg",
+    "application/xml",
+    "application/xhtml",
+    "application/html"
+  ]);
+  if (!_contentType) {
+    return "json";
+  }
+  const contentType = _contentType.split(";").shift() || "";
+  if (JSON_RE.test(contentType)) {
+    return "json";
+  }
+  if (textTypes.has(contentType) || contentType.startsWith("text/")) {
+    return "text";
+  }
+  return "blob";
+}
+function isJSONParsable(value) {
+  try {
+    JSON.parse(value);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+function isJSONSerializable(value) {
+  if (value === undefined) {
+    return false;
+  }
+  const t = typeof value;
+  if (t === "string" || t === "number" || t === "boolean" || t === null) {
+    return true;
+  }
+  if (t !== "object") {
+    return false;
+  }
+  if (Array.isArray(value)) {
+    return true;
+  }
+  if (value.buffer) {
+    return false;
+  }
+  return value.constructor && value.constructor.name === "Object" || typeof value.toJSON === "function";
+}
+function jsonParse(text) {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    return text;
+  }
+}
+function isFunction(value) {
+  return typeof value === "function";
+}
+function getFetch(options) {
+  if (options == null ? undefined : options.customFetchImpl) {
+    return options.customFetchImpl;
+  }
+  if (typeof globalThis !== "undefined" && isFunction(globalThis.fetch)) {
+    return globalThis.fetch;
+  }
+  if (typeof window !== "undefined" && isFunction(window.fetch)) {
+    return window.fetch;
+  }
+  throw new Error("No fetch implementation found");
+}
+async function getHeaders(opts) {
+  const headers = new Headers(opts == null ? undefined : opts.headers);
+  const authHeader = await getAuthHeader(opts);
+  for (const [key, value] of Object.entries(authHeader || {})) {
+    headers.set(key, value);
+  }
+  if (!headers.has("content-type")) {
+    const t = detectContentType(opts == null ? undefined : opts.body);
+    if (t) {
+      headers.set("content-type", t);
+    }
+  }
+  return headers;
+}
+function detectContentType(body) {
+  if (isJSONSerializable(body)) {
+    return "application/json";
+  }
+  return null;
+}
+function getBody(options) {
+  if (!(options == null ? undefined : options.body)) {
+    return null;
+  }
+  const headers = new Headers(options == null ? undefined : options.headers);
+  if (isJSONSerializable(options.body) && !headers.has("content-type")) {
+    for (const [key, value] of Object.entries(options == null ? undefined : options.body)) {
+      if (value instanceof Date) {
+        options.body[key] = value.toISOString();
+      }
+    }
+    return JSON.stringify(options.body);
+  }
+  if (headers.has("content-type") && headers.get("content-type") === "application/x-www-form-urlencoded") {
+    if (isJSONSerializable(options.body)) {
+      return new URLSearchParams(options.body).toString();
+    }
+    return options.body;
+  }
+  return options.body;
+}
+function getMethod(url, options) {
+  var _a;
+  if (options == null ? undefined : options.method) {
+    return options.method.toUpperCase();
+  }
+  if (url.startsWith("@")) {
+    const pMethod = (_a = url.split("@")[1]) == null ? undefined : _a.split("/")[0];
+    if (!methods.includes(pMethod)) {
+      return (options == null ? undefined : options.body) ? "POST" : "GET";
+    }
+    return pMethod.toUpperCase();
+  }
+  return (options == null ? undefined : options.body) ? "POST" : "GET";
+}
+function getTimeout(options, controller) {
+  let abortTimeout;
+  if (!(options == null ? undefined : options.signal) && (options == null ? undefined : options.timeout)) {
+    abortTimeout = setTimeout(() => controller == null ? undefined : controller.abort(), options == null ? undefined : options.timeout);
+  }
+  return {
+    abortTimeout,
+    clearTimeout: () => {
+      if (abortTimeout) {
+        clearTimeout(abortTimeout);
+      }
+    }
+  };
+}
+var ValidationError = class _ValidationError extends Error {
+  constructor(issues, message) {
+    super(message || JSON.stringify(issues, null, 2));
+    this.issues = issues;
+    Object.setPrototypeOf(this, _ValidationError.prototype);
+  }
+};
+async function parseStandardSchema(schema, input) {
+  const result = await schema["~standard"].validate(input);
+  if (result.issues) {
+    throw new ValidationError(result.issues);
+  }
+  return result.value;
+}
+var methods = ["get", "post", "put", "patch", "delete"];
+var applySchemaPlugin = (config) => ({
+  id: "apply-schema",
+  name: "Apply Schema",
+  version: "1.0.0",
+  async init(url, options) {
+    var _a, _b, _c, _d;
+    const schema = ((_b = (_a = config.plugins) == null ? undefined : _a.find((plugin) => {
+      var _a2;
+      return ((_a2 = plugin.schema) == null ? undefined : _a2.config) ? url.startsWith(plugin.schema.config.baseURL || "") || url.startsWith(plugin.schema.config.prefix || "") : false;
+    })) == null ? undefined : _b.schema) || config.schema;
+    if (schema) {
+      let urlKey = url;
+      if ((_c = schema.config) == null ? undefined : _c.prefix) {
+        if (urlKey.startsWith(schema.config.prefix)) {
+          urlKey = urlKey.replace(schema.config.prefix, "");
+          if (schema.config.baseURL) {
+            url = url.replace(schema.config.prefix, schema.config.baseURL);
+          }
+        }
+      }
+      if ((_d = schema.config) == null ? undefined : _d.baseURL) {
+        if (urlKey.startsWith(schema.config.baseURL)) {
+          urlKey = urlKey.replace(schema.config.baseURL, "");
+        }
+      }
+      const keySchema = schema.schema[urlKey];
+      if (keySchema) {
+        let opts = __spreadProps(__spreadValues({}, options), {
+          method: keySchema.method,
+          output: keySchema.output
+        });
+        if (!(options == null ? undefined : options.disableValidation)) {
+          opts = __spreadProps(__spreadValues({}, opts), {
+            body: keySchema.input ? await parseStandardSchema(keySchema.input, options == null ? undefined : options.body) : options == null ? undefined : options.body,
+            params: keySchema.params ? await parseStandardSchema(keySchema.params, options == null ? undefined : options.params) : options == null ? undefined : options.params,
+            query: keySchema.query ? await parseStandardSchema(keySchema.query, options == null ? undefined : options.query) : options == null ? undefined : options.query
+          });
+        }
+        return {
+          url,
+          options: opts
+        };
+      }
+    }
+    return {
+      url,
+      options
+    };
+  }
+});
+var createFetch = (config) => {
+  async function $fetch(url, options) {
+    const opts = __spreadProps(__spreadValues(__spreadValues({}, config), options), {
+      plugins: [...(config == null ? undefined : config.plugins) || [], applySchemaPlugin(config || {}), ...(options == null ? undefined : options.plugins) || []]
+    });
+    if (config == null ? undefined : config.catchAllError) {
+      try {
+        return await betterFetch(url, opts);
+      } catch (error) {
+        return {
+          data: null,
+          error: {
+            status: 500,
+            statusText: "Fetch Error",
+            message: "Fetch related error. Captured by catchAllError option. See error property for more details.",
+            error
+          }
+        };
+      }
+    }
+    return await betterFetch(url, opts);
+  }
+  return $fetch;
+};
+function getURL2(url, option) {
+  const { baseURL, params, query } = option || {
+    query: {},
+    params: {},
+    baseURL: ""
+  };
+  let basePath = url.startsWith("http") ? url.split("/").slice(0, 3).join("/") : baseURL || "";
+  if (url.startsWith("@")) {
+    const m = url.toString().split("@")[1].split("/")[0];
+    if (methods.includes(m)) {
+      url = url.replace(`@${m}/`, "/");
+    }
+  }
+  if (!basePath.endsWith("/"))
+    basePath += "/";
+  let [path, urlQuery] = url.replace(basePath, "").split("?");
+  const queryParams = new URLSearchParams(urlQuery);
+  for (const [key, value] of Object.entries(query || {})) {
+    if (value == null)
+      continue;
+    let serializedValue;
+    if (typeof value === "string") {
+      serializedValue = value;
+    } else if (Array.isArray(value)) {
+      for (const val of value) {
+        queryParams.append(key, val);
+      }
+      continue;
+    } else {
+      serializedValue = JSON.stringify(value);
+    }
+    queryParams.set(key, serializedValue);
+  }
+  if (params) {
+    if (Array.isArray(params)) {
+      const paramPaths = path.split("/").filter((p) => p.startsWith(":"));
+      for (const [index, key] of paramPaths.entries()) {
+        const value = params[index];
+        path = path.replace(key, value);
+      }
+    } else {
+      for (const [key, value] of Object.entries(params)) {
+        path = path.replace(`:${key}`, String(value));
+      }
+    }
+  }
+  path = path.split("/").map(encodeURIComponent).join("/");
+  if (path.startsWith("/"))
+    path = path.slice(1);
+  let queryParamString = queryParams.toString();
+  queryParamString = queryParamString.length > 0 ? `?${queryParamString}`.replace(/\+/g, "%20") : "";
+  if (!basePath.startsWith("http")) {
+    return `${basePath}${path}${queryParamString}`;
+  }
+  const _url = new URL(`${path}${queryParamString}`, basePath);
+  return _url;
+}
+var betterFetch = async (url, options) => {
+  var _a, _b, _c, _d, _e, _f, _g, _h;
+  const {
+    hooks,
+    url: __url,
+    options: opts
+  } = await initializePlugins(url, options);
+  const fetch2 = getFetch(opts);
+  const controller = new AbortController;
+  const signal = (_a = opts.signal) != null ? _a : controller.signal;
+  const _url = getURL2(__url, opts);
+  const body = getBody(opts);
+  const headers = await getHeaders(opts);
+  const method = getMethod(__url, opts);
+  let context = __spreadProps(__spreadValues({}, opts), {
+    url: _url,
+    headers,
+    body,
+    method,
+    signal
+  });
+  for (const onRequest of hooks.onRequest) {
+    if (onRequest) {
+      const res = await onRequest(context);
+      if (typeof res === "object" && res !== null) {
+        context = res;
+      }
+    }
+  }
+  if ("pipeTo" in context && typeof context.pipeTo === "function" || typeof ((_b = options == null ? undefined : options.body) == null ? undefined : _b.pipe) === "function") {
+    if (!("duplex" in context)) {
+      context.duplex = "half";
+    }
+  }
+  const { clearTimeout: clearTimeout2 } = getTimeout(opts, controller);
+  let response = await fetch2(context.url, context);
+  clearTimeout2();
+  const responseContext = {
+    response,
+    request: context
+  };
+  for (const onResponse of hooks.onResponse) {
+    if (onResponse) {
+      const r = await onResponse(__spreadProps(__spreadValues({}, responseContext), {
+        response: ((_c = options == null ? undefined : options.hookOptions) == null ? undefined : _c.cloneResponse) ? response.clone() : response
+      }));
+      if (r instanceof Response) {
+        response = r;
+      } else if (typeof r === "object" && r !== null) {
+        response = r.response;
+      }
+    }
+  }
+  if (response.ok) {
+    const hasBody = context.method !== "HEAD";
+    if (!hasBody) {
+      return {
+        data: "",
+        error: null
+      };
+    }
+    const responseType = detectResponseType(response);
+    const successContext = {
+      data: null,
+      response,
+      request: context
+    };
+    if (responseType === "json" || responseType === "text") {
+      const text = await response.text();
+      const parser2 = (_d = context.jsonParser) != null ? _d : jsonParse;
+      successContext.data = await parser2(text);
+    } else {
+      successContext.data = await response[responseType]();
+    }
+    if (context == null ? undefined : context.output) {
+      if (context.output && !context.disableValidation) {
+        successContext.data = await parseStandardSchema(context.output, successContext.data);
+      }
+    }
+    for (const onSuccess of hooks.onSuccess) {
+      if (onSuccess) {
+        await onSuccess(__spreadProps(__spreadValues({}, successContext), {
+          response: ((_e = options == null ? undefined : options.hookOptions) == null ? undefined : _e.cloneResponse) ? response.clone() : response
+        }));
+      }
+    }
+    if (options == null ? undefined : options.throw) {
+      return successContext.data;
+    }
+    return {
+      data: successContext.data,
+      error: null
+    };
+  }
+  const parser = (_f = options == null ? undefined : options.jsonParser) != null ? _f : jsonParse;
+  const responseText = await response.text();
+  const isJSONResponse = isJSONParsable(responseText);
+  const errorObject = isJSONResponse ? await parser(responseText) : null;
+  const errorContext = {
+    response,
+    responseText,
+    request: context,
+    error: __spreadProps(__spreadValues({}, errorObject), {
+      status: response.status,
+      statusText: response.statusText
+    })
+  };
+  for (const onError of hooks.onError) {
+    if (onError) {
+      await onError(__spreadProps(__spreadValues({}, errorContext), {
+        response: ((_g = options == null ? undefined : options.hookOptions) == null ? undefined : _g.cloneResponse) ? response.clone() : response
+      }));
+    }
+  }
+  if (options == null ? undefined : options.retry) {
+    const retryStrategy = createRetryStrategy(options.retry);
+    const _retryAttempt = (_h = options.retryAttempt) != null ? _h : 0;
+    if (await retryStrategy.shouldAttemptRetry(_retryAttempt, response)) {
+      for (const onRetry of hooks.onRetry) {
+        if (onRetry) {
+          await onRetry(responseContext);
+        }
+      }
+      const delay = retryStrategy.getDelay(_retryAttempt);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return await betterFetch(url, __spreadProps(__spreadValues({}, options), {
+        retryAttempt: _retryAttempt + 1
+      }));
+    }
+  }
+  if (options == null ? undefined : options.throw) {
+    throw new BetterFetchError(response.status, response.statusText, isJSONResponse ? errorObject : responseText);
+  }
+  return {
+    data: null,
+    error: __spreadProps(__spreadValues({}, errorObject), {
+      status: response.status,
+      statusText: response.statusText
+    })
+  };
+};
+
+// node_modules/better-auth/dist/client/config.mjs
+var resolvePublicAuthUrl = (basePath) => {
+  if (typeof process === "undefined")
+    return;
+  const path = basePath ?? "/api/auth";
+  if (process.env.NEXT_PUBLIC_AUTH_URL)
+    return process.env.NEXT_PUBLIC_AUTH_URL;
+  if (typeof window === "undefined") {
+    if (process.env.NEXTAUTH_URL)
+      try {
+        return process.env.NEXTAUTH_URL;
+      } catch {}
+    if (process.env.VERCEL_URL)
+      try {
+        const protocol = process.env.VERCEL_URL.startsWith("http") ? "" : "https://";
+        return `${new URL(`${protocol}${process.env.VERCEL_URL}`).origin}${path}`;
+      } catch {}
+  }
+};
+var getClientConfig = (options, loadEnv) => {
+  const isCredentialsSupported = "credentials" in Request.prototype;
+  const baseURL = getBaseURL(options?.baseURL, options?.basePath, undefined, loadEnv) ?? resolvePublicAuthUrl(options?.basePath) ?? "/api/auth";
+  const pluginsFetchPlugins = options?.plugins?.flatMap((plugin) => plugin.fetchPlugins).filter((pl) => pl !== undefined) || [];
+  const lifeCyclePlugin = {
+    id: "lifecycle-hooks",
+    name: "lifecycle-hooks",
+    hooks: {
+      onSuccess: options?.fetchOptions?.onSuccess,
+      onError: options?.fetchOptions?.onError,
+      onRequest: options?.fetchOptions?.onRequest,
+      onResponse: options?.fetchOptions?.onResponse
+    }
+  };
+  const { onSuccess: _onSuccess, onError: _onError, onRequest: _onRequest, onResponse: _onResponse, ...restOfFetchOptions } = options?.fetchOptions || {};
+  const $fetch = createFetch({
+    baseURL,
+    ...isCredentialsSupported ? { credentials: "include" } : {},
+    method: "GET",
+    jsonParser(text) {
+      if (!text)
+        return null;
+      return parseJSON(text, { strict: false });
+    },
+    customFetchImpl: fetch,
+    ...restOfFetchOptions,
+    plugins: [
+      lifeCyclePlugin,
+      ...restOfFetchOptions.plugins || [],
+      ...options?.disableDefaultFetchPlugins ? [] : [redirectPlugin],
+      ...pluginsFetchPlugins
+    ]
+  });
+  const { $sessionSignal, session, broadcastSessionUpdate } = getSessionAtom($fetch, options);
+  const plugins = options?.plugins || [];
+  let pluginsActions = {};
+  const pluginsAtoms = {
+    $sessionSignal,
+    session
+  };
+  const pluginPathMethods = {
+    "/sign-out": "POST",
+    "/revoke-sessions": "POST",
+    "/revoke-other-sessions": "POST",
+    "/delete-user": "POST"
+  };
+  const atomListeners = [{
+    signal: "$sessionSignal",
+    matcher(path) {
+      return path === "/sign-out" || path === "/update-user" || path === "/update-session" || path === "/sign-up/email" || path === "/sign-in/email" || path === "/delete-user" || path === "/verify-email" || path === "/revoke-sessions" || path === "/revoke-session" || path === "/change-email";
+    },
+    callback(path) {
+      if (path === "/sign-out")
+        broadcastSessionUpdate("signout");
+      else if (path === "/update-user" || path === "/update-session")
+        broadcastSessionUpdate("updateUser");
+    }
+  }];
+  for (const plugin of plugins) {
+    if (plugin.getAtoms)
+      Object.assign(pluginsAtoms, plugin.getAtoms?.($fetch));
+    if (plugin.pathMethods)
+      Object.assign(pluginPathMethods, plugin.pathMethods);
+    if (plugin.atomListeners)
+      atomListeners.push(...plugin.atomListeners);
+  }
+  const $store = {
+    notify: (signal) => {
+      pluginsAtoms[signal].set(!pluginsAtoms[signal].get());
+    },
+    listen: (signal, listener) => {
+      pluginsAtoms[signal].subscribe(listener);
+    },
+    atoms: pluginsAtoms
+  };
+  for (const plugin of plugins)
+    if (plugin.getActions)
+      pluginsActions = defu(plugin.getActions?.($fetch, $store, options) ?? {}, pluginsActions);
+  return {
+    get baseURL() {
+      return baseURL;
+    },
+    pluginsActions,
+    pluginsAtoms,
+    pluginPathMethods,
+    atomListeners,
+    $fetch,
+    $store
+  };
+};
+
+// node_modules/better-auth/dist/utils/is-atom.mjs
+function isAtom(value) {
+  return typeof value === "object" && value !== null && "get" in value && typeof value.get === "function" && "lc" in value && typeof value.lc === "number";
+}
+
+// node_modules/better-auth/dist/client/proxy.mjs
+function getMethod2(path, knownPathMethods, args) {
+  const method = knownPathMethods[path];
+  const { fetchOptions, query: _query, ...body } = args || {};
+  if (method)
+    return method;
+  if (fetchOptions?.method)
+    return fetchOptions.method;
+  if (body && Object.keys(body).length > 0)
+    return "POST";
+  return "GET";
+}
+function createDynamicPathProxy(routes, client, knownPathMethods, atoms, atomListeners) {
+  function createProxy(path = []) {
+    return new Proxy(function() {}, {
+      get(_, prop) {
+        if (typeof prop !== "string")
+          return;
+        if (prop === "then" || prop === "catch" || prop === "finally")
+          return;
+        const fullPath = [...path, prop];
+        let current = routes;
+        for (const segment of fullPath)
+          if (current && typeof current === "object" && segment in current)
+            current = current[segment];
+          else {
+            current = undefined;
+            break;
+          }
+        if (typeof current === "function")
+          return current;
+        if (isAtom(current))
+          return current;
+        return createProxy(fullPath);
+      },
+      apply: async (_, __, args) => {
+        const routePath = "/" + path.map((segment) => segment.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)).join("/");
+        const arg = args[0] || {};
+        const fetchOptions = args[1] || {};
+        const { query, fetchOptions: argFetchOptions, ...body } = arg;
+        const options = {
+          ...fetchOptions,
+          ...argFetchOptions
+        };
+        const method = getMethod2(routePath, knownPathMethods, arg);
+        return await client(routePath, {
+          ...options,
+          body: method === "GET" ? undefined : {
+            ...body,
+            ...options?.body || {}
+          },
+          query: query || options?.query,
+          method,
+          async onSuccess(context) {
+            await options?.onSuccess?.(context);
+            if (!atomListeners || options.disableSignal)
+              return;
+            const matches = atomListeners.filter((s) => s.matcher(routePath));
+            if (!matches.length)
+              return;
+            const visited = /* @__PURE__ */ new Set;
+            for (const match of matches) {
+              const signal = atoms[match.signal];
+              if (!signal)
+                return;
+              if (visited.has(match.signal))
+                continue;
+              visited.add(match.signal);
+              const val = signal.get();
+              setTimeout(() => {
+                signal.set(!val);
+              }, 10);
+              match.callback?.(routePath);
+            }
+          }
+        });
+      }
+    });
+  }
+  return createProxy();
+}
+
+// node_modules/better-auth/dist/client/react/react-store.mjs
+var import_react = __toESM(require_react(), 1);
+function useStore(store, options = {}) {
+  const snapshotRef = import_react.useRef(store.get());
+  const { keys, deps = [store, keys] } = options;
+  const subscribe = import_react.useCallback((onChange) => {
+    const emitChange = (value) => {
+      if (snapshotRef.current === value)
+        return;
+      snapshotRef.current = value;
+      onChange();
+    };
+    emitChange(store.value);
+    if (keys?.length)
+      return listenKeys(store, keys, emitChange);
+    return store.listen(emitChange);
+  }, deps);
+  const get = () => snapshotRef.current;
+  return import_react.useSyncExternalStore(subscribe, get, get);
+}
+
+// node_modules/@better-auth/core/dist/utils/string.mjs
+function capitalizeFirstLetter(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// node_modules/better-auth/dist/client/react/index.mjs
+function getAtomKey(str) {
+  return `use${capitalizeFirstLetter(str)}`;
+}
+function createAuthClient(options) {
+  const { pluginPathMethods, pluginsActions, pluginsAtoms, $fetch, $store, atomListeners } = getClientConfig(options);
+  const resolvedHooks = {};
+  for (const [key, value] of Object.entries(pluginsAtoms))
+    resolvedHooks[getAtomKey(key)] = () => useStore(value);
+  return createDynamicPathProxy({
+    ...pluginsActions,
+    ...resolvedHooks,
+    $fetch,
+    $store
+  }, $fetch, pluginPathMethods, pluginsAtoms, atomListeners);
+}
+// node_modules/better-auth/dist/package.mjs
+var version = "1.6.0";
+
+// node_modules/better-auth/dist/version.mjs
+var PACKAGE_VERSION = version;
+
+// node_modules/better-auth/dist/plugins/access/access.mjs
+function role(statements) {
+  return {
+    authorize(request, connector = "AND") {
+      let success = false;
+      for (const [requestedResource, requestedActions] of Object.entries(request)) {
+        const allowedActions = statements[requestedResource];
+        if (!allowedActions)
+          return {
+            success: false,
+            error: `You are not allowed to access resource: ${requestedResource}`
+          };
+        if (Array.isArray(requestedActions))
+          success = requestedActions.every((requestedAction) => allowedActions.includes(requestedAction));
+        else if (typeof requestedActions === "object") {
+          const actions = requestedActions;
+          if (actions.connector === "OR")
+            success = actions.actions.some((requestedAction) => allowedActions.includes(requestedAction));
+          else
+            success = actions.actions.every((requestedAction) => allowedActions.includes(requestedAction));
+        } else
+          throw new BetterAuthError("Invalid access control request");
+        if (success && connector === "OR")
+          return { success };
+        if (!success && connector === "AND")
+          return {
+            success: false,
+            error: `unauthorized to access resource "${requestedResource}"`
+          };
+      }
+      if (success)
+        return { success };
+      return {
+        success: false,
+        error: "Not authorized"
+      };
+    },
+    statements
+  };
+}
+function createAccessControl(s) {
+  return {
+    newRole(statements) {
+      return role(statements);
+    },
+    statements: s
+  };
+}
+
+// node_modules/better-auth/dist/plugins/admin/access/statement.mjs
+var defaultStatements = {
+  user: [
+    "create",
+    "list",
+    "set-role",
+    "ban",
+    "impersonate",
+    "impersonate-admins",
+    "delete",
+    "set-password",
+    "get",
+    "update"
+  ],
+  session: [
+    "list",
+    "revoke",
+    "delete"
+  ]
+};
+var defaultAc = createAccessControl(defaultStatements);
+var adminAc = defaultAc.newRole({
+  user: [
+    "create",
+    "list",
+    "set-role",
+    "ban",
+    "impersonate",
+    "delete",
+    "set-password",
+    "get",
+    "update"
+  ],
+  session: [
+    "list",
+    "revoke",
+    "delete"
+  ]
+});
+var userAc = defaultAc.newRole({
+  user: [],
+  session: []
+});
+var defaultRoles = {
+  admin: adminAc,
+  user: userAc
+};
+
+// node_modules/better-auth/dist/plugins/admin/error-codes.mjs
+var ADMIN_ERROR_CODES = defineErrorCodes({
+  FAILED_TO_CREATE_USER: "Failed to create user",
+  USER_ALREADY_EXISTS: "User already exists.",
+  USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: "User already exists. Use another email.",
+  YOU_CANNOT_BAN_YOURSELF: "You cannot ban yourself",
+  YOU_ARE_NOT_ALLOWED_TO_CHANGE_USERS_ROLE: "You are not allowed to change users role",
+  YOU_ARE_NOT_ALLOWED_TO_CREATE_USERS: "You are not allowed to create users",
+  YOU_ARE_NOT_ALLOWED_TO_LIST_USERS: "You are not allowed to list users",
+  YOU_ARE_NOT_ALLOWED_TO_LIST_USERS_SESSIONS: "You are not allowed to list users sessions",
+  YOU_ARE_NOT_ALLOWED_TO_BAN_USERS: "You are not allowed to ban users",
+  YOU_ARE_NOT_ALLOWED_TO_IMPERSONATE_USERS: "You are not allowed to impersonate users",
+  YOU_ARE_NOT_ALLOWED_TO_REVOKE_USERS_SESSIONS: "You are not allowed to revoke users sessions",
+  YOU_ARE_NOT_ALLOWED_TO_DELETE_USERS: "You are not allowed to delete users",
+  YOU_ARE_NOT_ALLOWED_TO_SET_USERS_PASSWORD: "You are not allowed to set users password",
+  BANNED_USER: "You have been banned from this application",
+  YOU_ARE_NOT_ALLOWED_TO_GET_USER: "You are not allowed to get user",
+  NO_DATA_TO_UPDATE: "No data to update",
+  YOU_ARE_NOT_ALLOWED_TO_UPDATE_USERS: "You are not allowed to update users",
+  YOU_CANNOT_REMOVE_YOURSELF: "You cannot remove yourself",
+  YOU_ARE_NOT_ALLOWED_TO_SET_NON_EXISTENT_VALUE: "You are not allowed to set a non-existent role value",
+  YOU_CANNOT_IMPERSONATE_ADMINS: "You cannot impersonate admins",
+  INVALID_ROLE_TYPE: "Invalid role type"
+});
+
+// node_modules/better-auth/dist/plugins/admin/has-permission.mjs
+var hasPermission = (input) => {
+  if (input.userId && input.options?.adminUserIds?.includes(input.userId))
+    return true;
+  if (!input.permissions)
+    return false;
+  const roles = (input.role || input.options?.defaultRole || "user").split(",");
+  const acRoles = input.options?.roles || defaultRoles;
+  for (const role2 of roles)
+    if (acRoles[role2]?.authorize(input.permissions)?.success)
+      return true;
+  return false;
+};
+
+// node_modules/better-auth/dist/plugins/admin/client.mjs
+var adminClient = (options) => {
+  const roles = {
+    admin: adminAc,
+    user: userAc,
+    ...options?.roles
+  };
+  return {
+    id: "admin-client",
+    version: PACKAGE_VERSION,
+    $InferServerPlugin: {},
+    getActions: () => ({ admin: { checkRolePermission: (data) => {
+      return hasPermission({
+        role: data.role,
+        options: {
+          ac: options?.ac,
+          roles
+        },
+        permissions: data.permissions
+      });
+    } } }),
+    pathMethods: {
+      "/admin/list-users": "GET",
+      "/admin/stop-impersonating": "POST"
+    },
+    $ERROR_CODES: ADMIN_ERROR_CODES
+  };
+};
+// node_modules/better-auth/dist/plugins/two-factor/error-code.mjs
+var TWO_FACTOR_ERROR_CODES = defineErrorCodes({
+  OTP_NOT_ENABLED: "OTP not enabled",
+  OTP_HAS_EXPIRED: "OTP has expired",
+  TOTP_NOT_ENABLED: "TOTP not enabled",
+  TWO_FACTOR_NOT_ENABLED: "Two factor isn't enabled",
+  BACKUP_CODES_NOT_ENABLED: "Backup codes aren't enabled",
+  INVALID_BACKUP_CODE: "Invalid backup code",
+  INVALID_CODE: "Invalid code",
+  TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE: "Too many attempts. Please request a new code.",
+  INVALID_TWO_FACTOR_COOKIE: "Invalid two factor cookie"
+});
+
+// node_modules/better-auth/dist/plugins/two-factor/client.mjs
+var twoFactorClient = (options) => {
+  return {
+    id: "two-factor",
+    version: PACKAGE_VERSION,
+    $InferServerPlugin: {},
+    atomListeners: [{
+      matcher: (path) => path.startsWith("/two-factor/"),
+      signal: "$sessionSignal"
+    }],
+    pathMethods: {
+      "/two-factor/disable": "POST",
+      "/two-factor/enable": "POST",
+      "/two-factor/send-otp": "POST",
+      "/two-factor/generate-backup-codes": "POST",
+      "/two-factor/get-totp-uri": "POST",
+      "/two-factor/verify-totp": "POST",
+      "/two-factor/verify-otp": "POST",
+      "/two-factor/verify-backup-code": "POST"
+    },
+    fetchPlugins: [{
+      id: "two-factor",
+      name: "two-factor",
+      hooks: { async onSuccess(context) {
+        if (context.data?.twoFactorRedirect) {
+          if (options?.onTwoFactorRedirect) {
+            await options.onTwoFactorRedirect();
+            return;
+          }
+          if (options?.twoFactorPage && typeof window !== "undefined")
+            window.location.href = options.twoFactorPage;
+        }
+      } }
+    }],
+    $ERROR_CODES: TWO_FACTOR_ERROR_CODES
+  };
+};
+// src/lib/auth-client.ts
+var authClient = createAuthClient({
+  baseURL: "http://localhost:4000",
+  plugins: [
+    adminClient(),
+    twoFactorClient()
+  ]
+});
 
 // src/components/auth/LoginForm.tsx
 var jsx_dev_runtime = __toESM(require_jsx_dev_runtime(), 1);
-var LoginForm = ({ onLoginSuccess }) => {
-  const handleLogin = async () => {
+var LoginForm = () => {
+  const handleGoogleLogin = async () => {
     try {
-      const response = await fetch("http://localhost:4000/auth/login");
-      const data = await response.json();
-      if (data.temp_token) {
-        onLoginSuccess(data.temp_token);
-      }
+      await authClient.signIn.social({
+        provider: "google",
+        callbackURL: "/dashboard"
+      });
     } catch (error) {
-      console.error("Error al conectar con el servidor:", error);
-      alert("El servidor no responde.");
+      console.error("Error al iniciar sesión con Google:", error);
+      alert("Hubo un problema al conectar con Google.");
     }
   };
   return /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
@@ -17383,7 +19387,7 @@ var LoginForm = ({ onLoginSuccess }) => {
           children: "Grupo Frontera • 2026"
         }, undefined, false, undefined, this),
         /* @__PURE__ */ jsx_dev_runtime.jsxDEV("button", {
-          onClick: handleLogin,
+          onClick: handleGoogleLogin,
           className: "w-full flex items-center justify-center gap-3 bg-black text-white py-4 px-6 rounded-2xl font-bold hover:bg-zinc-800 transition-all active:scale-95 shadow-lg shadow-black/5",
           children: [
             /* @__PURE__ */ jsx_dev_runtime.jsxDEV("img", {
@@ -17411,10 +19415,10 @@ var LoginForm = ({ onLoginSuccess }) => {
 var LoginForm_default = LoginForm;
 
 // src/components/auth/OTPVerify.tsx
-var import_react = __toESM(require_react(), 1);
+var import_react3 = __toESM(require_react(), 1);
 var jsx_dev_runtime2 = __toESM(require_jsx_dev_runtime(), 1);
 var OTPVerify = ({ onVerify }) => {
-  const [code, setCode] = import_react.useState("");
+  const [code, setCode] = import_react3.useState("");
   return /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
     className: "min-h-screen flex items-center justify-center bg-[#FAFAFA]",
     children: /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
@@ -19579,7 +21583,7 @@ function Button({
   }, undefined, false, undefined, this);
 }
 // node_modules/lucide-react/dist/esm/createLucideIcon.js
-var import_react3 = __toESM(require_react(), 1);
+var import_react5 = __toESM(require_react(), 1);
 
 // node_modules/lucide-react/dist/esm/shared/src/utils.js
 var toKebabCase = (string) => string.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
@@ -19600,7 +21604,7 @@ var hasA11yProp = (props) => {
 };
 
 // node_modules/lucide-react/dist/esm/Icon.js
-var import_react2 = __toESM(require_react(), 1);
+var import_react4 = __toESM(require_react(), 1);
 
 // node_modules/lucide-react/dist/esm/defaultAttributes.js
 var defaultAttributes = {
@@ -19616,7 +21620,7 @@ var defaultAttributes = {
 };
 
 // node_modules/lucide-react/dist/esm/Icon.js
-var Icon = import_react2.forwardRef(({
+var Icon = import_react4.forwardRef(({
   color = "currentColor",
   size = 24,
   strokeWidth = 2,
@@ -19625,7 +21629,7 @@ var Icon = import_react2.forwardRef(({
   children,
   iconNode,
   ...rest
-}, ref) => import_react2.createElement("svg", {
+}, ref) => import_react4.createElement("svg", {
   ref,
   ...defaultAttributes,
   width: size,
@@ -19636,13 +21640,13 @@ var Icon = import_react2.forwardRef(({
   ...!children && !hasA11yProp(rest) && { "aria-hidden": "true" },
   ...rest
 }, [
-  ...iconNode.map(([tag, attrs]) => import_react2.createElement(tag, attrs)),
+  ...iconNode.map(([tag, attrs]) => import_react4.createElement(tag, attrs)),
   ...Array.isArray(children) ? children : [children]
 ]));
 
 // node_modules/lucide-react/dist/esm/createLucideIcon.js
 var createLucideIcon = (iconName, iconNode) => {
-  const Component = import_react3.forwardRef(({ className, ...props }, ref) => import_react3.createElement(Icon, {
+  const Component = import_react5.forwardRef(({ className, ...props }, ref) => import_react5.createElement(Icon, {
     ref,
     iconNode,
     className: mergeClasses(`lucide-${toKebabCase(toPascalCase(iconName))}`, `lucide-${iconName}`, className),
@@ -19751,10 +21755,10 @@ function CategoryFilter({ selectedCategory, onSelectCategory }) {
 }
 
 // src/hooks/useCategoryFilter.ts
-var import_react4 = __toESM(require_react(), 1);
+var import_react6 = __toESM(require_react(), 1);
 function useCategoryFilter(activities, initialCategory = null) {
-  const [selectedCategory, setSelectedCategory] = import_react4.useState(initialCategory);
-  const filteredActivities = import_react4.useMemo(() => {
+  const [selectedCategory, setSelectedCategory] = import_react6.useState(initialCategory);
+  const filteredActivities = import_react6.useMemo(() => {
     if (!selectedCategory)
       return activities;
     return activities.filter((act) => act.category === selectedCategory);
@@ -19767,17 +21771,17 @@ function useCategoryFilter(activities, initialCategory = null) {
 }
 
 // src/hooks/useUserPreferences.ts
-var import_react5 = __toESM(require_react(), 1);
+var import_react7 = __toESM(require_react(), 1);
 var STORAGE_KEY = "panoramas_categoria_preferida";
 function useUserPreferences() {
-  const [preferredCategory, setPreferredCategory] = import_react5.useState(() => {
+  const [preferredCategory, setPreferredCategory] = import_react7.useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved && Object.values(Category).includes(saved)) {
       return saved;
     }
     return null;
   });
-  import_react5.useEffect(() => {
+  import_react7.useEffect(() => {
     if (preferredCategory === null) {
       localStorage.removeItem(STORAGE_KEY);
     } else {
@@ -19793,8 +21797,8 @@ function useUserPreferences() {
 // src/App.tsx
 var jsx_dev_runtime6 = __toESM(require_jsx_dev_runtime(), 1);
 function App() {
-  const [step, setStep] = import_react6.useState("login");
-  const [tempToken, setTempToken] = import_react6.useState("");
+  const [step, setStep] = import_react8.useState("login");
+  const [tempToken, setTempToken] = import_react8.useState("");
   const handleOTPVerify = async (code) => {
     if (code === "123456") {
       setStep("dashboard");
@@ -19886,6 +21890,6 @@ var App_default = App;
 var jsx_dev_runtime7 = __toESM(require_jsx_dev_runtime(), 1);
 var container = document.getElementById("root");
 if (container) {
-  const root = import_client.createRoot(container);
+  const root = import_client20.createRoot(container);
   root.render(/* @__PURE__ */ jsx_dev_runtime7.jsxDEV(App_default, {}, undefined, false, undefined, this));
 }
