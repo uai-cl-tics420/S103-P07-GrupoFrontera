@@ -16,6 +16,6 @@ Nuestra implementación sigue la lógica del estándar RFC 6238:
 
 ## 3. Firma de JWT
 Para la sesión principal (SSO), delegamos la seguridad en Better Auth:
-- **Algoritmo de Firma:** Se usa RS"%& (RSA Signature con SHA-256) o HS256.
+- **Algoritmo de Firma:** Se usa RS256 (RSA Signature con SHA-256) o HS256.
 - **Mecanismo:** El servidor firma el payload (ID de usuario, email, rol) con una AUTH_SECRET privada definida en las variables de entorno .env.
 - **Validación:** Cada petición al backend verifica la integridad de la firma. Si el token es alterado, el servidor rechaza la conexión automáticamente. 
