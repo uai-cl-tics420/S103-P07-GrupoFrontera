@@ -17,4 +17,4 @@ COPY . .
 EXPOSE 4000
 
 # Comando para iniciar la app en modo desarrollo (hot reload)
-CMD ["bun", "--hot", "run", "src/index.ts"]
+CMD ["sh", "-c", "bunx vite build && bun --hot run src/index.ts"]

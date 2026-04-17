@@ -9,21 +9,19 @@ const STORAGE_KEY = 'panoramas_categoria_preferida';
  * - Al arrancar: lee primero desde la DB (/api/preferences). Si no hay nada, usa localStorage.
  * - Al cambiar: guarda en localStorage inmediatamente Y llama PUT /api/preferences (fire-and-forget).
  */
-export function useUserPreferences() {
-    // Inicializamos el estado leyendo directamente desde localStorage.
-    // Si no hay nada guardado, arrancamos en null (sin filtro = "Todas").
+export function useUserPreferences(userId?: string) {
     const [preferredCategory, setPreferredCategory] = useState<Category | null>(() => {
         const saved = localStorage.getItem(STORAGE_KEY);
-        // Verificamos que lo guardado sea una categoría válida del enum
         if (saved && Object.values(Category).includes(saved as Category)) {
             return saved as Category;
         }
         return null;
     });
 
-    // Al montar, consulta la DB. Si tiene preferencia guardada, la usa.
+    // Al montar (y cuando llega el userId), consulta la DB.
     useEffect(() => {
-        fetch('/api/preferences')
+        if (!userId) return;
+        fetch(`/api/preferences/${userId}`)
             .then(r => r.json())
             .then((data: { categories: string[] }) => {
                 const first = data.categories[0];
@@ -34,7 +32,7 @@ export function useUserPreferences() {
             .catch(() => {
                 // Si la DB no responde, el localStorage ya está activo como fallback.
             });
-    }, []);
+    }, [userId]);
 
     // Al cambiar categoría: guarda en localStorage Y envía a la DB en segundo plano.
     useEffect(() => {
@@ -44,15 +42,16 @@ export function useUserPreferences() {
             localStorage.setItem(STORAGE_KEY, preferredCategory);
         }
 
+        if (!userId) return;
         const categories = preferredCategory ? [preferredCategory] : [];
-        fetch('/api/preferences', {
+        fetch(`/api/preferences/${userId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ categories }),
         }).catch(() => {
             // Error de red: la preferencia ya quedó en localStorage, no es crítico.
         });
-    }, [preferredCategory]);
+    }, [preferredCategory, userId]);
 
 
     return {

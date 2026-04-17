@@ -141,6 +141,14 @@ vite.config.ts.timestamp-*
 # Bun
 bun.lockb
 
+# Archivos compilados por Vite (se generan con bun run build)
+public/main.js
+public/main.css
+public/index.html
+
+# Sistema operativo
+.DS_Store
+
 # Directorios de caché y configuración (IA / Editores)
 .cursor
 .gemini

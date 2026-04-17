@@ -52,3 +52,7 @@ Esto construye la imagen y levanta el servidor con hot reload en `http://localho
 | `investigacion/` | Análisis técnico o pruebas de concepto | `investigacion/analisis-api-issue5` |
 
 Cada rama debe asociarse al número de issue correspondiente. El avance del trabajo se registra a través de commits dentro de cada rama. La rama `main` se mantiene protegida y no se modifica directamente.
+
+## Seguridad
+
+Consulta nuestro [archivo de seguridad](./SECURITY.md) para detalles sobre la implementación de TOTP y firma de tokens.

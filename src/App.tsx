@@ -1,3 +1,6 @@
+import React from 'react';
+import LoginForm from './components/auth/LoginForm';
+import OTPVerify from './components/auth/OTPVerify';
 import ActivityCard from './components/ActivityCard';
 import './index.css';
 import { CategoryFilter } from "@/components/CategoryFilter";
@@ -5,40 +8,54 @@ import { useCategoryFilter } from "@/hooks/useCategoryFilter";
 import { useUserPreferences } from "@/hooks/useUserPreferences";
 import { useActivities } from "@/hooks/useActivities";
 import { getRecommendedActivities } from "./recommendationService";
+import { authClient } from "./lib/auth-client";
 import type { User } from "./types";
-// useActivities reemplaza el import de MOCK_ACTIVITIES: en vez de leer datos
-// hardcodeados del archivo mockActivities.ts, ahora los pedimos a la DB via API.
 
 export function App() {
-  // Cargamos las actividades desde la base de datos real (no del mock).
-  // Mientras carga, loading=true. Si falla la petición, error tiene el mensaje.
+  const { data: session, isPending } = authClient.useSession();
   const { activities, loading, error } = useActivities();
+  const { preferredCategory, setPreferredCategory } = useUserPreferences(session?.user?.id);
 
-  // Leemos la categoría preferida guardada en localStorage (si existe)
-  const { preferredCategory, setPreferredCategory } = useUserPreferences();
-
-  // Usuario mock hasta que #32 (auth) mergee y tengamos un userId real.
-  // Las preferencias vienen del hook useUserPreferences (localStorage).
-  const mockUser: User = {
-    id: "mock-user-1",
-    name: "Usuario",
+  const currentUser: User = {
+    id: session?.user?.id ?? "anon",
+    name: session?.user?.name ?? "Usuario",
     preferences: preferredCategory ? [preferredCategory] : [],
-    currentLocation: { lat: -33.4569, lng: -70.6483 }, // Santiago, Chile
+    currentLocation: { lat: -33.4569, lng: -70.6483 },
   };
 
-  // Ordena las actividades poniendo primero las que coinciden con las preferencias.
-  // Cuando no hay preferencia seleccionada, el orden no cambia.
-  const recommendedActivities = getRecommendedActivities(mockUser, activities);
-
-  // Le pasamos las actividades YA ORDENADAS por preferencia al filtro de categorías
+  const recommendedActivities = getRecommendedActivities(currentUser, activities);
   const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(recommendedActivities, preferredCategory);
 
   const handleSelectCategory = (category: typeof selectedCategory) => {
     setSelectedCategory(category);
-    setPreferredCategory(category);
+    if (category !== null) {
+      setPreferredCategory(category);
+    }
   };
 
-  // Mientras la API responde, mostramos una pantalla de carga en vez de 0 resultados
+  // a) Verificando sesión
+  if (isPending) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA]">
+        <p className="font-black italic text-gray-400 animate-pulse">Cargando...</p>
+      </div>
+    );
+  }
+
+  // b) Sin sesión → Login
+  if (!session) return <LoginForm />;
+
+  // c) Sesión sin OTP → Verificar OTP
+  if (session.user && !(session.user as any).otpVerified) {
+    return (
+      <OTPVerify
+        userId={session.user.id}
+        onVerified={() => window.location.reload()}
+      />
+    );
+  }
+
+  // d) Cargando actividades desde DB
   if (loading) {
     return (
       <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center">
@@ -47,7 +64,7 @@ export function App() {
     );
   }
 
-  // Si la API falló (ej. DB apagada), mostramos el error en vez de romper la app
+  // e) Error en la DB
   if (error) {
     return (
       <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center">
@@ -63,6 +80,11 @@ export function App() {
           <h1 className="text-2xl font-black tracking-tighter text-gray-900 italic">
             PANORAMAS
           </h1>
+          <div className="flex items-center gap-4">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
+              {session.user.email}
+            </span>
+          </div>
           <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-fuchsia-600 border-2 border-white shadow-md"></div>
         </div>
       </nav>
@@ -101,4 +123,3 @@ export function App() {
 }
 
 export default App;
-
