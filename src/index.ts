@@ -1,7 +1,6 @@
 import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { auth } from './lib/auth';
-import { authRoutes } from './routes/auth';
 import { protectMiddleware } from 'src/middleware/protect';
 import { db } from "./lib/db";
 import { user, activities, userPreferences } from "./lib/schema";
@@ -31,7 +30,6 @@ app.onRequest(async ({ request }) => {
   }
 });
 
-app.use(authRoutes);
 
 // --- RUTAS OTP (de Fau) ---
 
