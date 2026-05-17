@@ -13,6 +13,7 @@ import type { User } from "./types";
 
 export function App() {
   const { data: session, isPending } = authClient.useSession();
+  console.log("MI SESION ES:", session);
   const { activities, loading, error } = useActivities();
   const { preferredCategory, setPreferredCategory } = useUserPreferences(session?.user?.id);
 
@@ -82,7 +83,7 @@ export function App() {
           </h1>
           <div className="flex items-center gap-4">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
-              {session.user.email}
+              {session?.user?.email}
             </span>
           </div>
           <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-fuchsia-600 border-2 border-white shadow-md"></div>

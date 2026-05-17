@@ -20,72 +20,18 @@ app.use(cors({
   credentials: true
 }));
 
+// Interceptamos limpiamente las rutas de Better-Auth antes del router principal
 app.onRequest(async ({ request }) => {
   const url = new URL(request.url);
-  const isManualOtpRoute =
-    url.pathname.includes("/get-my-otp") ||
-    url.pathname.includes("/verify-otp");
-  if (url.pathname.startsWith("/api/auth") && !isManualOtpRoute) {
+  if (url.pathname.startsWith("/api/auth")) {
     return await auth.handler(request);
   }
 });
 
 
-// --- RUTAS OTP (de Fau) ---
+// --- RUTAS OTP ---
+// Las rutas manuales de OTP fueron eliminadas. Todo el flujo será manejado nativamente por Better-Auth.
 
-app.get('/api/auth/get-my-otp/:userId', async ({ params }) => {
-  const userId = params.userId;
-  const [foundUser] = await db.select().from(user).where(eq(user.id, userId));
-  if (!foundUser) return { status: "error", message: "Usuario no encontrado" };
-
-  const ahora = new Date();
-  const ultimaActualizacion = foundUser.updatedAt || foundUser.createdAt || ahora;
-  const diferenciaMinutos = (ahora.getTime() - ultimaActualizacion.getTime()) / 60000;
-
-  let secretoActual = foundUser.otpSecret;
-  if (!secretoActual || diferenciaMinutos >= 10) {
-    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-    secretoActual = '';
-    for (let i = 0; i < 20; i++) {
-      secretoActual += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
-    }
-    await db.update(user)
-      .set({ otpSecret: secretoActual, otpVerified: false, updatedAt: ahora })
-      .where(eq(user.id, userId));
-  }
-
-  const seed = secretoActual.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const timeStep = Math.floor(ahora.getTime() / 600000);
-  const token = ((seed * timeStep) % 1000000).toString().padStart(6, '0');
-
-  return {
-    status: "success",
-    code: token,
-    expiresInMinutes: Math.max(0, Math.floor(10 - diferenciaMinutos))
-  };
-});
-
-app.post('/api/auth/verify-otp', async ({ body }) => {
-  const { code, userId } = body as { code: string, userId: string };
-  const [foundUser] = await db.select().from(user).where(eq(user.id, userId));
-  if (!foundUser || !foundUser.otpSecret) {
-    return { status: "error", message: "Usuario o secreto no encontrado" };
-  }
-  const seed = foundUser.otpSecret.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const timeStep = Math.floor(new Date().getTime() / 600000);
-  const expectedToken = ((seed * timeStep) % 1000000).toString().padStart(6, '0');
-  if (code === expectedToken) {
-    await db.update(user).set({ otpVerified: true }).where(eq(user.id, userId));
-    return {
-      status: "success",
-      message: "¡Segundo factor verificado!",
-      user: { id: foundUser.id, email: foundUser.email, role: (foundUser as any).role || 'user' }
-    };
-  }
-  return { status: "error", message: "Código inválido o expirado" };
-});
-
-// --- RUTAS ACTIVIDADES Y PREFERENCIAS (de Daniel) ---
 
 app.get("/api/activities", async () => {
   const rows = await db.select().from(activities);

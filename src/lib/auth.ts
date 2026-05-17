@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { db } from "./db"; 
-import * as schema from "./schema"; 
+import { db } from "./db";
+import * as schema from "./schema";
 
 export const auth = betterAuth({
     database: drizzleAdapter(db, {
@@ -43,7 +43,7 @@ export const auth = betterAuth({
                     }
 
                     console.log("🔐 USUARIO NUEVO: Generando secreto para", user.email);
-                    
+
                     return {
                         data: {
                             ...user,
@@ -55,7 +55,9 @@ export const auth = betterAuth({
             }
         },
     },
-
+    emailAndPassword: {
+        enabled: true,
+    },
     socialProviders: {
         google: {
             clientId: process.env.GOOGLE_CLIENT_ID!,
