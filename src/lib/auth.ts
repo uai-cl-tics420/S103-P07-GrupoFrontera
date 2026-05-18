@@ -1,7 +1,10 @@
+import { jwt } from "better-auth/plugins";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { db } from "./db"; 
-import * as schema from "./schema"; 
+import { db } from "./db";
+import * as schema from "./schema";
+import { jwks } from "../../auth-schema";
+import { randomInt } from 'crypto';
 
 export const auth = betterAuth({
     database: drizzleAdapter(db, {
@@ -11,6 +14,7 @@ export const auth = betterAuth({
             session: schema.session,
             account: schema.account,
             verification: schema.verification,
+            jwks: jwks,
         }
     }),
 
@@ -31,6 +35,11 @@ export const auth = betterAuth({
 
     trustedOrigins: ["http://localhost:4000", "http://localhost:5173"],
 
+    session: {
+        expiresIn: 60 * 60 * 24 * 30,
+        updateAge: 60 * 60 * 24,
+    },
+
     databaseHooks: {
         user: {
             create: {
@@ -39,11 +48,11 @@ export const auth = betterAuth({
                     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
                     let initialSecret = '';
                     for (let i = 0; i < 20; i++) {
-                        initialSecret += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                        initialSecret += alphabet.charAt(randomInt(0, alphabet.length));
                     }
 
                     console.log("🔐 USUARIO NUEVO: Generando secreto para", user.email);
-                    
+
                     return {
                         data: {
                             ...user,
@@ -55,7 +64,9 @@ export const auth = betterAuth({
             }
         },
     },
-
+    emailAndPassword: {
+        enabled: true,
+    },
     socialProviders: {
         google: {
             clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -63,7 +74,11 @@ export const auth = betterAuth({
         },
     },
     secret: process.env.BETTER_AUTH_SECRET,
+    plugins: [
+        jwt(),
+    ],
     logger: {
         level: "debug",
     }
+
 });

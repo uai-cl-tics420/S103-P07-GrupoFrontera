@@ -13,6 +13,7 @@ import type { User } from "./types";
 
 export function App() {
   const { data: session, isPending } = authClient.useSession();
+  const [jwtToken, setJwtToken] = React.useState('');
   const { activities, loading, error } = useActivities();
   const { preferredCategory, setPreferredCategory } = useUserPreferences(session?.user?.id);
 
@@ -50,7 +51,8 @@ export function App() {
     return (
       <OTPVerify
         userId={session.user.id}
-        onVerified={() => window.location.reload()}
+        email={session.user.email}
+        onVerified={(token) => { setJwtToken(token); window.location.reload(); }}
       />
     );
   }
@@ -82,8 +84,14 @@ export function App() {
           </h1>
           <div className="flex items-center gap-4">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
-              {session.user.email}
+              {session?.user?.email}
             </span>
+            <button
+              onClick={() => authClient.signOut()}
+              className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-red-400 transition-colors"
+            >
+              Cerrar sesión
+            </button>
           </div>
           <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-fuchsia-600 border-2 border-white shadow-md"></div>
         </div>

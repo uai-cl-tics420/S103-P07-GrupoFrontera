@@ -4,7 +4,18 @@ import { auth } from './lib/auth';
 import { protectMiddleware } from 'src/middleware/protect';
 import { db } from "./lib/db";
 import { user, activities, userPreferences } from "./lib/schema";
-import { count, eq } from "drizzle-orm";
+import { and, count, eq, gt } from "drizzle-orm";
+import nodemailer from 'nodemailer';
+import { verification } from '../auth-schema';
+import { randomInt, randomUUID } from 'crypto';
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD,
+  },
+});
 
 // Verificación de variables de entorno
 const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, JWT_SECRET } = process.env;
@@ -20,72 +31,18 @@ app.use(cors({
   credentials: true
 }));
 
+// Interceptamos limpiamente las rutas de Better-Auth antes del router principal
 app.onRequest(async ({ request }) => {
   const url = new URL(request.url);
-  const isManualOtpRoute =
-    url.pathname.includes("/get-my-otp") ||
-    url.pathname.includes("/verify-otp");
-  if (url.pathname.startsWith("/api/auth") && !isManualOtpRoute) {
+  if (url.pathname.startsWith("/api/auth")) {
     return await auth.handler(request);
   }
 });
 
 
-// --- RUTAS OTP (de Fau) ---
+// --- RUTAS OTP ---
+// Las rutas manuales de OTP fueron eliminadas. Todo el flujo será manejado nativamente por Better-Auth.
 
-app.get('/api/auth/get-my-otp/:userId', async ({ params }) => {
-  const userId = params.userId;
-  const [foundUser] = await db.select().from(user).where(eq(user.id, userId));
-  if (!foundUser) return { status: "error", message: "Usuario no encontrado" };
-
-  const ahora = new Date();
-  const ultimaActualizacion = foundUser.updatedAt || foundUser.createdAt || ahora;
-  const diferenciaMinutos = (ahora.getTime() - ultimaActualizacion.getTime()) / 60000;
-
-  let secretoActual = foundUser.otpSecret;
-  if (!secretoActual || diferenciaMinutos >= 10) {
-    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-    secretoActual = '';
-    for (let i = 0; i < 20; i++) {
-      secretoActual += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
-    }
-    await db.update(user)
-      .set({ otpSecret: secretoActual, otpVerified: false, updatedAt: ahora })
-      .where(eq(user.id, userId));
-  }
-
-  const seed = secretoActual.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const timeStep = Math.floor(ahora.getTime() / 600000);
-  const token = ((seed * timeStep) % 1000000).toString().padStart(6, '0');
-
-  return {
-    status: "success",
-    code: token,
-    expiresInMinutes: Math.max(0, Math.floor(10 - diferenciaMinutos))
-  };
-});
-
-app.post('/api/auth/verify-otp', async ({ body }) => {
-  const { code, userId } = body as { code: string, userId: string };
-  const [foundUser] = await db.select().from(user).where(eq(user.id, userId));
-  if (!foundUser || !foundUser.otpSecret) {
-    return { status: "error", message: "Usuario o secreto no encontrado" };
-  }
-  const seed = foundUser.otpSecret.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const timeStep = Math.floor(new Date().getTime() / 600000);
-  const expectedToken = ((seed * timeStep) % 1000000).toString().padStart(6, '0');
-  if (code === expectedToken) {
-    await db.update(user).set({ otpVerified: true }).where(eq(user.id, userId));
-    return {
-      status: "success",
-      message: "¡Segundo factor verificado!",
-      user: { id: foundUser.id, email: foundUser.email, role: (foundUser as any).role || 'user' }
-    };
-  }
-  return { status: "error", message: "Código inválido o expirado" };
-});
-
-// --- RUTAS ACTIVIDADES Y PREFERENCIAS (de Daniel) ---
 
 app.get("/api/activities", async () => {
   const rows = await db.select().from(activities);
@@ -109,6 +66,63 @@ app.put("/api/preferences/:userId", async ({ params, body }) => {
   await db.delete(userPreferences).where(eq(userPreferences.userId, params.userId));
   await db.insert(userPreferences).values({ userId: params.userId, preferredCategories: categories });
   return { ok: true, categories };
+});
+// --- RUTAS OTP ---
+app.post("/api/otp/request", async ({ body }) => {
+  const { userId, email } = body as { userId: string; email: string };
+
+  const code = randomInt(100000, 999999).toString();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+  await db.delete(verification).where(eq(verification.identifier, userId));
+  await db.insert(verification).values({
+    id: randomUUID(),
+    identifier: userId,
+    value: code,
+    expiresAt,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  await transporter.sendMail({
+    from: `"Panoramas App" <${process.env.GMAIL_USER}>`,
+    to: email,
+    subject: "Tu código de verificación - Panoramas",
+    html: `
+      <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:40px;background:#fff;border-radius:16px;">
+        <h1 style="font-size:24px;font-weight:900;margin-bottom:8px;">PANORAMAS</h1>
+        <p style="color:#666;margin-bottom:32px;">Tu código de verificación es:</p>
+        <div style="font-size:48px;font-weight:900;letter-spacing:0.5em;text-align:center;padding:24px;background:#f5f5f5;border-radius:12px;margin-bottom:24px;">
+          ${code}
+        </div>
+        <p style="color:#999;font-size:12px;">Este código expira en 10 minutos.</p>
+      </div>
+    `,
+  });
+
+  return { message: "Código enviado" };
+});
+
+app.post("/api/otp/verify", async ({ body }) => {
+  const { userId, code } = body as { userId: string; code: string };
+  const now = new Date();
+
+  const records = await db.select().from(verification)
+    .where(and(
+      eq(verification.identifier, userId),
+      eq(verification.value, code),
+      gt(verification.expiresAt, now)
+    ))
+    .limit(1);
+
+  if (records.length === 0) {
+    return { status: "error", message: "Código incorrecto o expirado" };
+  }
+
+  await db.delete(verification).where(eq(verification.identifier, userId));
+  await db.update(user).set({ otpVerified: true } as any).where(eq(user.id, userId));
+
+  return { status: "success" };
 });
 
 // --- PROTECCIÓN POR ROLES ---
