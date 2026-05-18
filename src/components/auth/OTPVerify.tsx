@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { authClient } from "@/lib/auth-client";
 
-const OTPVerify = ({ userId, email, onVerified }: { userId: string, email: string, onVerified: () => void }) => {
+const OTPVerify = ({ userId, email, onVerified }: { userId: string, email: string, onVerified: (token: string) => void }) => {
     const [code, setCode] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -35,7 +35,11 @@ const OTPVerify = ({ userId, email, onVerified }: { userId: string, email: strin
             const data = await response.json();
 
             if (data.status === "success") {
-                onVerified(); //éxito, avisamos al componente padre
+                const tokenRes = await fetch("http://localhost:4000/api/auth/token", {
+                    credentials: "include",
+                });
+                const tokenData = await tokenRes.json();
+                onVerified(tokenData.token ?? "");
             } else {
                 setError("Código incorrecto o expirado");
             }

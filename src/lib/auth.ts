@@ -1,7 +1,9 @@
+import { jwt } from "better-auth/plugins";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "./db";
 import * as schema from "./schema";
+import { jwks } from "../../auth-schema";
 import { randomInt } from 'crypto';
 
 export const auth = betterAuth({
@@ -12,6 +14,7 @@ export const auth = betterAuth({
             session: schema.session,
             account: schema.account,
             verification: schema.verification,
+            jwks: jwks,
         }
     }),
 
@@ -71,7 +74,11 @@ export const auth = betterAuth({
         },
     },
     secret: process.env.BETTER_AUTH_SECRET,
+    plugins: [
+        jwt(),
+    ],
     logger: {
         level: "debug",
     }
+
 });

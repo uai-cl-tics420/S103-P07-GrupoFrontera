@@ -1,27 +1,37 @@
-export const protectMiddleware = (roleRequired?: 'admin' | 'user') => 
-    async ({ jwt, set, request, roleRequired }: any) => {
-        //1. Sacar el token del header (Bearer token)
+import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { db } from 'src/lib/db';
+import { userPreferences } from 'src/lib/schema';
+import { eq } from 'drizzle-orm';
+
+const JWKS = createRemoteJWKSet(new URL('http://localhost:4000/api/auth/jwks'));
+
+export const protectMiddleware = (roleRequired?: 'admin' | 'user') =>
+    async ({ set, request }: any) => {
         const authHeader = request.headers.get('Authorization');
         const token = authHeader?.split(' ')[1];
 
         if (!token) {
             set.status = 401;
-            return { error: "No hay token de sesión" };
+            return { error: "No hay token de autorización" };
         }
 
-        //2. Verificar el token
-        const payload = await jwt.verify(token);
+        try {
+            const { payload } = await jwtVerify(token, JWKS);
+            const userId = payload.sub as string;
 
-        if (!payload || !payload.otp_verified) {
+            if (roleRequired === 'admin') {
+                const prefs = await db.select().from(userPreferences)
+                    .where(eq(userPreferences.userId, userId))
+                    .limit(1);
+                const role = prefs[0]?.role ?? 'user';
+
+                if (role !== 'admin') {
+                    set.status = 403;
+                    return { error: "Acceso denegado: se requieren permisos de administrador" };
+                }
+            }
+        } catch {
             set.status = 401;
-            return { error: "Debes completar la verificación OTP" };
+            return { error: "Token inválido o expirado" };
         }
-
-        //3. Verificar roles
-        if (roleRequired === 'admin' && payload.role !== 'admin') {
-            set.status = 403;
-            return { error: "Acceso denegado: Se requieren permisos de administrador" };
-        }
-
-        return; //Si está todo bien lo deja pasar
-};
+    };

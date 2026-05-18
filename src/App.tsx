@@ -13,7 +13,7 @@ import type { User } from "./types";
 
 export function App() {
   const { data: session, isPending } = authClient.useSession();
-  console.log("MI SESION ES:", session);
+  const [jwtToken, setJwtToken] = React.useState('');
   const { activities, loading, error } = useActivities();
   const { preferredCategory, setPreferredCategory } = useUserPreferences(session?.user?.id);
 
@@ -52,7 +52,7 @@ export function App() {
       <OTPVerify
         userId={session.user.id}
         email={session.user.email}
-        onVerified={() => window.location.reload()}
+        onVerified={(token) => { setJwtToken(token); window.location.reload(); }}
       />
     );
   }
