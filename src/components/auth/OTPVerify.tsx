@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authClient } from "@/lib/auth-client";
 
 //Pasamos el userId
 const OTPVerify = ({ userId, onVerified }: { userId: string, onVerified: () => void }) => {
@@ -67,7 +68,14 @@ const OTPVerify = ({ userId, onVerified }: { userId: string, onVerified: () => v
                     className="w-full bg-black text-white py-4 rounded-2xl font-bold hover:bg-zinc-800 transition-all active:scale-95"
                 >
                     {loading ? "Verificando..." : "Verificar Código"}
-                </button>   
+                </button>
+                <button
+                    onClick={() => authClient.signOut()}
+                    className="w-full mt-3 bg-transparent text-gray-400 text-xs font-bold py-2 hover:text-gray-600 transition-all"
+                >
+                    Volver al inicio de sesión
+                </button>
+
             </div>
         </div>
     );
