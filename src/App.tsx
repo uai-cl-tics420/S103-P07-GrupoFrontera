@@ -37,7 +37,7 @@ export function App() {
   // a) Verificando sesión
   if (isPending) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA]">
+      <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA] px-4">
         <p className="font-black italic text-gray-400 animate-pulse">Cargando...</p>
       </div>
     );
@@ -60,7 +60,7 @@ export function App() {
   // d) Cargando actividades desde DB
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center">
+      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center px-4">
         <p className="text-gray-400 font-bold tracking-widest uppercase text-sm">Cargando panoramas…</p>
       </div>
     );
@@ -69,36 +69,36 @@ export function App() {
   // e) Error en la DB
   if (error) {
     return (
-      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center">
-        <p className="text-red-400 font-bold tracking-widest uppercase text-sm">Error: {error}</p>
+      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center px-4">
+        <p className="text-red-400 font-bold tracking-widest uppercase text-sm text-center">Error: {error}</p>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] font-sans pb-20">
-      <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 p-6 mb-12">
-        <div className="max-w-5xl mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-black tracking-tighter text-gray-900 italic">
+      <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 sm:px-6 py-4 sm:py-5 mb-8 sm:mb-12">
+        <div className="max-w-5xl mx-auto flex justify-between items-center gap-3">
+          <h1 className="text-xl sm:text-2xl font-black tracking-tighter text-gray-900 italic">
             PANORAMAS
           </h1>
-          <div className="flex items-center gap-4">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+            <span className="hidden sm:inline text-[10px] font-bold text-gray-400 uppercase tracking-tighter truncate max-w-[160px] md:max-w-[240px]">
               {session?.user?.email}
             </span>
             <button
               onClick={() => authClient.signOut()}
-              className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-red-400 transition-colors"
+              className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-red-400 transition-colors whitespace-nowrap"
             >
               Cerrar sesión
             </button>
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-fuchsia-600 border-2 border-white shadow-md flex-shrink-0"></div>
           </div>
-          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-fuchsia-600 border-2 border-white shadow-md"></div>
         </div>
       </nav>
 
-      <main className="max-w-6xl mx-auto px-8">
-        <div className="mb-10 flex flex-col gap-3">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-8 sm:mb-10 flex flex-col gap-3">
           <CategoryFilter
             selectedCategory={selectedCategory}
             onSelectCategory={handleSelectCategory}
@@ -110,9 +110,9 @@ export function App() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-10">
           {filteredActivities.length === 0 ? (
-            <p className="text-muted-foreground col-span-3 text-center py-8">
+            <p className="text-muted-foreground col-span-full text-center py-8">
               No hay actividades publicadas para esta categoría todavía.
             </p>
           ) : (
@@ -123,7 +123,7 @@ export function App() {
         </div>
       </main>
 
-      <footer className="mt-20 text-center opacity-20 font-black text-[10px] tracking-[0.5em] uppercase">
+      <footer className="mt-16 sm:mt-20 text-center opacity-20 font-black text-[10px] tracking-[0.5em] uppercase px-4">
         Grupo Frontera • 2026
       </footer>
     </div>
