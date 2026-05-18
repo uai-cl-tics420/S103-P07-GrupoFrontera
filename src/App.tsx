@@ -51,6 +51,7 @@ export function App() {
     return (
       <OTPVerify
         userId={session.user.id}
+        email={session.user.email}
         onVerified={() => window.location.reload()}
       />
     );
@@ -85,6 +86,12 @@ export function App() {
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
               {session?.user?.email}
             </span>
+            <button
+              onClick={() => authClient.signOut()}
+              className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-red-400 transition-colors"
+            >
+              Cerrar sesión
+            </button>
           </div>
           <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-fuchsia-600 border-2 border-white shadow-md"></div>
         </div>

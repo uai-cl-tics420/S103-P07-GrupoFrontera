@@ -1,31 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { authClient } from "@/lib/auth-client";
 
-//Pasamos el userId
-const OTPVerify = ({ userId, onVerified }: { userId: string, onVerified: () => void }) => {
+const OTPVerify = ({ userId, email, onVerified }: { userId: string, email: string, onVerified: () => void }) => {
     const [code, setCode] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
     useEffect(() => {
-        const fetchCode = async () => {
+        const requestCode = async () => {
             try {
-                const res = await fetch(`http://localhost:4000/api/auth/get-my-otp/${userId}`);
-                const data = await res.json();
-                console.log(`🔐 OTP generado: ${data.code} (expira en ${data.expiresInMinutes} min)`);
+                await fetch("http://localhost:4000/api/otp/request", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ userId, email }),
+                });
             } catch (err) {
-                console.error("Error al pedir el código inicial:", err);
+                console.error("Error al solicitar el código OTP:", err);
             }
         };
-        fetchCode();
-    }, [userId]); //solo se ejecuta una vez al cargar
+        requestCode();
+    }, [userId, email]);
 
     const handleVerify = async () => {
         setLoading(true);
         setError('');
 
         try {
-            const response = await fetch("http://localhost:4000/api/auth/verify-otp", {
+            const response = await fetch("http://localhost:4000/api/otp/verify", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ userId, code }),

@@ -4,7 +4,18 @@ import { auth } from './lib/auth';
 import { protectMiddleware } from 'src/middleware/protect';
 import { db } from "./lib/db";
 import { user, activities, userPreferences } from "./lib/schema";
-import { count, eq } from "drizzle-orm";
+import { and, count, eq, gt } from "drizzle-orm";
+import nodemailer from 'nodemailer';
+import { verification } from '../auth-schema';
+import { randomInt, randomUUID } from 'crypto';
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD,
+  },
+});
 
 // Verificación de variables de entorno
 const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, JWT_SECRET } = process.env;
@@ -55,6 +66,63 @@ app.put("/api/preferences/:userId", async ({ params, body }) => {
   await db.delete(userPreferences).where(eq(userPreferences.userId, params.userId));
   await db.insert(userPreferences).values({ userId: params.userId, preferredCategories: categories });
   return { ok: true, categories };
+});
+// --- RUTAS OTP ---
+app.post("/api/otp/request", async ({ body }) => {
+  const { userId, email } = body as { userId: string; email: string };
+
+  const code = randomInt(100000, 999999).toString();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+  await db.delete(verification).where(eq(verification.identifier, userId));
+  await db.insert(verification).values({
+    id: randomUUID(),
+    identifier: userId,
+    value: code,
+    expiresAt,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  await transporter.sendMail({
+    from: `"Panoramas App" <${process.env.GMAIL_USER}>`,
+    to: email,
+    subject: "Tu código de verificación - Panoramas",
+    html: `
+      <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:40px;background:#fff;border-radius:16px;">
+        <h1 style="font-size:24px;font-weight:900;margin-bottom:8px;">PANORAMAS</h1>
+        <p style="color:#666;margin-bottom:32px;">Tu código de verificación es:</p>
+        <div style="font-size:48px;font-weight:900;letter-spacing:0.5em;text-align:center;padding:24px;background:#f5f5f5;border-radius:12px;margin-bottom:24px;">
+          ${code}
+        </div>
+        <p style="color:#999;font-size:12px;">Este código expira en 10 minutos.</p>
+      </div>
+    `,
+  });
+
+  return { message: "Código enviado" };
+});
+
+app.post("/api/otp/verify", async ({ body }) => {
+  const { userId, code } = body as { userId: string; code: string };
+  const now = new Date();
+
+  const records = await db.select().from(verification)
+    .where(and(
+      eq(verification.identifier, userId),
+      eq(verification.value, code),
+      gt(verification.expiresAt, now)
+    ))
+    .limit(1);
+
+  if (records.length === 0) {
+    return { status: "error", message: "Código incorrecto o expirado" };
+  }
+
+  await db.delete(verification).where(eq(verification.identifier, userId));
+  await db.update(user).set({ otpVerified: true } as any).where(eq(user.id, userId));
+
+  return { status: "success" };
 });
 
 // --- PROTECCIÓN POR ROLES ---
