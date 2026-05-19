@@ -4,11 +4,13 @@ import OTPVerify from './components/auth/OTPVerify';
 import ActivityCard from './components/ActivityCard';
 import './index.css';
 import { CategoryFilter } from "@/components/CategoryFilter";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { useCategoryFilter } from "@/hooks/useCategoryFilter";
 import { useUserPreferences } from "@/hooks/useUserPreferences";
 import { useActivities } from "@/hooks/useActivities";
 import { getRecommendedActivities } from "./recommendationService";
 import { authClient } from "./lib/auth-client";
+import { useT } from "@/i18n/context";
 import type { User } from "./types";
 
 export function App() {
@@ -16,6 +18,7 @@ export function App() {
   const [jwtToken, setJwtToken] = React.useState('');
   const { activities, loading, error } = useActivities();
   const { preferredCategory, setPreferredCategory } = useUserPreferences(session?.user?.id);
+  const { t } = useT();
 
   const currentUser: User = {
     id: session?.user?.id ?? "anon",
@@ -38,7 +41,7 @@ export function App() {
   if (isPending) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA] px-4">
-        <p className="font-black italic text-gray-400 animate-pulse">Cargando...</p>
+        <p className="font-black italic text-gray-400 animate-pulse">{t('loading')}</p>
       </div>
     );
   }
@@ -61,7 +64,7 @@ export function App() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center px-4">
-        <p className="text-gray-400 font-bold tracking-widest uppercase text-sm">Cargando panoramas…</p>
+        <p className="text-gray-400 font-bold tracking-widest uppercase text-sm">{t('loadingPanoramas')}</p>
       </div>
     );
   }
@@ -70,7 +73,7 @@ export function App() {
   if (error) {
     return (
       <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center px-4">
-        <p className="text-red-400 font-bold tracking-widest uppercase text-sm text-center">Error: {error}</p>
+        <p className="text-red-400 font-bold tracking-widest uppercase text-sm text-center">{t('errorPrefix')}: {error}</p>
       </div>
     );
   }
@@ -82,15 +85,16 @@ export function App() {
           <h1 className="text-xl sm:text-2xl font-black tracking-tighter text-gray-900 italic">
             PANORAMAS
           </h1>
-          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-            <span className="hidden sm:inline text-[10px] font-bold text-gray-400 uppercase tracking-tighter truncate max-w-[160px] md:max-w-[240px]">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <LanguageToggle />
+            <span className="hidden md:inline text-[10px] font-bold text-gray-400 uppercase tracking-tighter truncate max-w-[160px] lg:max-w-[240px]">
               {session?.user?.email}
             </span>
             <button
               onClick={() => authClient.signOut()}
               className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-red-400 transition-colors whitespace-nowrap"
             >
-              Cerrar sesión
+              {t('logout')}
             </button>
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-fuchsia-600 border-2 border-white shadow-md flex-shrink-0"></div>
           </div>
@@ -105,7 +109,7 @@ export function App() {
           />
           <div className="px-2">
             <span className="text-xs font-bold text-gray-500 uppercase tracking-widest bg-gray-200/50 py-1 px-3 rounded-full">
-              {filteredActivities.length} {filteredActivities.length === 1 ? 'Panorama encontrado' : 'Panoramas encontrados'}
+              {filteredActivities.length} {filteredActivities.length === 1 ? t('panoramaFound') : t('panoramasFound')}
             </span>
           </div>
         </div>
@@ -113,7 +117,7 @@ export function App() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-10">
           {filteredActivities.length === 0 ? (
             <p className="text-muted-foreground col-span-full text-center py-8">
-              No hay actividades publicadas para esta categoría todavía.
+              {t('emptyState')}
             </p>
           ) : (
             filteredActivities.map((act) => (

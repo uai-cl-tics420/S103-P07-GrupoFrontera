@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { authClient } from "@/lib/auth-client";
+import { useT } from "@/i18n/context";
+import { LanguageToggle } from "@/components/LanguageToggle";
 
 type Mode = 'login' | 'register';
 
 const LoginForm = () => {
+    const { t } = useT();
     const [mode, setMode] = useState<Mode>('login');
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -18,7 +21,7 @@ const LoginForm = () => {
                 callbackURL: window.location.origin,
             });
         } catch {
-            setError("Hubo un problema al conectar con Google.");
+            setError(t('loginGoogleFailed'));
         }
     };
 
@@ -28,9 +31,9 @@ const LoginForm = () => {
         setError('');
         try {
             const { error } = await authClient.signIn.email({ email, password });
-            if (error) setError(error.message ?? "Credenciales incorrectas");
+            if (error) setError(error.message ?? t('badCredentials'));
         } catch {
-            setError("Error de conexión con el servidor");
+            setError(t('serverError'));
         } finally {
             setLoading(false);
         }
@@ -46,9 +49,9 @@ const LoginForm = () => {
                 password,
                 name: name.trim() || email.split('@')[0] || 'Usuario',
             });
-            if (error) setError(error.message ?? "Error al crear la cuenta");
+            if (error) setError(error.message ?? t('createAccountError'));
         } catch {
-            setError("Error de conexión con el servidor");
+            setError(t('serverError'));
         } finally {
             setLoading(false);
         }
@@ -63,8 +66,12 @@ const LoginForm = () => {
     const passwordValid = Object.values(passwordChecks).every(Boolean);
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA] font-sans">
-            <div className="max-w-md w-full p-10 bg-white rounded-[40px] shadow-sm border border-gray-100 text-center">
+        <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA] font-sans px-4 py-8">
+            <div className="max-w-md w-full p-8 sm:p-10 bg-white rounded-[32px] sm:rounded-[40px] shadow-sm border border-gray-100 text-center relative">
+
+                <div className="absolute top-4 right-4">
+                    <LanguageToggle />
+                </div>
 
                 <div className="mb-8 flex justify-center">
                     <div className="w-12 h-12 bg-black rounded-2xl flex items-center justify-center text-white font-black text-xl">
@@ -85,14 +92,14 @@ const LoginForm = () => {
                         onClick={() => { setMode('login'); setError(''); }}
                         className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${mode === 'login' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400'}`}
                     >
-                        Iniciar Sesión
+                        {t('signIn')}
                     </button>
                     <button
                         type="button"
                         onClick={() => { setMode('register'); setError(''); }}
                         className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${mode === 'register' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400'}`}
                     >
-                        Registrarse
+                        {t('register')}
                     </button>
                 </div>
 
@@ -100,7 +107,7 @@ const LoginForm = () => {
                     {mode === 'register' && (
                         <input
                             type="text"
-                            placeholder="Nombre"
+                            placeholder={t('name')}
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             className="w-full px-4 py-3 bg-gray-50 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-black outline-none transition-all"
@@ -108,7 +115,7 @@ const LoginForm = () => {
                     )}
                     <input
                         type="email"
-                        placeholder="Email"
+                        placeholder={t('email')}
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
@@ -116,7 +123,7 @@ const LoginForm = () => {
                     />
                     <input
                         type="password"
-                        placeholder="Contraseña"
+                        placeholder={t('password')}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
@@ -126,10 +133,10 @@ const LoginForm = () => {
                     {mode === 'register' && password.length > 0 && (
                         <div className="flex flex-col gap-1 px-1 text-left">
                             {[
-                                { ok: passwordChecks.length, label: 'Mínimo 8 caracteres' },
-                                { ok: passwordChecks.uppercase, label: 'Al menos 1 mayúscula' },
-                                { ok: passwordChecks.number, label: 'Al menos 1 número' },
-                                { ok: passwordChecks.special, label: 'Al menos 1 carácter especial' },
+                                { ok: passwordChecks.length, label: t('pwdMin8') },
+                                { ok: passwordChecks.uppercase, label: t('pwdUppercase') },
+                                { ok: passwordChecks.number, label: t('pwdNumber') },
+                                { ok: passwordChecks.special, label: t('pwdSpecial') },
                             ].map(({ ok, label }) => (
                                 <p key={label} className={`text-xs font-medium ${ok ? 'text-green-500' : 'text-gray-400'}`}>
                                     {ok ? '✓' : '·'} {label}
@@ -145,13 +152,13 @@ const LoginForm = () => {
                         disabled={loading || (mode === 'register' && !passwordValid)}
                         className="w-full bg-black text-white py-4 rounded-2xl font-bold text-sm hover:bg-zinc-800 transition-all active:scale-95 disabled:opacity-50"
                     >
-                        {loading ? "Cargando..." : mode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}
+                        {loading ? t('loading') : mode === 'login' ? t('signIn') : t('createAccount')}
                     </button>
                 </form>
 
                 <div className="flex items-center gap-3 mb-4">
                     <div className="flex-1 h-px bg-gray-100"></div>
-                    <span className="text-[10px] text-gray-300 font-bold uppercase tracking-widest">o</span>
+                    <span className="text-[10px] text-gray-300 font-bold uppercase tracking-widest">{t('or')}</span>
                     <div className="flex-1 h-px bg-gray-100"></div>
                 </div>
 
@@ -165,12 +172,12 @@ const LoginForm = () => {
                         alt="Google"
                         className="w-5 h-5"
                     />
-                    <span className="tracking-tight text-sm">Continuar con Google</span>
+                    <span className="tracking-tight text-sm">{t('continueWithGoogle')}</span>
                 </button>
 
                 <div className="mt-8 pt-6 border-t border-gray-50">
                     <p className="text-[10px] text-gray-300 uppercase tracking-[0.2em] font-bold">
-                        Autenticación Segura (SSO + OTP)
+                        {t('secureAuth')}
                     </p>
                 </div>
             </div>
