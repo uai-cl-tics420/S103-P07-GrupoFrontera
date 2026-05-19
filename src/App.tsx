@@ -2,6 +2,7 @@ import React from 'react';
 import LoginForm from './components/auth/LoginForm';
 import OTPVerify from './components/auth/OTPVerify';
 import ActivityCard from './components/ActivityCard';
+import AdminDashboard from './components/admin/AdminDashboard';
 import './index.css';
 import { CategoryFilter } from "@/components/CategoryFilter";
 import { LanguageToggle } from "@/components/LanguageToggle";
@@ -13,12 +14,33 @@ import { authClient } from "./lib/auth-client";
 import { useT } from "@/i18n/context";
 import type { User } from "./types";
 
+type View = 'home' | 'admin';
+
+function getInitialView(): View {
+  if (typeof window === 'undefined') return 'home';
+  return window.location.pathname === '/admin' ? 'admin' : 'home';
+}
+
 export function App() {
   const { data: session, isPending } = authClient.useSession();
   const [jwtToken, setJwtToken] = React.useState('');
+  const [view, setView] = React.useState<View>(getInitialView);
   const { activities, loading, error } = useActivities();
   const { preferredCategory, setPreferredCategory } = useUserPreferences(session?.user?.id);
   const { t } = useT();
+
+  // Sincroniza el estado con el boton "Atras" del browser
+  React.useEffect(() => {
+    const onPopState = () => setView(getInitialView());
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const navigate = (next: View) => {
+    const path = next === 'admin' ? '/admin' : '/';
+    window.history.pushState({}, '', path);
+    setView(next);
+  };
 
   const currentUser: User = {
     id: session?.user?.id ?? "anon",
@@ -60,7 +82,12 @@ export function App() {
     );
   }
 
-  // d) Cargando actividades desde DB
+  // d) Vista admin
+  if (view === 'admin') {
+    return <AdminDashboard onBack={() => navigate('home')} userEmail={session?.user?.email} />;
+  }
+
+  // e) Cargando actividades desde DB
   if (loading) {
     return (
       <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center px-4">
@@ -69,7 +96,7 @@ export function App() {
     );
   }
 
-  // e) Error en la DB
+  // f) Error en la DB
   if (error) {
     return (
       <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center px-4">
@@ -86,6 +113,12 @@ export function App() {
             PANORAMAS
           </h1>
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <button
+              onClick={() => navigate('admin')}
+              className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-gray-900 transition-colors whitespace-nowrap px-2 py-1 border border-gray-200 rounded"
+            >
+              {t('adminAccessLink')}
+            </button>
             <LanguageToggle />
             <span className="hidden md:inline text-[10px] font-bold text-gray-400 uppercase tracking-tighter truncate max-w-[160px] lg:max-w-[240px]">
               {session?.user?.email}

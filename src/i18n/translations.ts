@@ -59,6 +59,26 @@ export const translations = {
     categoryParque: { es: 'Parque', en: 'Park' },
     categoryMuseo: { es: 'Museo', en: 'Museum' },
     categoryRestaurante: { es: 'Restaurante', en: 'Restaurant' },
+
+    // Admin Dashboard
+    adminPanel: { es: 'Panel de Administrador', en: 'Admin Panel' },
+    adminGoBack: { es: '← Volver al inicio', en: '← Back to home' },
+    adminBadge: { es: 'ADMIN', en: 'ADMIN' },
+    adminAccessLink: { es: 'Admin', en: 'Admin' },
+    statTotalUsers: { es: 'Usuarios totales', en: 'Total users' },
+    statTotalActivities: { es: 'Actividades publicadas', en: 'Published activities' },
+    statOtpsSent: { es: 'OTPs enviados hoy', en: 'OTPs sent today' },
+    statTopCategory: { es: 'Categoría líder', en: 'Top category' },
+    sectionRecentUsers: { es: 'Usuarios recientes', en: 'Recent users' },
+    sectionActivityByCategory: { es: 'Actividades por categoría', en: 'Activities by category' },
+    tableEmail: { es: 'Email', en: 'Email' },
+    tableRole: { es: 'Rol', en: 'Role' },
+    tableJoined: { es: 'Registro', en: 'Joined' },
+    tableStatus: { es: 'Estado', en: 'Status' },
+    roleAdmin: { es: 'Admin', en: 'Admin' },
+    roleUser: { es: 'Usuario', en: 'User' },
+    statusActive: { es: 'Activo', en: 'Active' },
+    statusPending: { es: 'Pendiente', en: 'Pending' },
 } satisfies Record<string, TranslationEntry>;
 
 export type TranslationKey = keyof typeof translations;
