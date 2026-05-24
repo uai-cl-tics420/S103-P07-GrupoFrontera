@@ -9,7 +9,8 @@ const ActivityCard = ({ activity }: { activity: any }) => {
         <span className="text-6xl animate-bounce-short">
           {activity.category === 'Cine' ? '🍿' : 
            activity.category === 'Parque' ? '🌳' : 
-           activity.category === 'Teatro' ? '🎭' : '🖼️'}
+           activity.category === 'Teatro' ? '🎭' : 
+           activity.category === 'Miradores' ? '🏔️' : '🖼️'}
         </span>
         <div className="absolute top-5 right-5 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 border border-gray-100 shadow-sm">
            {activity.tagClima === 'Sunny' ? '☀️ SOLEADO' : '✨ TODO CLIMA'}

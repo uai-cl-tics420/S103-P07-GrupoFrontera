@@ -10,21 +10,89 @@ import { useActivities } from "@/hooks/useActivities";
 import { getRecommendedActivities } from "./recommendationService";
 import { authClient } from "./lib/auth-client";
 import type { User } from "./types";
+import { CloudSun } from "lucide-react";
 
 export function App() {
   const { data: session, isPending } = authClient.useSession();
   const [jwtToken, setJwtToken] = React.useState('');
+
+  //estados para capturar las coordenadas reales del navegador
+  const [coords, setCoords] = React.useState({ lat: -33.4372, lng: -70.6506 }); //Stgo. centro por defecto
+  const [weatherInfo, setWeatherInfo] = React.useState<{ condition: string; temperature: number } | null>(null);
+
+  //estado local para guardar los panoramas que traemos dinámicamente
+  const [dynamicActivities, setDynamicActivities] = React.useState<any[]>([]);
+  const [loadingWeather, setLoadingWeather] = React.useState(true);
+
   const { activities, loading, error } = useActivities();
   const { preferredCategory, setPreferredCategory } = useUserPreferences(session?.user?.id);
+
+  //capturamos la geolocalización real apenas el usuario inicia sesión
+  React.useEffect(() => {
+    if (session) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const newCoords = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+          setCoords(newCoords);
+          console.log("Coordenadas reales del usuario capturadas:", newCoords)
+        },
+        (err) => {
+          console.warn("Permiso de ubicación denegado o no disponible, usando fallback.");
+        }
+      );
+    }
+  }, [session]);
+
+  //lógica dinámica: hacemos la consulta manual al backend inyectando las coordenadas en la url
+  React.useEffect(() => {
+    async function cargarPanoramasConClima() {
+      try {
+        setLoadingWeather(true);
+        const response = await fetch(`/api/activities?lat=${coords.lat}&lng=${coords.lng}`);
+        const data = await response.json();
+
+        if (data && data.activities) {
+          setDynamicActivities(data.activities);
+          setWeatherInfo(data.currentWeather);
+        }
+      } catch (err) {
+        console.error("Error cargando panoramas dinámicos:", err);
+      } finally {
+        setLoadingWeather(false);
+      }
+    }
+
+    if (session) {
+      cargarPanoramasConClima();
+    }
+  }, [coords, session]);
+
+  let actualActivitiesList: any[] = [];
+
+  // Si ya cargó nuestra petición manual con clima, usamos esa
+  if (dynamicActivities && dynamicActivities.length > 0) {
+    actualActivitiesList = dynamicActivities;
+  } 
+  // Si no, revisamos el hook original y desempaquetamos con cuidado para que no explote
+  else if (activities) {
+    if (Array.isArray(activities)) {
+      actualActivitiesList = activities;
+    } else if ((activities as any).activities && Array.isArray((activities as any).activities)) {
+      actualActivitiesList = (activities as any).activities;
+    }
+  }
 
   const currentUser: User = {
     id: session?.user?.id ?? "anon",
     name: session?.user?.name ?? "Usuario",
     preferences: preferredCategory ? [preferredCategory] : [],
-    currentLocation: { lat: -33.4569, lng: -70.6483 },
+    currentLocation: coords,
   };
 
-  const recommendedActivities = getRecommendedActivities(currentUser, activities);
+  const recommendedActivities = getRecommendedActivities(currentUser, actualActivitiesList);
   const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(recommendedActivities, preferredCategory);
 
   const handleSelectCategory = (category: typeof selectedCategory) => {
@@ -82,6 +150,17 @@ export function App() {
           <h1 className="text-2xl font-black tracking-tighter text-gray-900 italic">
             PANORAMAS
           </h1>
+
+          {/* Componente que muestra el clima satelital en la barra de navegación */}
+          {weatherInfo && (
+            <div className='flex items-center gap-2 bg-zinc-50 border border-zinc-100 px-4 py-2 rounded-2xl shadow-sm animate-fade-in'>
+              <CloudSun className='w-4 h-4 text-orange-400 animate-pulse' />
+              <span className='text-xs font-black tracking-tight text-gray-700 uppercase'>
+                {weatherInfo.condition === 'Clear' ? 'Despejado' : 'Nublado'} - {weatherInfo.temperature.toFixed(1)}°C
+              </span>
+              </div>
+          )}
+
           <div className="flex items-center gap-4">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
               {session?.user?.email}

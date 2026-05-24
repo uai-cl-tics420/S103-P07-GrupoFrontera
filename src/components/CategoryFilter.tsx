@@ -1,6 +1,6 @@
 import { Button } from "./ui/button";
 import { Category } from "../types";
-import { Tent, Clapperboard, Drama, Landmark, Grid2X2, Utensils } from "lucide-react";
+import { Tent, Clapperboard, Drama, Landmark, Grid2X2, Utensils, Mountain } from "lucide-react";
 
 // 1. "Props": Qué le debemos pasar al componente para que funcione
 interface CategoryFilterProps {
@@ -17,6 +17,7 @@ export function CategoryFilter({ selectedCategory, onSelectCategory }: CategoryF
         { value: Category.TEATRO, label: Category.TEATRO, icon: Drama },
         { value: Category.MUSEO, label: Category.MUSEO, icon: Landmark },
         { value: Category.RESTAURANTE, label: Category.RESTAURANTE, icon: Utensils },
+        { value: Category.MIRADORES, label: Category.MIRADORES, icon: Mountain },
     ];
 
     return (

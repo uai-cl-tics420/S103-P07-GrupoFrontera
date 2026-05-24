@@ -8,6 +8,7 @@ import { and, count, eq, gt } from "drizzle-orm";
 import nodemailer from 'nodemailer';
 import { verification } from '../auth-schema';
 import { randomInt, randomUUID } from 'crypto';
+import { getCurrentWeather } from './services/weatherService';
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -18,8 +19,8 @@ const transporter = nodemailer.createTransport({
 });
 
 // Verificación de variables de entorno
-const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, JWT_SECRET } = process.env;
-if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !JWT_SECRET) {
+const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, JWT_SECRET, OPENWEATHER_API_KEY } = process.env;
+if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !JWT_SECRET || !OPENWEATHER_API_KEY) {
   throw new Error("Faltan variables de entorno críticas en el archivo .env");
 }
 
@@ -44,15 +45,49 @@ app.onRequest(async ({ request }) => {
 // Las rutas manuales de OTP fueron eliminadas. Todo el flujo será manejado nativamente por Better-Auth.
 
 
-app.get("/api/activities", async () => {
+app.get("/api/activities", async ({ query }) => {
+  //extraemos las coordenadas del frontend por la url
+  //si no vienen, dejamos unas por defecto (ej. las de Stgo.)
+  const lat = query.lat ? parseFloat(query.lat): -33.4372;
+  const lng = query.lng ? parseFloat(query.lng): -70.6506;
+
+  console.log(`Extrayendo clima para posición: lat ${lat}, lng ${lng}`);
+
+  //consultamos el clima real del usuario en OpenWeather
+  const weather = await getCurrentWeather(lat, lng);
+  console.log(`Clima detectado: ${weather.condition} (${weather.temperature}°C)`);
+
+  //traemos las actividades de la bbdd
   const rows = await db.select().from(activities);
-  return rows.map(row => ({
+
+  //mapeamos las filas al formato typescript
+  const mappedActivities = rows.map(row => ({
     id: row.id,
     name: row.name,
     category: row.category,
     tagClima: row.tag_clima,
     coordinates: { lat: row.lat, lng: row.lng },
   }));
+
+  //inyección en lógica de filtrado/recomendación
+  //mapeamos el main de OW (Clear, Clouds, Rain) a los tags de la bbdd (Sunny, Rainy)
+  const weatherTag = (weather.condition === 'Clear' || weather.condition === 'Clouds') ? 'Sunny' : 'Rainy';
+
+  //ordenamos dejando primero las actividades que favorecen al clima actual
+  const climateRecommended = [...mappedActivities].sort((a, b) => {
+    const aCalzaClima = a.tagClima === weatherTag;
+    const bCalzaClima = b.tagClima === weatherTag;
+
+    if (aCalzaClima && !bCalzaClima) return -1;
+    if (!aCalzaClima && bCalzaClima) return 1;
+    return 0;
+  });
+
+  //retornamos la lista optimizada por clima
+  return {
+    currentWeather: weather,
+    activities: climateRecommended
+  };
 });
 
 app.get("/api/preferences/:userId", async ({ params }) => {
