@@ -59,6 +59,7 @@ export const translations = {
     categoryParque: { es: 'Parque', en: 'Park' },
     categoryMuseo: { es: 'Museo', en: 'Museum' },
     categoryRestaurante: { es: 'Restaurante', en: 'Restaurant' },
+    categoryMiradores: { es: 'Miradores', en: 'Viewpoints' },
 
     // Admin Dashboard
     adminPanel: { es: 'Panel de Administrador', en: 'Admin Panel' },

@@ -1,6 +1,6 @@
 import { Button } from "./ui/button";
 import { Category } from "../types";
-import { Tent, Clapperboard, Drama, Landmark, Grid2X2, Utensils } from "lucide-react";
+import { Tent, Clapperboard, Drama, Landmark, Grid2X2, Utensils, Mountain } from "lucide-react";
 import { useT } from "@/i18n/context";
 import type { TranslationKey } from "@/i18n/translations";
 
@@ -20,6 +20,7 @@ export function CategoryFilter({ selectedCategory, onSelectCategory }: CategoryF
         { value: Category.TEATRO, key: 'categoryTeatro', icon: Drama },
         { value: Category.MUSEO, key: 'categoryMuseo', icon: Landmark },
         { value: Category.RESTAURANTE, key: 'categoryRestaurante', icon: Utensils },
+        { value: Category.MIRADORES, key: 'categoryMiradores', icon: Mountain },
     ];
 
     return (

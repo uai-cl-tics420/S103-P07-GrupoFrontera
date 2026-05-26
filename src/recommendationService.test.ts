@@ -67,6 +67,22 @@ describe("getRecommendedActivities", () => {
         expect(result[2]!.category).toBe(Category.PARQUE);
     });
 
+    // Tarea 4: Soporte para la nueva categoría Miradores
+    it("mapea y ordena correctamente la nueva categoría Miradores basada en los gustos del usuario", () => {
+        const activities = [
+            makeActivity("1", Category.TEATRO),
+            makeActivity("2", Category.MIRADORES), 
+            makeActivity("3", Category.RESTAURANTE),
+        ];
+        const user = makeUser([Category.MIRADORES]);
+
+        const result = getRecommendedActivities(user, activities);
+        
+        // El algoritmo debe poner el mirador en el primer lugar
+        expect(result[0]!.category).toBe(Category.MIRADORES);
+        expect(result[0]!.id).toBe("2");
+    });
+
     // Casos de borde extra (Tus originales)
     it("array vacío de actividades retorna array vacío", () => {
         const result = getRecommendedActivities(makeUser([Category.CINE]), []);

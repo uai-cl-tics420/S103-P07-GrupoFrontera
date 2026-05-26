@@ -6,12 +6,13 @@ const ActivityCard = ({ activity }: { activity: any }) => {
   if (!activity) return null;
 
   // Mapeo de categoría (string) a clave de traducción
-  const categoryKeyMap: Record<string, "categoryCine" | "categoryParque" | "categoryTeatro" | "categoryMuseo" | "categoryRestaurante"> = {
+  const categoryKeyMap: Record<string, "categoryCine" | "categoryParque" | "categoryTeatro" | "categoryMuseo" | "categoryRestaurante" | "categoryMiradores"> = {
     'Cine': 'categoryCine',
     'Parque': 'categoryParque',
     'Teatro': 'categoryTeatro',
     'Museo': 'categoryMuseo',
     'Restaurante': 'categoryRestaurante',
+    'Miradores': 'categoryMiradores',
   };
   const categoryKey = categoryKeyMap[activity.category];
   const categoryLabel = categoryKey ? t(categoryKey) : activity.category;
@@ -22,7 +23,8 @@ const ActivityCard = ({ activity }: { activity: any }) => {
         <span className="text-5xl sm:text-6xl animate-bounce-short">
           {activity.category === 'Cine' ? '🍿' :
            activity.category === 'Parque' ? '🌳' :
-           activity.category === 'Teatro' ? '🎭' : '🖼️'}
+           activity.category === 'Teatro' ? '🎭' :
+           activity.category === 'Miradores' ? '🏔️' : '🖼️'}
         </span>
         <div className="absolute top-3 right-3 sm:top-5 sm:right-5 bg-white/90 backdrop-blur-sm px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 border border-gray-100 shadow-sm">
            {activity.tagClima === 'Sunny' ? t('weatherSunny') : t('weatherAll')}
