@@ -17,16 +17,20 @@ export function useUserPreferences(userId?: string) {
         }
         return null;
     });
+    const [role, setRole] = useState<'user' | 'admin'>('user');
 
     // Al montar (y cuando llega el userId), consulta la DB.
     useEffect(() => {
         if (!userId) return;
         fetch(`/api/preferences/${userId}`)
             .then(r => r.json())
-            .then((data: { categories: string[] }) => {
+            .then((data: { categories: string[]; role?: 'user' | 'admin' }) => {
                 const first = data.categories[0];
                 if (first && Object.values(Category).includes(first as Category)) {
                     setPreferredCategory(first as Category);
+                }
+                if (data.role) {
+                    setRole(data.role);
                 }
             })
             .catch(() => {
@@ -57,5 +61,6 @@ export function useUserPreferences(userId?: string) {
     return {
         preferredCategory,
         setPreferredCategory,
+        role,
     };
 }

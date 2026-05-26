@@ -56,15 +56,50 @@ app.get("/api/activities", async () => {
 });
 
 app.get("/api/preferences/:userId", async ({ params }) => {
-  const rows = await db.select().from(userPreferences)
+  let rows = await db.select().from(userPreferences)
     .where(eq(userPreferences.userId, params.userId));
-  return { categories: rows[0]?.preferredCategories ?? [] };
+  
+  if (rows.length === 0) {
+    await db.insert(userPreferences).values({
+      userId: params.userId,
+      preferredCategories: [],
+    });
+    
+    rows = await db.select().from(userPreferences)
+      .where(eq(userPreferences.userId, params.userId));
+  }
+  
+  // Buscar el rol real directamente en la tabla user
+  const u = await db.select().from(user)
+    .where(eq(user.id, params.userId))
+    .limit(1);
+  
+  const role = u[0]?.role ?? 'user';
+  
+  return { 
+    categories: rows[0]?.preferredCategories ?? [],
+    role: role
+  };
 });
 
 app.put("/api/preferences/:userId", async ({ params, body }) => {
   const { categories } = body as { categories: string[] };
-  await db.delete(userPreferences).where(eq(userPreferences.userId, params.userId));
-  await db.insert(userPreferences).values({ userId: params.userId, preferredCategories: categories });
+  
+  const existing = await db.select().from(userPreferences)
+    .where(eq(userPreferences.userId, params.userId))
+    .limit(1);
+    
+  if (existing.length > 0) {
+    await db.update(userPreferences)
+      .set({ preferredCategories: categories })
+      .where(eq(userPreferences.userId, params.userId));
+  } else {
+    await db.insert(userPreferences).values({
+      userId: params.userId,
+      preferredCategories: categories,
+    });
+  }
+  
   return { ok: true, categories };
 });
 // --- RUTAS OTP ---
@@ -123,6 +158,124 @@ app.post("/api/otp/verify", async ({ body }) => {
   await db.update(user).set({ otpVerified: true } as any).where(eq(user.id, userId));
 
   return { status: "success" };
+});
+
+// --- ENDPOINT DE ESTADÍSTICAS REALES PARA ADMINISTRADOR ---
+app.get("/api/admin/stats", async ({ request, set }) => {
+  const session = await auth.api.getSession({
+    headers: request.headers
+  });
+  if (!session) {
+    set.status = 401;
+    return { error: "No autorizado" };
+  }
+  const caller = await db.select().from(user)
+    .where(eq(user.id, session.user.id))
+    .limit(1);
+  const role = caller[0]?.role ?? 'user';
+  if (role !== 'admin') {
+    set.status = 403;
+    return { error: "Acceso denegado: se requieren permisos de administrador" };
+  }
+
+  // 1. Total de usuarios reales
+  const totalUsersResult = await db.select({ value: count() }).from(user);
+  const totalUsers = totalUsersResult[0]?.value ?? 0;
+
+  // 2. Total de actividades reales
+  const totalActivitiesResult = await db.select({ value: count() }).from(activities);
+  const totalActivities = totalActivitiesResult[0]?.value ?? 0;
+
+  // 3. Total de OTPs enviadas hoy
+  const todayStart = new Date();
+  todayStart.setHours(0,0,0,0);
+  const otpsSentTodayResult = await db.select({ value: count() }).from(verification)
+    .where(gt(verification.createdAt, todayStart));
+  const otpsSentToday = otpsSentTodayResult[0]?.value ?? 0;
+
+  // 4. Actividades por categoría reales
+  const categoryCounts = await db.select({ 
+    category: activities.category, 
+    count: count() 
+  }).from(activities).groupBy(activities.category);
+
+  // Determinar la categoría con más actividades
+  let topCategory = "Parque";
+  let maxCount = 0;
+  for (const c of categoryCounts) {
+    if (c.count > maxCount) {
+      maxCount = c.count;
+      topCategory = c.category;
+    }
+  }
+
+  // 5. Lista de usuarios reales con sus roles y estados (consulta directa)
+  const usersList = await db.select({
+    id: user.id,
+    email: user.email,
+    otpVerified: user.otpVerified,
+    createdAt: user.createdAt,
+    role: user.role
+  })
+  .from(user)
+  .orderBy(user.createdAt);
+
+  const recentUsers = usersList.map(u => ({
+    id: u.id,
+    email: u.email,
+    role: u.role ?? 'user',
+    status: u.otpVerified ? 'active' : 'pending',
+    joinedAt: u.createdAt ? new Date(u.createdAt).toISOString().split('T')[0] : '2026-05-26'
+  }));
+
+  return {
+    stats: {
+      totalUsers,
+      totalActivities,
+      otpsSentToday,
+      topCategory,
+    },
+    recentUsers,
+    activitiesByCategory: categoryCounts.map(c => ({
+      category: c.category,
+      count: c.count
+    }))
+  };
+});
+
+// --- ENDPOINT PARA PROMOVER O DEGRADAR ROLES DE USUARIO (SOLO ADMINS) ---
+app.patch("/api/admin/users/:targetUserId/role", async ({ params, body, request, set }) => {
+  const session = await auth.api.getSession({
+    headers: request.headers
+  });
+  if (!session) {
+    set.status = 401;
+    return { error: "No autorizado" };
+  }
+
+  // Validamos que el solicitante sea un administrador real
+  const caller = await db.select().from(user)
+    .where(eq(user.id, session.user.id))
+    .limit(1);
+  
+  const callerRole = caller[0]?.role ?? 'user';
+  if (callerRole !== 'admin') {
+    set.status = 403;
+    return { error: "Acceso denegado: se requieren privilegios de administrador" };
+  }
+
+  const { role } = body as { role: 'user' | 'admin' };
+  if (role !== 'user' && role !== 'admin') {
+    set.status = 400;
+    return { error: "Rol inválido" };
+  }
+
+  // Realizamos la promoción en la tabla 'user'
+  await db.update(user)
+    .set({ role: role })
+    .where(eq(user.id, params.targetUserId));
+
+  return { success: true, userId: params.targetUserId, newRole: role };
 });
 
 // --- PROTECCIÓN POR ROLES ---

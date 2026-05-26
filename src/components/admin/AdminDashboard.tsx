@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, MapPin, Mail, TrendingUp, ArrowLeft } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/i18n/context';
@@ -37,9 +37,105 @@ function StatCard({ icon: Icon, label, value, accent }: { icon: any; label: stri
 
 export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
     const { t } = useT();
+    const [realData, setRealData] = useState<any>(null);
+    const [loadingData, setLoadingData] = useState(true);
 
-    const topCategoryLabel = t(categoryKeys[MOCK_STATS.topCategory]);
-    const maxCount = Math.max(...MOCK_ACTIVITIES_BY_CATEGORY.map(c => c.count));
+    useEffect(() => {
+        fetch('/api/admin/stats')
+            .then(res => {
+                if (!res.ok) throw new Error('Falló la consulta API');
+                return res.json();
+            })
+            .then(data => {
+                setRealData(data);
+                setLoadingData(false);
+            })
+            .catch(err => {
+                console.warn("Usando datos mockeados en Admin (modo offline/fallback):", err);
+                setLoadingData(false);
+            });
+    }, []);
+
+    const handleRoleChange = async (userId: string, newRole: 'user' | 'admin') => {
+        try {
+            const res = await fetch(`/api/admin/users/${userId}/role`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role: newRole })
+            });
+            if (!res.ok) throw new Error('Falló al cambiar el rol');
+            
+            // Recargar silenciosamente los datos reales del backend
+            const statsRes = await fetch('/api/admin/stats');
+            if (statsRes.ok) {
+                const data = await statsRes.json();
+                setRealData(data);
+            }
+        } catch (err) {
+            console.error("Error al actualizar rol del usuario:", err);
+            alert("Error al actualizar el rol en la base de datos.");
+        }
+    };
+
+    // Datos dinámicos con fallback a mock
+    const stats = realData?.stats || MOCK_STATS;
+    
+    // Si la DB tiene usuarios reales, los muestra. Si está vacía o hay error, cae al mock poblado.
+    const displayUsers = (realData?.recentUsers && realData.recentUsers.length > 0)
+        ? realData.recentUsers
+        : MOCK_RECENT_USERS;
+
+    const displayActivitiesByCategory = (realData?.activitiesByCategory && realData.activitiesByCategory.length > 0)
+        ? realData.activitiesByCategory
+        : MOCK_ACTIVITIES_BY_CATEGORY;
+
+    const topCategoryLabel = t(categoryKeys[stats.topCategory as Category] || 'categoryParque');
+    const maxCount = Math.max(...displayActivitiesByCategory.map((c: any) => c.count), 1);
+
+    const admins = displayUsers.filter((u: any) => u.role === 'admin');
+    const standardUsers = displayUsers.filter((u: any) => u.role === 'user');
+
+    const renderUserRow = (u: any) => (
+        <tr key={u.id} className="border-t border-gray-50 hover:bg-gray-50/30 transition-colors">
+            <td className="py-3 px-2 text-gray-900 font-medium truncate max-w-[180px]">{u.email}</td>
+            <td className="py-3 px-2">
+                <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md ${
+                    u.role === 'admin'
+                        ? 'bg-black text-white'
+                        : 'bg-gray-100 text-gray-600'
+                }`}>
+                    {u.role === 'admin' ? t('roleAdmin') : t('roleUser')}
+                </span>
+            </td>
+            <td className="py-3 px-2 text-gray-500 text-xs hidden sm:table-cell whitespace-nowrap">{u.joinedAt}</td>
+            <td className="py-3 px-2">
+                <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest ${
+                    u.status === 'active' ? 'text-emerald-600' : 'text-amber-600'
+                }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                        u.status === 'active' ? 'bg-emerald-500' : 'bg-amber-500'
+                    }`}></span>
+                    {u.status === 'active' ? t('statusActive') : t('statusPending')}
+                </span>
+            </td>
+            <td className="py-3 px-2 text-xs">
+                {u.email !== userEmail ? (
+                    <select
+                        value={u.role}
+                        onChange={(e) => handleRoleChange(u.id, e.target.value as 'user' | 'admin')}
+                        className="text-[10px] font-bold bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:ring-1 focus:ring-black cursor-pointer"
+                    >
+                        <option value="user">Usuario</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                ) : (
+                    <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest px-2 py-1 select-none">
+                        Actual
+                    </span>
+                )}
+            </td>
+        </tr>
+    );
 
     return (
         <div className="min-h-screen bg-[#FAFAFA] font-sans pb-20">
@@ -85,19 +181,19 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                     <StatCard
                         icon={Users}
                         label={t('statTotalUsers')}
-                        value={MOCK_STATS.totalUsers}
+                        value={stats.totalUsers}
                         accent="bg-gradient-to-tr from-blue-500 to-cyan-400"
                     />
                     <StatCard
                         icon={MapPin}
                         label={t('statTotalActivities')}
-                        value={MOCK_STATS.totalActivities}
+                        value={stats.totalActivities}
                         accent="bg-gradient-to-tr from-orange-500 to-yellow-400"
                     />
                     <StatCard
                         icon={Mail}
                         label={t('statOtpsSent')}
-                        value={MOCK_STATS.otpsSentToday}
+                        value={stats.otpsSentToday}
                         accent="bg-gradient-to-tr from-fuchsia-500 to-pink-400"
                     />
                     <StatCard
@@ -123,34 +219,33 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                                         <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2">{t('tableRole')}</th>
                                         <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2 hidden sm:table-cell">{t('tableJoined')}</th>
                                         <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2">{t('tableStatus')}</th>
+                                        <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2">Acción</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {MOCK_RECENT_USERS.map(u => (
-                                        <tr key={u.id} className="border-t border-gray-50">
-                                            <td className="py-3 px-2 text-gray-900 font-medium truncate max-w-[180px]">{u.email}</td>
-                                            <td className="py-3 px-2">
-                                                <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md ${
-                                                    u.role === 'admin'
-                                                        ? 'bg-black text-white'
-                                                        : 'bg-gray-100 text-gray-600'
-                                                }`}>
-                                                    {u.role === 'admin' ? t('roleAdmin') : t('roleUser')}
-                                                </span>
-                                            </td>
-                                            <td className="py-3 px-2 text-gray-500 text-xs hidden sm:table-cell whitespace-nowrap">{u.joinedAt}</td>
-                                            <td className="py-3 px-2">
-                                                <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest ${
-                                                    u.status === 'active' ? 'text-emerald-600' : 'text-amber-600'
-                                                }`}>
-                                                    <span className={`w-1.5 h-1.5 rounded-full ${
-                                                        u.status === 'active' ? 'bg-emerald-500' : 'bg-amber-500'
-                                                    }`}></span>
-                                                    {u.status === 'active' ? t('statusActive') : t('statusPending')}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {/* 1. SECCIÓN: ADMINISTRADORES */}
+                                    {admins.length > 0 && (
+                                        <>
+                                            <tr className="bg-gray-50/40">
+                                                <td colSpan={5} className="py-2 px-2 text-[9px] font-black text-gray-400 uppercase tracking-wider select-none">
+                                                    ⚡ {t('recentAdmins')}
+                                                </td>
+                                            </tr>
+                                            {admins.map(renderUserRow)}
+                                        </>
+                                    )}
+
+                                    {/* 2. SECCIÓN: USUARIOS COMUNES */}
+                                    {standardUsers.length > 0 && (
+                                        <>
+                                            <tr className="bg-gray-50/40">
+                                                <td colSpan={5} className="py-2 px-2 text-[9px] font-black text-gray-400 uppercase tracking-wider select-none pt-4">
+                                                    👤 {t('recentStandardUsers')}
+                                                </td>
+                                            </tr>
+                                            {standardUsers.map(renderUserRow)}
+                                        </>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -162,9 +257,9 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                             {t('sectionActivityByCategory')}
                         </h2>
                         <div className="flex flex-col gap-4">
-                            {MOCK_ACTIVITIES_BY_CATEGORY.map(({ category, count }) => {
+                            {displayActivitiesByCategory.map(({ category, count }: any) => {
                                 const percent = (count / maxCount) * 100;
-                                const label = t(categoryKeys[category]);
+                                const label = categoryKeys[category as Category] ? t(categoryKeys[category as Category]) : category;
                                 return (
                                     <div key={category}>
                                         <div className="flex justify-between items-center mb-1.5">

@@ -13,6 +13,8 @@ const LoginForm = () => {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [emailReadOnly, setEmailReadOnly] = useState(true);
+    const [passwordReadOnly, setPasswordReadOnly] = useState(true);
 
     const handleGoogleLogin = async () => {
         try {
@@ -119,6 +121,9 @@ const LoginForm = () => {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
+                        readOnly={emailReadOnly}
+                        onFocus={() => setEmailReadOnly(false)}
+                        autoComplete="username"
                         className="w-full px-4 py-3 bg-gray-50 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-black outline-none transition-all"
                     />
                     <input
@@ -128,6 +133,9 @@ const LoginForm = () => {
                         onChange={(e) => setPassword(e.target.value)}
                         required
                         minLength={8}
+                        readOnly={passwordReadOnly}
+                        onFocus={() => setPasswordReadOnly(false)}
+                        autoComplete="current-password"
                         className="w-full px-4 py-3 bg-gray-50 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-black outline-none transition-all"
                     />
                     {mode === 'register' && password.length > 0 && (

@@ -26,17 +26,29 @@ export function App() {
   const [jwtToken, setJwtToken] = React.useState('');
   const [view, setView] = React.useState<View>(getInitialView);
   const { activities, loading, error } = useActivities();
-  const { preferredCategory, setPreferredCategory } = useUserPreferences(session?.user?.id);
+  const { preferredCategory, setPreferredCategory, role } = useUserPreferences(session?.user?.id);
   const { t } = useT();
 
   // Sincroniza el estado con el boton "Atras" del browser
   React.useEffect(() => {
-    const onPopState = () => setView(getInitialView());
+    const onPopState = () => {
+      const initialView = getInitialView();
+      if (initialView === 'admin' && role !== 'admin') {
+        window.history.replaceState({}, '', '/');
+        setView('home');
+      } else {
+        setView(initialView);
+      }
+    };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, []);
+  }, [role]);
 
   const navigate = (next: View) => {
+    if (next === 'admin' && role !== 'admin') {
+      console.warn("Acceso no autorizado a administración.");
+      return;
+    }
     const path = next === 'admin' ? '/admin' : '/';
     window.history.pushState({}, '', path);
     setView(next);
@@ -82,8 +94,8 @@ export function App() {
     );
   }
 
-  // d) Vista admin
-  if (view === 'admin') {
+  // d) Vista admin (sólo si tiene rol de administrador)
+  if (view === 'admin' && role === 'admin') {
     return <AdminDashboard onBack={() => navigate('home')} userEmail={session?.user?.email} />;
   }
 
@@ -113,12 +125,14 @@ export function App() {
             PANORAMAS
           </h1>
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <button
-              onClick={() => navigate('admin')}
-              className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-gray-900 transition-colors whitespace-nowrap px-2 py-1 border border-gray-200 rounded"
-            >
-              {t('adminAccessLink')}
-            </button>
+            {role === 'admin' && (
+              <button
+                onClick={() => navigate('admin')}
+                className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-gray-900 transition-colors whitespace-nowrap px-2 py-1 border border-gray-200 rounded"
+              >
+                {t('adminAccessLink')}
+              </button>
+            )}
             <LanguageToggle />
             <span className="hidden md:inline text-[10px] font-bold text-gray-400 uppercase tracking-tighter truncate max-w-[160px] lg:max-w-[240px]">
               {session?.user?.email}

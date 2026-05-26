@@ -3,6 +3,9 @@ import { pgTable, text, varchar, doublePrecision, timestamp, boolean } from "dri
 // --- 0. TABLAS DE BETTER-AUTH (¡Añade esto!) ---
 // Estas son las que faltaban y por eso daban error en auth.ts
 
+// --- ENUMERADO DE ROLES ---
+export const rolesEnum = ['user', 'admin'] as const;
+
 export const user = pgTable("user", {
     id: text("id").primaryKey(),
     name: text("name").notNull(),
@@ -11,6 +14,7 @@ export const user = pgTable("user", {
     image: text("image"),
     otpSecret: text("otp_secret"), //el secreto para generar el código
     otpVerified: boolean("otp_verified").default(false), //ya pasó el segundo factor?
+    role: text("role", { enum: rolesEnum }).default("user"), // Campo de rol directo en el usuario
     createdAt: timestamp("created_at").notNull(),
     updatedAt: timestamp("updated_at").notNull(),
 });
@@ -62,11 +66,8 @@ export const activities = pgTable('activities', {
 });
 
 // --- 2. Tabla de Preferencias de Usuario ---
-export const rolesEnum = ['user', 'admin'] as const;
-
 export const userPreferences = pgTable('user_preferences', {
     id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
     userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
     preferredCategories: text('preferred_categories').array(),
-    role: text('role', { enum: rolesEnum }).default('user'),
 });

@@ -70,6 +70,8 @@ export const translations = {
     statOtpsSent: { es: 'OTPs enviados hoy', en: 'OTPs sent today' },
     statTopCategory: { es: 'Categoría líder', en: 'Top category' },
     sectionRecentUsers: { es: 'Usuarios recientes', en: 'Recent users' },
+    recentAdmins: { es: 'Admins recientes', en: 'Recent admins' },
+    recentStandardUsers: { es: 'Usuarios recientes', en: 'Recent users' },
     sectionActivityByCategory: { es: 'Actividades por categoría', en: 'Activities by category' },
     tableEmail: { es: 'Email', en: 'Email' },
     tableRole: { es: 'Rol', en: 'Role' },
@@ -77,7 +79,7 @@ export const translations = {
     tableStatus: { es: 'Estado', en: 'Status' },
     roleAdmin: { es: 'Admin', en: 'Admin' },
     roleUser: { es: 'Usuario', en: 'User' },
-    statusActive: { es: 'Activo', en: 'Active' },
+    statusActive: { es: 'Verificado', en: 'Verified' },
     statusPending: { es: 'Pendiente', en: 'Pending' },
 } satisfies Record<string, TranslationEntry>;
 
