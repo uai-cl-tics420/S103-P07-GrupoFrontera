@@ -1,0 +1,8 @@
+feat(recommendations): motor algorítmico e historial de usuario
+
+- Se modificó la lógica de recomendación (recommendationService.ts) para considerar el historial de comportamiento del usuario.
+- El algoritmo ahora extrae las categorías de los eventos visitados/reservados o favoritos y prioriza otros eventos afines para entregar recomendaciones precisas.
+- Se crearon las tablas user_favorites y user_reservations en la base de datos (schema.ts).
+- Se implementó la consulta en DB en el endpoint GET /api/activities para extraer el historial real de reservas y visitas del usuario.
+- Se validó el DoD logrando que el algoritmo priorice panoramas basándose en el comportamiento pasado.
+- Se añadió soporte para cálculo de distancias (Haversine) y horarios en vivo.

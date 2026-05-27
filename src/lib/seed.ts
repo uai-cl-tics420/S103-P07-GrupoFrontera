@@ -14,7 +14,18 @@ async function seed() {
             tag_clima: panorama.tagClima, // Traducimos del mock (tagClima) a la DB (tag_clima)
             lat: panorama.coordinates.lat, // Entramos al objeto coordinates
             lng: panorama.coordinates.lng,
-        }).onConflictDoNothing();
+            openingHour: panorama.openingHour,
+            closingHour: panorama.closingHour,
+        }).onConflictDoUpdate({
+            target: activities.id,
+            set: {
+                openingHour: panorama.openingHour,
+                closingHour: panorama.closingHour,
+                lat: panorama.coordinates.lat,
+                lng: panorama.coordinates.lng,
+                tag_clima: panorama.tagClima
+            }
+        });
     }
 
     console.log("⚙️  Promoviendo cuenta maestra a Administrador...");

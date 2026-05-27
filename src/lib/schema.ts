@@ -63,6 +63,8 @@ export const activities = pgTable('activities', {
     tag_clima: varchar('tag_clima', { length: 50 }).notNull(),
     lat: doublePrecision('lat').notNull(),
     lng: doublePrecision('lng').notNull(),
+    openingHour: text('opening_hour'),
+    closingHour: text('closing_hour'),
 });
 
 // --- 2. Tabla de Preferencias de Usuario ---
@@ -70,4 +72,20 @@ export const userPreferences = pgTable('user_preferences', {
     id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
     userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
     preferredCategories: text('preferred_categories').array(),
+});
+
+// --- 3. Favoritos y Reservas (Issue #50) ---
+export const userFavorites = pgTable('user_favorites', {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }).notNull(),
+    activityId: varchar('activity_id', { length: 50 }).references(() => activities.id, { onDelete: 'cascade' }).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const userReservations = pgTable('user_reservations', {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }).notNull(),
+    activityId: varchar('activity_id', { length: 50 }).references(() => activities.id, { onDelete: 'cascade' }).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    status: text('status').default('comprado').notNull(),
 });

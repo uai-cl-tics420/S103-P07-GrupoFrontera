@@ -1,7 +1,15 @@
 import { type Activity } from '../types/index';
 import { useT } from "@/i18n/context";
+import { Heart } from "lucide-react";
 
-const ActivityCard = ({ activity }: { activity: any }) => {
+interface ActivityCardProps {
+  activity: Activity;
+  isFavorite?: boolean;
+  isReserved?: boolean;
+  onToggleFavorite?: (id: string) => void;
+}
+
+const ActivityCard = ({ activity, isFavorite = false, isReserved = false, onToggleFavorite }: ActivityCardProps) => {
   const { t } = useT();
   if (!activity) return null;
 
@@ -26,9 +34,24 @@ const ActivityCard = ({ activity }: { activity: any }) => {
            activity.category === 'Teatro' ? '🎭' :
            activity.category === 'Miradores' ? '🏔️' : '🖼️'}
         </span>
-        <div className="absolute top-3 right-3 sm:top-5 sm:right-5 bg-white/90 backdrop-blur-sm px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 border border-gray-100 shadow-sm">
-           {activity.tagClima === 'Sunny' ? t('weatherSunny') : t('weatherAll')}
+        <div className="absolute top-3 right-3 sm:top-5 sm:right-5 flex flex-col gap-2 items-end">
+          <div className="bg-white/90 backdrop-blur-sm px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 border border-gray-100 shadow-sm">
+             {activity.tagClima === 'Sunny' ? t('weatherSunny') : t('weatherAll')}
+          </div>
+          {activity.openingHour && activity.closingHour && (
+            <div className="bg-white/90 backdrop-blur-sm px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 border border-gray-100 shadow-sm">
+              🕒 {activity.openingHour} - {activity.closingHour}
+            </div>
+          )}
         </div>
+        {onToggleFavorite && (
+          <button 
+            onClick={() => onToggleFavorite(activity.id)}
+            className="absolute top-3 left-3 sm:top-5 sm:left-5 bg-white/90 backdrop-blur-sm p-2 rounded-full border border-gray-100 shadow-sm hover:scale-110 transition-transform active:scale-95"
+          >
+            <Heart className={`w-5 h-5 ${isFavorite ? 'fill-red-500 text-red-500 animate-pulse' : 'text-gray-400'}`} />
+          </button>
+        )}
       </div>
 
       <div className="p-6 sm:p-8">
@@ -41,8 +64,12 @@ const ActivityCard = ({ activity }: { activity: any }) => {
           </h3>
         </div>
 
-        <button className="w-full bg-black text-white text-xs font-black py-4 rounded-2xl hover:bg-zinc-800 active:scale-[0.95] transition-all duration-200 shadow-lg shadow-black/10 uppercase tracking-widest">
-          {t('seeDetails')}
+        <button className="w-full bg-black text-white text-xs font-black py-4 rounded-2xl hover:bg-zinc-800 active:scale-[0.95] transition-all duration-200 shadow-lg shadow-black/10 uppercase tracking-widest relative overflow-hidden">
+          {isReserved ? (
+            <span className="text-green-400 font-black">✅ RESERVADO</span>
+          ) : (
+            t('seeDetails')
+          )}
         </button>
       </div>
     </div>

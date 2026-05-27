@@ -83,6 +83,8 @@ export function App() {
     }
   }, [session]);
 
+  const [userHistory, setUserHistory] = React.useState<{favorites: string[], reservations: string[]}>({ favorites: [], reservations: [] });
+
   //lógica dinámica: hacemos la consulta manual al backend inyectando las coordenadas en la url
   React.useEffect(() => {
     async function cargarPanoramasConClima() {
@@ -94,6 +96,9 @@ export function App() {
         if (data && data.activities) {
           setDynamicActivities(data.activities);
           setWeatherInfo(data.currentWeather);
+          if (data.userHistory) {
+            setUserHistory(data.userHistory);
+          }
         }
       } catch (err) {
         console.error("Error cargando panoramas dinámicos:", err);
@@ -106,6 +111,36 @@ export function App() {
       cargarPanoramasConClima();
     }
   }, [coords, session]);
+
+  const handleToggleFavorite = async (activityId: string) => {
+    const isFav = userHistory.favorites.includes(activityId);
+    
+    // Update local state optimistically
+    setUserHistory(prev => ({
+      ...prev,
+      favorites: isFav 
+        ? prev.favorites.filter(id => id !== activityId)
+        : [...prev.favorites, activityId]
+    }));
+
+    try {
+      if (isFav) {
+        await fetch('/api/favorites', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ activityId })
+        });
+      } else {
+        await fetch('/api/favorites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ activityId })
+        });
+      }
+    } catch (err) {
+      console.error("Error toggling favorite", err);
+    }
+  };
 
   let actualActivitiesList: any[] = [];
 
@@ -127,6 +162,7 @@ export function App() {
     name: session?.user?.name ?? "Usuario",
     preferences: preferredCategory ? [preferredCategory] : [],
     currentLocation: coords,
+    history: userHistory
   };
 
   const recommendedActivities = getRecommendedActivities(currentUser, actualActivitiesList);
@@ -245,7 +281,13 @@ export function App() {
             </p>
           ) : (
             filteredActivities.map((act) => (
-              <ActivityCard key={act.id} activity={act} />
+              <ActivityCard 
+                key={act.id} 
+                activity={act} 
+                isFavorite={userHistory.favorites.includes(act.id)}
+                isReserved={userHistory.reservations.includes(act.id)}
+                onToggleFavorite={handleToggleFavorite}
+              />
             ))
           )}
         </div>

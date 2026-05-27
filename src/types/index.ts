@@ -24,6 +24,10 @@ export interface User {
     lat: number;
     lng: number;
   };
+  history?: {
+    favorites: string[]; // IDs de actividades favoritas
+    reservations: string[]; // IDs de actividades reservadas
+  };
 }
 
 /**
@@ -39,4 +43,6 @@ export interface Activity {
     lat: number;
     lng: number;
   };
+  openingHour?: string; // Formato "HH:MM"
+  closingHour?: string; // Formato "HH:MM"
 }

@@ -3,7 +3,7 @@ import { cors } from '@elysiajs/cors';
 import { auth } from './lib/auth';
 import { protectMiddleware } from 'src/middleware/protect';
 import { db } from "./lib/db";
-import { user, activities, userPreferences } from "./lib/schema";
+import { user, activities, userPreferences, userFavorites, userReservations } from "./lib/schema";
 import { and, count, eq, gt } from "drizzle-orm";
 import nodemailer from 'nodemailer';
 import { verification } from '../auth-schema';
@@ -45,7 +45,7 @@ app.onRequest(async ({ request }) => {
 // Las rutas manuales de OTP fueron eliminadas. Todo el flujo será manejado nativamente por Better-Auth.
 
 
-app.get("/api/activities", async ({ query }) => {
+app.get("/api/activities", async ({ query, request }) => {
   //extraemos las coordenadas del frontend por la url
   //si no vienen, dejamos unas por defecto (ej. las de Stgo.)
   const lat = query.lat ? parseFloat(query.lat): -33.4372;
@@ -83,10 +83,31 @@ app.get("/api/activities", async ({ query }) => {
     return 0;
   });
 
-  //retornamos la lista optimizada por clima
+  // Extraer el usuario de la sesión para ver sus favoritos y reservas
+  const session = await auth.api.getSession({ headers: request.headers });
+  let userFavs: string[] = [];
+  let userRes: string[] = [];
+  
+  if (session?.user?.id) {
+    const favs = await db.select({ activityId: userFavorites.activityId })
+      .from(userFavorites)
+      .where(eq(userFavorites.userId, session.user.id));
+    userFavs = favs.map(f => f.activityId);
+
+    const res = await db.select({ activityId: userReservations.activityId })
+      .from(userReservations)
+      .where(eq(userReservations.userId, session.user.id));
+    userRes = res.map(r => r.activityId);
+  }
+
+  //retornamos la lista optimizada por clima, y también la data del usuario
   return {
     currentWeather: weather,
-    activities: climateRecommended
+    activities: climateRecommended,
+    userHistory: {
+      favorites: userFavs,
+      reservations: userRes
+    }
   };
 });
 
@@ -137,6 +158,34 @@ app.put("/api/preferences/:userId", async ({ params, body }) => {
   
   return { ok: true, categories };
 });
+
+// --- RUTAS FAVORITOS ---
+app.post("/api/favorites", async ({ body, request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id) {
+    set.status = 401;
+    return { error: "No autorizado" };
+  }
+  const { activityId } = body as { activityId: string };
+  await db.insert(userFavorites).values({
+    userId: session.user.id,
+    activityId
+  }).onConflictDoNothing();
+  return { success: true };
+});
+
+app.delete("/api/favorites", async ({ body, request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id) {
+    set.status = 401;
+    return { error: "No autorizado" };
+  }
+  const { activityId } = body as { activityId: string };
+  await db.delete(userFavorites)
+    .where(and(eq(userFavorites.userId, session.user.id), eq(userFavorites.activityId, activityId)));
+  return { success: true };
+});
+
 // --- RUTAS OTP ---
 app.post("/api/otp/request", async ({ body }) => {
   const { userId, email } = body as { userId: string; email: string };
