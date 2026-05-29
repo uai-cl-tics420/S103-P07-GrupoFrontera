@@ -287,6 +287,7 @@ export function App() {
                 isFavorite={userHistory.favorites.includes(act.id)}
                 isReserved={userHistory.reservations.includes(act.id)}
                 onToggleFavorite={handleToggleFavorite}
+                userCoords={coords}
               />
             ))
           )}

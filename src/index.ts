@@ -9,6 +9,7 @@ import nodemailer from 'nodemailer';
 import { verification } from '../auth-schema';
 import { randomInt, randomUUID } from 'crypto';
 import { getCurrentWeather } from './services/weatherService';
+import { enrichWithPlacesAPI } from './services/placesService';
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -69,12 +70,15 @@ app.get("/api/activities", async ({ query, request }) => {
     coordinates: { lat: row.lat, lng: row.lng },
   }));
 
+  // Enriquecer con afluencia y lugares de Google Places
+  const placesWithOccupancy = await enrichWithPlacesAPI(mappedActivities as any, lat, lng);
+
   //inyección en lógica de filtrado/recomendación
   //mapeamos el main de OW (Clear, Clouds, Rain) a los tags de la bbdd (Sunny, Rainy)
   const weatherTag = (weather.condition === 'Clear' || weather.condition === 'Clouds') ? 'Sunny' : 'Rainy';
 
   //ordenamos dejando primero las actividades que favorecen al clima actual
-  const climateRecommended = [...mappedActivities].sort((a, b) => {
+  const climateRecommended = [...placesWithOccupancy].sort((a, b) => {
     const aCalzaClima = a.tagClima === weatherTag;
     const bCalzaClima = b.tagClima === weatherTag;
 
