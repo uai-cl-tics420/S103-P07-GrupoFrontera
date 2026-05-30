@@ -24,7 +24,6 @@ describe("isOutdoorFriendly", () => {
     });
 
     //Tarea 3: Robustez y casos de borde (valores inválidos, nulos o vacíos)
-
     it("debería retornar false como fallback seguro ante condiciones vacías, nulas o desconocidas", () => {
         expect(isOutdoorFriendly("")).toBe(false);
         expect(isOutdoorFriendly(null)).toBe(false);
