@@ -13,7 +13,17 @@ import { getRecommendedActivities } from "./recommendationService";
 import { authClient } from "./lib/auth-client";
 import { useT } from "@/i18n/context";
 import type { User } from "./types";
-import { CloudSun } from "lucide-react";
+import { Sun, Cloud, CloudRain, CloudLightning, CloudDrizzle, Snowflake, CloudSun, MapPin } from "lucide-react";
+
+//mapeador dinámico de condiciones climáticas a íconos de Lucide
+const weatherIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  'Clear': Sun,
+  'Clouds': Cloud,
+  'Rain': CloudRain,
+  'Thunderstorm': CloudLightning,
+  'Drizzle': CloudDrizzle,
+  'Snow': Snowflake,
+};
 
 type View = 'home' | 'admin';
 
@@ -29,7 +39,7 @@ export function App() {
 
   //estados para capturar las coordenadas reales del navegador
   const [coords, setCoords] = React.useState({ lat: -33.4372, lng: -70.6506 }); //Stgo. centro por defecto
-  const [weatherInfo, setWeatherInfo] = React.useState<{ condition: string; temperature: number } | null>(null);
+  const [weatherInfo, setWeatherInfo] = React.useState<{ condition: string; temperature: number; cityName?: string } | null>(null);
 
   //estado local para guardar los panoramas que traemos dinámicamente
   const [dynamicActivities, setDynamicActivities] = React.useState<any[]>([]);
@@ -231,10 +241,26 @@ export function App() {
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* Componente que muestra el clima satelital en la barra de navegación */}
             {weatherInfo && (
-              <div className='flex items-center gap-2 bg-zinc-50 border border-zinc-100 px-3 py-1.5 rounded-full shadow-sm animate-fade-in'>
-                <CloudSun className='w-4 h-4 text-orange-400 animate-pulse' />
-                <span className='text-[10px] font-black tracking-tight text-gray-700 uppercase'>
-                  {weatherInfo.condition === 'Clear' ? 'Despejado' : 'Nublado'} - {weatherInfo.temperature.toFixed(1)}°C
+              <div className='flex items-center gap-2 bg-zinc-50 border border-gray-100 px-4 py-2 rounded-full shadow-sm select-none transition-all duration-300 hover:bg-zinc-100 animate-fade-in'>
+                <span className='text-xs font-black text-gray-500 uppercase tracking-wider flex items-center gap-1'>
+                  <span>📍</span> {weatherInfo.cityName || "Santiago"}
+                </span>
+
+                <span className='text-gray-300'>|</span>
+
+                {(() => {
+                  const IconComponent = weatherIconMap[weatherInfo.condition] || Cloud;
+
+                  const iconColor =
+                    weatherInfo.condition === 'Clear' ? 'text-amber-500 animate-spin-slow' :
+                    weatherInfo.condition === 'Rain' || weatherInfo.condition === 'Drizzle' ? 'text-blue-500' :
+                    weatherInfo.condition === 'Thunderstorm' ? 'text-purple-600' : 'text-zinc-400';
+
+                  return <IconComponent className={`w-4 h-4 ${iconColor}`} />;
+                })()}
+
+                <span className='text-xs font-black text-gray-900 tracking-tighter'>
+                  {Math.round(weatherInfo.temperature)}°C
                 </span>
               </div>
             )}

@@ -57,6 +57,11 @@ app.get("/api/activities", async ({ query, request }) => {
   const weather = await getCurrentWeather(lat, lng);
   console.log(`Clima detectado: ${weather.condition} (${weather.temperature}°C)`);
 
+  //info para el widget
+  const currentCondition = weather.condition || 'Clear';
+  const currentTemp = weather.temperature || 20;
+  const cityName = (weather as any).cityName || (weather as any).name || "Santiago";
+
   //traemos las actividades de la bbdd
   const rows = await db.select().from(activities);
 
@@ -67,6 +72,8 @@ app.get("/api/activities", async ({ query, request }) => {
     category: row.category,
     tagClima: row.tag_clima,
     coordinates: { lat: row.lat, lng: row.lng },
+    openingHour: (row as any).opening_hour,
+    closingHour: (row as any).closing_hour,
   }));
 
   //inyección en lógica de filtrado/recomendación
@@ -102,7 +109,11 @@ app.get("/api/activities", async ({ query, request }) => {
 
   //retornamos la lista optimizada por clima, y también la data del usuario
   return {
-    currentWeather: weather,
+    currentWeather: {
+      condition: currentCondition,
+      temperature: currentTemp,
+      cityName: cityName
+    },
     activities: climateRecommended,
     userHistory: {
       favorites: userFavs,

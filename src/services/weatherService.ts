@@ -3,6 +3,7 @@ import { Category } from "../types";
 export interface WeatherData {
     condition: string;
     temperature: number;
+    cityName: string;
 }
 
 export async function getCurrentWeather(lat: number, lng: number): Promise<WeatherData> {
@@ -26,10 +27,12 @@ export async function getCurrentWeather(lat: number, lng: number): Promise<Weath
 
         const condition = data.weather?.[0]?.main ?? "Clear";
         const temperature = data.main?.temp ?? 20;
+        const cityName = data.name;
 
         return {
             condition,
             temperature,
+            cityName
         };
     } catch (error) {
         //bloque try/catch para fallos de red/api key
@@ -37,6 +40,7 @@ export async function getCurrentWeather(lat: number, lng: number): Promise<Weath
         return { //fallback seguro
             condition: "Clear",
             temperature: 22,
+            cityName: "Santiago"
         };
     }
 
