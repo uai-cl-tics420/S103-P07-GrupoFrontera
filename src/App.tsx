@@ -176,8 +176,8 @@ export function App() {
   };
 
   const recommendedActivities = getRecommendedActivities(currentUser, actualActivitiesList);
-  const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(recommendedActivities, preferredCategory);
-
+  const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(actualActivitiesList, preferredCategory);
+  
   const handleSelectCategory = (category: typeof selectedCategory) => {
     setSelectedCategory(category);
     if (category !== null) {

@@ -9,6 +9,7 @@ import nodemailer from 'nodemailer';
 import { verification } from '../auth-schema';
 import { randomInt, randomUUID } from 'crypto';
 import { getCurrentWeather } from './services/weatherService';
+import { isOutdoorFriendly } from './utils/weatherHelpers';
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -76,18 +77,32 @@ app.get("/api/activities", async ({ query, request }) => {
     closingHour: (row as any).closing_hour,
   }));
 
-  //inyección en lógica de filtrado/recomendación
-  //mapeamos el main de OW (Clear, Clouds, Rain) a los tags de la bbdd (Sunny, Rainy)
-  const weatherTag = (weather.condition === 'Clear' || weather.condition === 'Clouds') ? 'Sunny' : 'Rainy';
+  //Evaluamos las condiciones actyales usando el helper
+  const conditionClean = currentCondition.toLowerCase().trim();
+  const aptoParaExteriores = isOutdoorFriendly(conditionClean);
+  console.log(`¿El clima actual es apto para exteriores?: ${aptoParaExteriores ? 'SÍ' : 'NO'}`);
 
-  //ordenamos dejando primero las actividades que favorecen al clima actual
+  //ordenamos la grilla de panoramas con criterio adaptativo:
   const climateRecommended = [...mappedActivities].sort((a, b) => {
-    const aCalzaClima = a.tagClima === weatherTag;
-    const bCalzaClima = b.tagClima === weatherTag;
+    //definimos si una actividad es solo de exterior analizando sus tags de bbdd
+    //asumimos que si tiene tagClima 'Sunny' es outdoor
+    const aEsOutdoor = a.tagClima?.toLowerCase() === 'sunny';
+    const bEsOutdoor = b.tagClima?.toLowerCase() === 'sunny';
 
-    if (aCalzaClima && !bCalzaClima) return -1;
-    if (!aCalzaClima && bCalzaClima) return 1;
-    return 0;
+    //si no es apto para exteriores, penalizamos fuertemente las actividades outdoor
+    if (!aptoParaExteriores) {
+      const scoreA = !aEsOutdoor ? 1 : 0;
+      const scoreB = !bEsOutdoor ? 1 : 0;
+      return scoreB - scoreA;
+    } else {
+      //si el clima está lindo, mantenemos la lógica previa
+      const isSunnyDay = conditionClean === 'clear' || conditionClean === 'clouds';
+      const weatherTag = isSunnyDay ? 'sunny' : 'rainy';
+      const scoreA = a.tagClima?.toLowerCase() === weatherTag ? 1 : 0;
+      const scoreB = b.tagClima?.toLowerCase() === weatherTag ? 1 : 0;
+
+      return scoreB - scoreA;
+    }
   });
 
   // Extraer el usuario de la sesión para ver sus favoritos y reservas
