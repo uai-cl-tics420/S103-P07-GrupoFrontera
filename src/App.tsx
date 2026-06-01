@@ -14,6 +14,7 @@ import { authClient } from "./lib/auth-client";
 import { useT } from "@/i18n/context";
 import type { User } from "./types";
 import { Sun, Cloud, CloudRain, CloudLightning, CloudDrizzle, Snowflake, CloudSun, MapPin } from "lucide-react";
+import { ActivityDetailModal } from './components/ActivityDetailModal';
 
 //mapeador dinámico de condiciones climáticas a íconos de Lucide
 const weatherIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -44,6 +45,9 @@ export function App() {
   //estado local para guardar los panoramas que traemos dinámicamente
   const [dynamicActivities, setDynamicActivities] = React.useState<any[]>([]);
   const [loadingWeather, setLoadingWeather] = React.useState(true);
+
+  //estado para la tarjeta de detalles
+  const [selectedActivityForDetail, setSelectedActivityForDetail] = React.useState<any | null>(null);
 
   const { activities, loading, error } = useActivities();
   const { preferredCategory, setPreferredCategory, role } = useUserPreferences(session?.user?.id);
@@ -107,7 +111,13 @@ export function App() {
           setDynamicActivities(data.activities);
           setWeatherInfo(data.currentWeather);
           if (data.userHistory) {
-            setUserHistory(data.userHistory);
+            setUserHistory(prev => ({
+              favorites: data.userHistory.favorites || [],
+              reservations: Array.from(new Set([
+                ...(data.userHistory.reservations || []),
+                ...prev.reservations
+              ]))
+            }));
           }
         }
       } catch (err) {
@@ -231,6 +241,42 @@ export function App() {
     );
   }
 
+  //Función para manejar las reservas por ahora
+  const handleReserve = async (activityId: string) => {
+    //Estado optimista inmediato (Se pone verde)
+    setUserHistory(prev => {
+      if (prev.reservations.includes(activityId)) return prev;
+      return {
+        ...prev,
+        reservations: [...prev.reservations, activityId]
+      };
+    });
+
+    try {
+      const response = await fetch('/api/reservations', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ activityId })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      console.log("¡Reserva confirmada con éxito en el servidor!");
+
+    } catch (err) {
+      console.error("🚨 Error real en la petición de reserva, revirtiendo estado:", err);
+      
+      setUserHistory(prev => ({
+        ...prev,
+        reservations: prev.reservations.filter(id => id !== activityId)
+      }));
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#FAFAFA] font-sans pb-20">
       <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 sm:px-6 py-4 sm:py-5 mb-8 sm:mb-12">
@@ -313,10 +359,18 @@ export function App() {
                 isFavorite={userHistory.favorites.includes(act.id)}
                 isReserved={userHistory.reservations.includes(act.id)}
                 onToggleFavorite={handleToggleFavorite}
+                onSeeDetails={(activity) => setSelectedActivityForDetail(activity)}
               />
             ))
           )}
         </div>
+
+        <ActivityDetailModal
+          activity={selectedActivityForDetail}
+          onClose={() => setSelectedActivityForDetail(null)}
+          isReserved={selectedActivityForDetail ? userHistory.reservations.includes(selectedActivityForDetail.id) : false}
+          onReserve={handleReserve}
+        />
       </main>
 
       <footer className="mt-16 sm:mt-20 text-center opacity-20 font-black text-[10px] tracking-[0.5em] uppercase px-4">

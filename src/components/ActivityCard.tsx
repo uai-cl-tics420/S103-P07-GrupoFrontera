@@ -9,9 +9,10 @@ interface ActivityCardProps {
   isReserved?: boolean;
   onToggleFavorite?: (id: string) => void;
   onReserve?: (id: string) => void;
+  onSeeDetails?: (activity: Activity) => void;
 }
 
-const ActivityCard = ({ activity, isFavorite = false, isReserved = false, onToggleFavorite, onReserve }: ActivityCardProps) => {
+const ActivityCard = ({ activity, isFavorite = false, isReserved = false, onToggleFavorite, onReserve, onSeeDetails }: ActivityCardProps) => {
   const { t } = useT();
   if (!activity) return null;
 
@@ -67,14 +68,14 @@ const ActivityCard = ({ activity, isFavorite = false, isReserved = false, onTogg
         </div>
 
         <button 
-          onClick={() => onReserve?.(activity.id)}
+          onClick={() => onSeeDetails?.(activity)}
           className={`w-full text-xs font-black py-4 rounded-2xl transition-all duration-200 shadow-lg uppercase tracking-widest relative overflow-hidden active:scale-[0.97]
             ${isReserved
               ? 'bg-emerald-500 text-white shadow-emerald-500/10 cursor-default'
               : 'bg-black hover:bg-zinc-800 text-white shadow-black/10 hover:shadow-black/20 group-hover:-translate-y-0.5'
             }`}>
           {isReserved ? (
-            <span className="font-black tracking-widest">✅ {t('seeDetails') ? 'RESERVADO' : 'RESERVADO'}</span>
+            <span className="font-black tracking-widest">✅ {t('seeDetails')} (RESERVADO)</span>
           ) : (
             t('seeDetails')
           )}
