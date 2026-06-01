@@ -15,6 +15,8 @@ import { useT } from "@/i18n/context";
 import type { User } from "./types";
 import { Sun, Cloud, CloudRain, CloudLightning, CloudDrizzle, Snowflake, CloudSun, MapPin } from "lucide-react";
 import { ActivityDetailModal } from './components/ActivityDetailModal';
+import { useToast } from './context/ToastContext';
+import { WeatherSkeleton, ActivityCardSkeleton, RecommendationSkeleton } from './components/Skeletons';
 
 //mapeador dinámico de condiciones climáticas a íconos de Lucide
 const weatherIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -34,6 +36,7 @@ function getInitialView(): View {
 }
 
 export function App() {
+  const { showToast } = useToast();
   const { data: session, isPending } = authClient.useSession();
   const [jwtToken, setJwtToken] = React.useState('');
   const [view, setView] = React.useState<View>(getInitialView);
@@ -122,6 +125,7 @@ export function App() {
         }
       } catch (err) {
         console.error("Error cargando panoramas dinámicos:", err);
+        showToast("No se pudo conectar con el servicio meteorológico.", "error");
       } finally {
         setLoadingWeather(false);
       }
@@ -134,6 +138,12 @@ export function App() {
 
   const handleToggleFavorite = async (activityId: string) => {
     const isFav = userHistory.favorites.includes(activityId);
+
+    if (isFav) {
+      showToast("Eliminado de tus favoritos.", "info");
+    } else {
+      showToast("¡Panorama guardado en tus favoritos!", "success");
+    }
     
     // Update local state optimistically
     setUserHistory(prev => ({
@@ -192,6 +202,7 @@ export function App() {
     setSelectedCategory(category);
     if (category !== null) {
       setPreferredCategory(category);
+      showToast(`Preferencias guardadas: Mostrando ${category}.`, "info");
     }
   };
 
@@ -241,8 +252,20 @@ export function App() {
     );
   }
 
+  //Función para manejar el signout
+  const handleSignOut = async () => {
+    try {
+      await authClient.signOut();
+      showToast("Sesión cerrada correctamente. ¡Vuelve pronto!", "info");
+    } catch (err) {
+      console.error("Error al cerrar sesión:", err);
+      showToast("Hubo un problema al cerrar tu sesión.", "error");
+    }
+  };
+
   //Función para manejar las reservas por ahora
   const handleReserve = async (activityId: string) => {
+    showToast("¡Reserva completada con éxito!", "success");
     //Estado optimista inmediato (Se pone verde)
     setUserHistory(prev => {
       if (prev.reservations.includes(activityId)) return prev;
@@ -285,8 +308,9 @@ export function App() {
             PANORAMAS
           </h1>
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            {/* Componente que muestra el clima satelital en la barra de navegación */}
-            {weatherInfo && (
+            {loadingWeather ? (
+              <WeatherSkeleton />
+            ) : weatherInfo ? (
               <div className='flex items-center gap-2 bg-zinc-50 border border-gray-100 px-4 py-2 rounded-full shadow-sm select-none transition-all duration-300 hover:bg-zinc-100 animate-fade-in'>
                 <span className='text-xs font-black text-gray-500 uppercase tracking-wider flex items-center gap-1'>
                   <span>📍</span> {weatherInfo.cityName || "Santiago"}
@@ -309,7 +333,8 @@ export function App() {
                   {Math.round(weatherInfo.temperature)}°C
                 </span>
               </div>
-            )}
+            ) : null}
+      
             {role === 'admin' && (
               <button
                 onClick={() => navigate('admin')}
@@ -323,7 +348,7 @@ export function App() {
               {session?.user?.email}
             </span>
             <button
-              onClick={() => authClient.signOut()}
+              onClick={handleSignOut}
               className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-red-400 transition-colors whitespace-nowrap"
             >
               {t('logout')}
@@ -334,6 +359,13 @@ export function App() {
       </nav>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Acá debería ir lo de la pestaña de recomentaciones porsiaca, pero el skeleton ya está hecho */}
+        {loading ? (
+          <RecommendationSkeleton />
+        ) : (
+          null
+        )}
+
         <div className="mb-8 sm:mb-10 flex flex-col gap-3">
           <CategoryFilter
             selectedCategory={selectedCategory}
@@ -341,13 +373,18 @@ export function App() {
           />
           <div className="px-2">
             <span className="text-xs font-bold text-gray-500 uppercase tracking-widest bg-gray-200/50 py-1 px-3 rounded-full">
-              {filteredActivities.length} {filteredActivities.length === 1 ? t('panoramaFound') : t('panoramasFound')}
+              {loading ? '...' : filteredActivities.length} {filteredActivities.length === 1 ? t('panoramaFound') : t('panoramasFound')}
             </span>
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-10">
-          {filteredActivities.length === 0 ? (
+          {loading ? (
+            //Si la base de datos está cargando, pintamos 6 tarjetas fantasma c/ animación de pulso
+            Array.from({ length: 6 }).map((_, index) => (
+              <ActivityCardSkeleton key={`main-skeleton-${index}`} />
+            ))
+          ) : filteredActivities.length === 0 ? (
             <p className="text-muted-foreground col-span-full text-center py-8">
               {t('emptyState')}
             </p>

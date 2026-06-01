@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { authClient } from "@/lib/auth-client";
 import { useT } from "@/i18n/context";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { useToast } from "@/context/ToastContext";
 
 type Mode = 'login' | 'register';
 
 const LoginForm = () => {
     const { t } = useT();
+    const { showToast } = useToast();
     const [mode, setMode] = useState<Mode>('login');
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
@@ -22,8 +24,10 @@ const LoginForm = () => {
                 provider: "google",
                 callbackURL: window.location.origin,
             });
+            showToast("Redirigiendo a Google...", "info");
         } catch {
             setError(t('loginGoogleFailed'));
+            showToast("Falló la autenticación con Google.", "error");
         }
     };
 
@@ -33,9 +37,15 @@ const LoginForm = () => {
         setError('');
         try {
             const { error } = await authClient.signIn.email({ email, password });
-            if (error) setError(error.message ?? t('badCredentials'));
+            if (error) { 
+                setError(error.message ?? t('badCredentials')); 
+                showToast(error.message ?? "Credenciales inválidas.", "error"); 
+            } else {
+                showToast("¡Sesión iniciada correctamente!", "success");
+            }
         } catch {
             setError(t('serverError'));
+            showToast("Error de conexión con el servidor.", "error");
         } finally {
             setLoading(false);
         }
@@ -51,9 +61,16 @@ const LoginForm = () => {
                 password,
                 name: name.trim() || email.split('@')[0] || 'Usuario',
             });
-            if (error) setError(error.message ?? t('createAccountError'));
+            if (error) {
+                setError(error.message ?? t('createAccountError'));
+                showToast(error.message ?? "No se pudo crear la cuenta.", "error");
+            } else {
+                showToast("¡Cuenta creada con éxito! Bienvenido a Panoramas.", "success");
+                setMode('login');
+            }
         } catch {
             setError(t('serverError'));
+            showToast("Error crítico en el servidor de registro.", "error");
         } finally {
             setLoading(false);
         }
