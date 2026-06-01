@@ -8,6 +8,8 @@ interface ActivityCardProps {
   isReserved?: boolean;
   onToggleFavorite?: (id: string) => void;
   userCoords?: { lat: number; lng: number };
+  isRecommended?: boolean;
+  rank?: number;
 }
 
 // Distancia de Haversine en KM
@@ -23,7 +25,15 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): nu
     return R * c;
 }
 
-const ActivityCard = ({ activity, isFavorite = false, isReserved = false, onToggleFavorite, userCoords }: ActivityCardProps) => {
+const ActivityCard = ({ 
+  activity, 
+  isFavorite = false, 
+  isReserved = false, 
+  onToggleFavorite, 
+  userCoords,
+  isRecommended = false,
+  rank
+}: ActivityCardProps) => {
   const { t } = useT();
   if (!activity) return null;
 
@@ -63,10 +73,31 @@ const ActivityCard = ({ activity, isFavorite = false, isReserved = false, onTogg
         {onToggleFavorite && (
           <button 
             onClick={() => onToggleFavorite(activity.id)}
-            className="absolute top-3 left-3 sm:top-5 sm:left-5 bg-white/90 backdrop-blur-sm p-2 rounded-full border border-gray-100 shadow-sm hover:scale-110 transition-transform active:scale-95"
+            className="absolute top-3 left-3 sm:top-5 sm:left-5 bg-white/90 backdrop-blur-sm p-2 rounded-full border border-gray-100 shadow-sm hover:scale-110 transition-transform active:scale-95 z-10"
           >
             <Heart className={`w-5 h-5 ${isFavorite ? 'fill-red-500 text-red-500 animate-pulse' : 'text-gray-400'}`} />
           </button>
+        )}
+        {isRecommended && rank && (
+          <div className="absolute bottom-3 left-3 sm:bottom-5 sm:left-5 z-10 animate-fade-in">
+            {rank === 1 ? (
+              <span className="bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-amber-950 text-[10px] font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider shadow-lg shadow-amber-500/20 flex items-center gap-1.5 border border-amber-300">
+                👑 #1 Recomendado
+              </span>
+            ) : rank === 2 ? (
+              <span className="bg-gradient-to-r from-slate-200 via-zinc-100 to-slate-300 text-slate-800 text-[10px] font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider shadow-md flex items-center gap-1.5 border border-slate-300">
+                🥈 #2 Recomendado
+              </span>
+            ) : rank === 3 ? (
+              <span className="bg-gradient-to-r from-amber-600 via-orange-500 to-amber-700 text-white text-[10px] font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider shadow-md flex items-center gap-1.5 border border-amber-500">
+                🥉 #3 Recomendado
+              </span>
+            ) : (
+              <span className="bg-black/75 backdrop-blur-md text-white text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest flex items-center gap-1 shadow-sm">
+                ✨ Recomendado
+              </span>
+            )}
+          </div>
         )}
       </div>
 

@@ -8,7 +8,7 @@ import { and, count, eq, gt } from "drizzle-orm";
 import nodemailer from 'nodemailer';
 import { verification } from '../auth-schema';
 import { randomInt, randomUUID } from 'crypto';
-import { getCurrentWeather } from './services/weatherService';
+import { getCurrentWeather, getWeatherForecast } from './services/weatherService';
 import { enrichWithPlacesAPI } from './services/placesService';
 
 const transporter = nodemailer.createTransport({
@@ -49,13 +49,28 @@ app.onRequest(async ({ request }) => {
 app.get("/api/activities", async ({ query, request }) => {
   //extraemos las coordenadas del frontend por la url
   //si no vienen, dejamos unas por defecto (ej. las de Stgo.)
-  const lat = query.lat ? parseFloat(query.lat): -33.4372;
-  const lng = query.lng ? parseFloat(query.lng): -70.6506;
+  const lat = query.lat ? parseFloat(query.lat as string): -33.4372;
+  const lng = query.lng ? parseFloat(query.lng as string): -70.6506;
+  
+  // Extraemos parámetros dinámicos de filtrado
+  const filterCategory = query.category as string | undefined;
+  const radius = query.radius ? parseInt(query.radius as string) : 50000;
+  const exactPrice = query.exactPrice !== undefined && query.exactPrice !== '' ? parseInt(query.exactPrice as string) : undefined;
+  const openNow = query.openNow === 'true';
 
   console.log(`Extrayendo clima para posición: lat ${lat}, lng ${lng}`);
 
-  //consultamos el clima real del usuario en OpenWeather
-  const weather = await getCurrentWeather(lat, lng);
+  // Si viene una fecha planificada, calculamos su pronóstico
+  const dateStr = query.date as string | undefined;
+  const timeStr = query.time as string | undefined;
+
+  let weather;
+  if (dateStr && dateStr !== 'today') {
+    console.log(`Consultando pronóstico para fecha: ${dateStr}, hora: ${timeStr || 'cualquier hora'}`);
+    weather = await getWeatherForecast(lat, lng, dateStr, timeStr);
+  } else {
+    weather = await getCurrentWeather(lat, lng);
+  }
   console.log(`Clima detectado: ${weather.condition} (${weather.temperature}°C)`);
 
   //traemos las actividades de la bbdd
@@ -68,10 +83,14 @@ app.get("/api/activities", async ({ query, request }) => {
     category: row.category,
     tagClima: row.tag_clima,
     coordinates: { lat: row.lat, lng: row.lng },
+    openingHour: row.openingHour || undefined,
+    closingHour: row.closingHour || undefined,
   }));
 
-  // Enriquecer con afluencia y lugares de Google Places
-  const placesWithOccupancy = await enrichWithPlacesAPI(mappedActivities as any, lat, lng);
+  // Enriquecer con afluencia y lugares de Google Places (pasando los filtros)
+  const placesWithOccupancy = await enrichWithPlacesAPI(mappedActivities as any, lat, lng, { 
+    filterCategory, radius, exactPrice, openNow 
+  });
 
   //inyección en lógica de filtrado/recomendación
   //mapeamos el main de OW (Clear, Clouds, Rain) a los tags de la bbdd (Sunny, Rainy)
@@ -104,10 +123,39 @@ app.get("/api/activities", async ({ query, request }) => {
     userRes = res.map(r => r.activityId);
   }
 
-  //retornamos la lista optimizada por clima, y también la data del usuario
+  // Filtrar las actividades de la base de datos que el usuario ha interactuado
+  // (Likes y Reservas), y asegurarnos de que SIEMPRE se incluyan en el listado para que no desaparezcan
+  // si la consulta genérica de Google Places para "Todas" u otra categoría es más acotada.
+  const userInteractedActivities = mappedActivities.filter(a => userFavs.includes(a.id) || userRes.includes(a.id)).map(a => ({
+    ...a,
+    occupancy: 'Medium', // Simulación básica de afluencia
+    openingHour: a.openingHour || "09:00",
+    closingHour: a.closingHour || "21:00"
+  }));
+
+  // Combinamos los resultados de Google con los favoritos/reservas del usuario (evitando duplicados por id o nombre)
+  const combinedActivities = [...climateRecommended];
+  for (const act of userInteractedActivities) {
+    const exists = combinedActivities.some(c => c.id === act.id || c.name.toLowerCase() === act.name.toLowerCase());
+    if (!exists) {
+      combinedActivities.push(act as any);
+    }
+  }
+
+  // Volvemos a ordenar la lista combinada final por correspondencia climática
+  const finalOrdered = combinedActivities.sort((a, b) => {
+    const aCalzaClima = a.tagClima === weatherTag;
+    const bCalzaClima = b.tagClima === weatherTag;
+
+    if (aCalzaClima && !bCalzaClima) return -1;
+    if (!aCalzaClima && bCalzaClima) return 1;
+    return 0;
+  });
+
+  // retornamos la lista combinada y optimizada, y la data del usuario
   return {
     currentWeather: weather,
-    activities: climateRecommended,
+    activities: finalOrdered,
     userHistory: {
       favorites: userFavs,
       reservations: userRes
@@ -170,7 +218,33 @@ app.post("/api/favorites", async ({ body, request, set }) => {
     set.status = 401;
     return { error: "No autorizado" };
   }
-  const { activityId } = body as { activityId: string };
+  const { activityId, activity } = body as { activityId: string; activity?: any };
+
+  // Si se envió la actividad completa, nos aseguramos de persistirla en la tabla 'activities' primero
+  if (activity) {
+    await db.insert(activities).values({
+      id: activity.id,
+      name: activity.name,
+      category: activity.category,
+      tag_clima: activity.tagClima || 'All',
+      lat: activity.coordinates.lat,
+      lng: activity.coordinates.lng,
+      openingHour: activity.openingHour || null,
+      closingHour: activity.closingHour || null,
+    }).onConflictDoUpdate({
+      target: activities.id,
+      set: {
+        name: activity.name,
+        category: activity.category,
+        tag_clima: activity.tagClima || 'All',
+        lat: activity.coordinates.lat,
+        lng: activity.coordinates.lng,
+        openingHour: activity.openingHour || null,
+        closingHour: activity.closingHour || null,
+      }
+    });
+  }
+
   await db.insert(userFavorites).values({
     userId: session.user.id,
     activityId
