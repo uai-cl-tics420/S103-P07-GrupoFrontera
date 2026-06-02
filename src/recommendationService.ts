@@ -137,7 +137,9 @@ export const getRecommendedActivities = (user: User, activities: Activity[], wea
             user.currentLocation.lat, user.currentLocation.lng,
             activity.coordinates.lat, activity.coordinates.lng
         );
-        score += Math.max(0, 50 - distance);
+        // Multiplicamos la distancia por 3.5 para que la proximidad local pese mucho más,
+        // permitiendo que las actividades ultra-cercanas abiertas venzan a los favoritos muy lejanos.
+        score += Math.max(0, 50 - (distance * 3.5));
 
         // 7. Horarios
         const currentlyOpen = isOpen(activity.openingHour, activity.closingHour, targetTime);

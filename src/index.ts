@@ -42,9 +42,17 @@ app.onRequest(async ({ request }) => {
 });
 
 
-// --- RUTAS OTP ---
-// Las rutas manuales de OTP fueron eliminadas. Todo el flujo será manejado nativamente por Better-Auth.
-
+function getDistanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000; // Radio de la Tierra en metros
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
 app.get("/api/activities", async ({ query, request }) => {
   //extraemos las coordenadas del frontend por la url
@@ -124,9 +132,21 @@ app.get("/api/activities", async ({ query, request }) => {
   }
 
   // Filtrar las actividades de la base de datos que el usuario ha interactuado
-  // (Likes y Reservas), y asegurarnos de que SIEMPRE se incluyan en el listado para que no desaparezcan
-  // si la consulta genérica de Google Places para "Todas" u otra categoría es más acotada.
-  const userInteractedActivities = mappedActivities.filter(a => userFavs.includes(a.id) || userRes.includes(a.id)).map(a => ({
+  // (Likes y Reservas), y asegurarnos de que cumplan con la categoría y el radio seleccionado para que no distorsionen los filtros
+  let filteredInteracted = mappedActivities.filter(a => userFavs.includes(a.id) || userRes.includes(a.id));
+
+  // 1. Filtrar por categoría si se especificó una distinta de 'Todas'
+  if (filterCategory && filterCategory !== 'Todas') {
+    filteredInteracted = filteredInteracted.filter(a => a.category === filterCategory);
+  }
+
+  // 2. Filtrar por radio de distancia aproximada (radius viene en metros)
+  filteredInteracted = filteredInteracted.filter(a => {
+    const distMeters = getDistanceInMeters(lat, lng, a.coordinates.lat, a.coordinates.lng);
+    return distMeters <= radius;
+  });
+
+  const userInteractedActivities = filteredInteracted.map(a => ({
     ...a,
     occupancy: 'Medium', // Simulación básica de afluencia
     openingHour: a.openingHour || "09:00",
