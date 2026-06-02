@@ -3,6 +3,7 @@ import LoginForm from './components/auth/LoginForm';
 import OTPVerify from './components/auth/OTPVerify';
 import ActivityCard from './components/ActivityCard';
 import AdminDashboard from './components/admin/AdminDashboard';
+import UserReservationsView from './components/UserReservationsView';
 import './index.css';
 import { CategoryFilter } from "@/components/CategoryFilter";
 import { LanguageToggle } from "@/components/LanguageToggle";
@@ -15,11 +16,14 @@ import { useT } from "@/i18n/context";
 import type { User } from "./types";
 import { CloudSun } from "lucide-react";
 
-type View = 'home' | 'admin';
+type View = 'home' | 'admin' | 'reservations';
 
 function getInitialView(): View {
   if (typeof window === 'undefined') return 'home';
-  return window.location.pathname === '/admin' ? 'admin' : 'home';
+  const p = window.location.pathname;
+  if (p === '/admin') return 'admin';
+  if (p === '/mis-reservas') return 'reservations';
+  return 'home';
 }
 
 export function App() {
@@ -59,7 +63,7 @@ export function App() {
       console.warn("Acceso no autorizado a administración.");
       return;
     }
-    const path = next === 'admin' ? '/admin' : '/';
+    const path = next === 'admin' ? '/admin' : next === 'reservations' ? '/mis-reservas' : '/';
     window.history.pushState({}, '', path);
     setView(next);
   };
@@ -84,6 +88,39 @@ export function App() {
   }, [session]);
 
   const [userHistory, setUserHistory] = React.useState<{favorites: string[], reservations: string[]}>({ favorites: [], reservations: [] });
+  // Map activityId -> { id, status } de reservas no canceladas (la mas reciente por actividad)
+  const [activeReservations, setActiveReservations] = React.useState<Record<string, { id: string; status: string }>>({});
+
+  // Pide /api/reservations/:userId y arma el map de reservas activas
+  const refreshReservations = React.useCallback(async () => {
+    if (!session?.user?.id) return;
+    try {
+      const res = await fetch(`/api/reservations/${session.user.id}`, { credentials: 'include' });
+      if (!res.ok) return;
+      const list = await res.json();
+      if (!Array.isArray(list)) return;
+      // Ordenar por createdAt asc para que la mas reciente sobreescriba en el map
+      const sorted = [...list].sort((a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+      const map: Record<string, { id: string; status: string }> = {};
+      for (const r of sorted) {
+        if (r.status === 'cancelado') {
+          // Si la mas reciente esta cancelada, remover de map (vuelve a 'reservable')
+          delete map[r.activityId];
+        } else {
+          map[r.activityId] = { id: r.id, status: r.status };
+        }
+      }
+      setActiveReservations(map);
+    } catch (err) {
+      console.error('Error fetching reservations:', err);
+    }
+  }, [session?.user?.id]);
+
+  React.useEffect(() => {
+    refreshReservations();
+  }, [refreshReservations]);
 
   //lógica dinámica: hacemos la consulta manual al backend inyectando las coordenadas en la url
   React.useEffect(() => {
@@ -140,6 +177,11 @@ export function App() {
     } catch (err) {
       console.error("Error toggling favorite", err);
     }
+  };
+
+  // Refresca el estado de reservas tras crear, pagar o cancelar
+  const handleReservationChanged = async () => {
+    await refreshReservations();
   };
 
   let actualActivitiesList: any[] = [];
@@ -203,6 +245,18 @@ export function App() {
     return <AdminDashboard onBack={() => navigate('home')} userEmail={session?.user?.email} />;
   }
 
+  // d.2) Vista de Mis Reservas (cualquier usuario logueado)
+  if (view === 'reservations') {
+    return (
+      <UserReservationsView
+        userId={session.user.id}
+        userEmail={session?.user?.email}
+        onBack={() => navigate('home')}
+        onReservationChanged={handleReservationChanged}
+      />
+    );
+  }
+
   // e) Cargando actividades desde DB
   if (loading) {
     return (
@@ -238,6 +292,12 @@ export function App() {
                 </span>
               </div>
             )}
+            <button
+              onClick={() => navigate('reservations')}
+              className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-gray-900 transition-colors whitespace-nowrap px-2 py-1 border border-gray-200 rounded"
+            >
+              {t('myReservationsLink')}
+            </button>
             {role === 'admin' && (
               <button
                 onClick={() => navigate('admin')}
@@ -281,12 +341,13 @@ export function App() {
             </p>
           ) : (
             filteredActivities.map((act) => (
-              <ActivityCard 
-                key={act.id} 
-                activity={act} 
+              <ActivityCard
+                key={act.id}
+                activity={act}
                 isFavorite={userHistory.favorites.includes(act.id)}
-                isReserved={userHistory.reservations.includes(act.id)}
+                reservation={activeReservations[act.id] as any}
                 onToggleFavorite={handleToggleFavorite}
+                onReservationChanged={handleReservationChanged}
               />
             ))
           )}
