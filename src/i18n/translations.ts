@@ -46,6 +46,7 @@ export const translations = {
     panoramaFound: { es: 'Panorama encontrado', en: 'Activity found' },
     panoramasFound: { es: 'Panoramas encontrados', en: 'Activities found' },
     emptyState: { es: 'No hay actividades publicadas para esta categoría todavía.', en: 'No activities published in this category yet.' },
+    filters: { es: 'Filtros', en: 'Filters' },
 
     // Card
     seeDetails: { es: 'Ver detalles', en: 'See details' },

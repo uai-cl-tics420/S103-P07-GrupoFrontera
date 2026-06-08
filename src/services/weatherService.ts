@@ -43,5 +43,61 @@ export async function getCurrentWeather(lat: number, lng: number): Promise<Weath
             cityName: "Santiago"
         };
     }
+}
 
+export async function getWeatherForecast(
+    lat: number,
+    lng: number,
+    targetDate: string,
+    targetTime?: string
+): Promise<WeatherData> {
+    const apiKey = process.env.OPENWEATHER_API_KEY;
+
+    if (!apiKey) {
+        throw new Error("OPENWEATHER_API_KEY no está definida en las variables de entorno");
+    }
+
+    const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lng}&appid=${apiKey}&units=metric`;
+
+    try {
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            throw new Error(`OpenWeatherMap respondió con estado: ${response.status}`);
+        }
+
+        const data = await response.json() as any;
+
+        if (!data.list || !Array.isArray(data.list) || data.list.length === 0) {
+            return getCurrentWeather(lat, lng);
+        }
+
+        // Construir fecha y hora objetivo para comparar
+        const timePart = targetTime ? (targetTime.includes(":") ? (targetTime.split(":").length === 2 ? `${targetTime}:00` : targetTime) : "12:00:00") : "12:00:00";
+        // Si no es un formato de hora válido, usar fallback a mediodía
+        const targetDateTimeStr = `${targetDate}T${timePart}`;
+        const targetTimeMs = new Date(targetDateTimeStr).getTime();
+
+        let closestItem = data.list[0];
+        let minDiff = Math.abs(closestItem.dt * 1000 - targetTimeMs);
+
+        for (const item of data.list) {
+            const diff = Math.abs(item.dt * 1000 - targetTimeMs);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closestItem = item;
+            }
+        }
+
+        const condition = closestItem.weather?.[0]?.main ?? "Clear";
+        const temperature = closestItem.main?.temp ?? 20;
+
+        return {
+            condition,
+            temperature,
+        };
+    } catch (error) {
+        console.error("Error al consultar el pronóstico de OpenWeatherMap:", error);
+        return getCurrentWeather(lat, lng); // Fallback al clima actual
+    }
 }

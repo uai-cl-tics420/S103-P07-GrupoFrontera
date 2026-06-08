@@ -45,4 +45,8 @@ export interface Activity {
   };
   openingHour?: string; // Formato "HH:MM"
   closingHour?: string; // Formato "HH:MM"
+  occupancy?: "Low" | "Medium" | "High";
+  vicinity?: string;
+  imageUrl?: string;
 }
+
