@@ -3,6 +3,7 @@ import LoginForm from './components/auth/LoginForm';
 import OTPVerify from './components/auth/OTPVerify';
 import ActivityCard from './components/ActivityCard';
 import AdminDashboard from './components/admin/AdminDashboard';
+import UserReservationsView from './components/UserReservationsView';
 import './index.css';
 import { CategoryFilter } from "@/components/CategoryFilter";
 import { LanguageToggle } from "@/components/LanguageToggle";
@@ -28,11 +29,14 @@ const weatherIconMap: Record<string, React.ComponentType<{ className?: string }>
   'Snow': Snowflake,
 };
 
-type View = 'home' | 'admin';
+type View = 'home' | 'admin' | 'reservations';
 
 function getInitialView(): View {
   if (typeof window === 'undefined') return 'home';
-  return window.location.pathname === '/admin' ? 'admin' : 'home';
+  const p = window.location.pathname;
+  if (p === '/admin') return 'admin';
+  if (p === '/mis-reservas') return 'reservations';
+  return 'home';
 }
 
 export function App() {
@@ -48,6 +52,7 @@ export function App() {
   //estado local para guardar los panoramas que traemos dinámicamente
   const [dynamicActivities, setDynamicActivities] = React.useState<any[]>([]);
   const [loadingWeather, setLoadingWeather] = React.useState(true);
+
 
   //estado para la tarjeta de detalles
   const [selectedActivityForDetail, setSelectedActivityForDetail] = React.useState<any | null>(null);
@@ -97,7 +102,7 @@ export function App() {
       console.warn("Acceso no autorizado a administración.");
       return;
     }
-    const path = next === 'admin' ? '/admin' : '/';
+    const path = next === 'admin' ? '/admin' : next === 'reservations' ? '/mis-reservas' : '/';
     window.history.pushState({}, '', path);
     setView(next);
   };
@@ -122,9 +127,41 @@ export function App() {
   }, [session]);
 
   const [userHistory, setUserHistory] = React.useState<{favorites: string[], reservations: string[]}>({ favorites: [], reservations: [] });
+
+  const [activeReservations, setActiveReservations] = React.useState<Record<string, { id: string; status: string }>>({});
   const historyLoadedRef = React.useRef(false);
 
-  //lógica dinámica: hacemos la consulta manual al backend inyectando las coordenadas y filtros
+  // Pide /api/reservations/:userId y arma el map de reservas activas
+  const refreshReservations = React.useCallback(async () => {
+    if (!session?.user?.id) return;
+    try {
+      const res = await fetch(`/api/reservations/${session.user.id}`, { credentials: 'include' });
+      if (!res.ok) return;
+      const list = await res.json();
+      if (!Array.isArray(list)) return;
+      // Ordenar por createdAt asc para que la mas reciente sobreescriba en el map
+      const sorted = [...list].sort((a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+      const map: Record<string, { id: string; status: string }> = {};
+      for (const r of sorted) {
+        if (r.status === 'cancelado') {
+          // Si la mas reciente esta cancelada, remover de map (vuelve a 'reservable')
+          delete map[r.activityId];
+        } else {
+          map[r.activityId] = { id: r.id, status: r.status };
+        }
+      }
+      setActiveReservations(map);
+    } catch (err) {
+      console.error('Error fetching reservations:', err);
+    }
+  }, [session?.user?.id]);
+
+  React.useEffect(() => {
+    refreshReservations();
+  }, [refreshReservations]);
+
   const fetchFilteredActivities = async (categoryOverride?: string | null, filtersOverride?: typeof apiFilters) => {
     try {
       setLoadingWeather(true);
@@ -134,8 +171,8 @@ export function App() {
       let url = `/api/activities?lat=${coords.lat}&lng=${coords.lng}&radius=${activeFilters.radius}`;
       if (activeFilters.exactPrice !== '') url += `&exactPrice=${activeFilters.exactPrice}`;
       if (activeFilters.openNow) url += `&openNow=true`;
-
-      //Inyectar parámetros de planificación de fecha futura si están activos
+      
+      // Inyectar parámetros de planificación de fecha futura si están activos
       if (planningState) {
         url += `&date=${planningState.date}`;
         if (planningState.time) {
@@ -143,19 +180,19 @@ export function App() {
         }
       }
 
-      //Añadir filtro de categoría si existe
-      if (activeCat) {
+      // Si hay una categoría seleccionada y no es "Todas" (Filtro inteligente de Barros)
+      if (activeCat && activeCat !== 'Todas') {
         url += `&category=${activeCat}`;
       }
 
-      //Llamada real al backend usando la nueva URL unificada
       const response = await fetch(url);
       const data = await response.json();
 
       if (data && data.activities) {
         setDynamicActivities(data.activities);
         setWeatherInfo(data.currentWeather);
-        if (data.userHistory) {
+
+        if (data.userHistory && !historyLoadedRef.current) {
           setUserHistory(prev => ({
             favorites: data.userHistory.favorites || [],
             reservations: Array.from(new Set([
@@ -163,11 +200,15 @@ export function App() {
               ...prev.reservations
             ]))
           }));
+          historyLoadedRef.current = true;
+
         }
       }
     } catch (err) {
       console.error("Error cargando panoramas dinámicos:", err);
       showToast("No se pudo conectar con el servicio meteorológico.", "error");
+
+
     } finally {
       setLoadingWeather(false);
     }
@@ -178,13 +219,15 @@ export function App() {
       historyLoadedRef.current = false; // Permitir recarga limpia al cambiar usuario, ubicación o planificación
       fetchFilteredActivities(preferredCategory, apiFilters);
     }
-  }, [coords, session, planningState, preferredCategory]); // Se ejecuta al cambiar ubicación, sesión o al activar/desactivar planificación
+  }, [coords, session, planningState, preferredCategory]); // Se ejecuta al cambiar ubicación, sesión o preferencia
 
   const handleToggleFavorite = async (activityId: string) => {
     const isFav = userHistory.favorites.includes(activityId);
 
-    const activity = (dynamicActivities || []).find(a => a.id === activityId) || (activities || []).find(a => a.id === activityId);
+    
+    const activity = actualActivitiesList.find(a => a.id === activityId);
 
+    
     if (isFav) {
       showToast("Eliminado de tus favoritos.", "info");
     } else {
@@ -218,6 +261,11 @@ export function App() {
     }
   };
 
+  // Refresca el estado de reservas tras crear, pagar o cancelar
+  const handleReservationChanged = async () => {
+    await refreshReservations();
+  };
+
   let actualActivitiesList: any[] = [];
 
   // Si ya terminó de cargar la petición filtrada por clima/parámetros, usamos estrictamente esa
@@ -241,7 +289,7 @@ export function App() {
     history: userHistory
   };
 
-  // Parámetros avanzados de clima y tiempo (Track 1 y Track 2)
+  // Parámetros avanzados de clima y tiempo
   const weatherTag = weatherInfo ? ((weatherInfo.condition === 'Clear' || weatherInfo.condition === 'Clouds') ? 'Sunny' : 'Rainy') : undefined;
   const activeWeather = weatherTag;
   const activeTime = planningState 
@@ -251,13 +299,12 @@ export function App() {
   // Motor de recomendaciones optimizado con las variables de tus compañeros
   const recommendedActivities = getRecommendedActivities(currentUser, actualActivitiesList, activeWeather, activeTime);
   
-  // Inicializamos la categoría usando preferredCategory (Tu hook) pero con el resguardo de filtrado dinámico
+  // Inicializamos la categoría usando preferredCategory pero con el resguardo de filtrado dinámico
   const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(recommendedActivities, preferredCategory || null);
   
   // Manejador unificado de pestañas con tus Toasts y el reseteo de filtros de los chicos
   const handleSelectCategory = (category: typeof selectedCategory) => {
     setSelectedCategory(category);
-    
     if (category !== null) {
       setPreferredCategory(category);
       showToast(`Preferencias guardadas: Mostrando ${category}.`, "info");
@@ -267,7 +314,8 @@ export function App() {
     const resetFilters = { radius: 50000, exactPrice: '', openNow: false };
     setApiFilters(resetFilters);
     
-    // Disparar búsqueda inmediatamente para que cargue los panoramas de la nueva pestaña de forma síncrona
+    // Disparar búsqueda inmediatamente para que cargue los panoramas de la nueva pestaña
+
     fetchFilteredActivities(category, resetFilters);
   };
 
@@ -297,6 +345,18 @@ export function App() {
   // d) Vista admin (sólo si tiene rol de administrador)
   if (view === 'admin' && role === 'admin') {
     return <AdminDashboard onBack={() => navigate('home')} userEmail={session?.user?.email} />;
+  }
+
+  // d.2) Vista de Mis Reservas (cualquier usuario logueado)
+  if (view === 'reservations') {
+    return (
+      <UserReservationsView
+        userId={session.user.id}
+        userEmail={session?.user?.email}
+        onBack={() => navigate('home')}
+        onReservationChanged={handleReservationChanged}
+      />
+    );
   }
 
   // e) Cargando actividades desde DB
@@ -399,7 +459,14 @@ export function App() {
                 </span>
               </div>
             ) : null}
-      
+
+            <button
+              onClick={() => navigate('reservations')}
+              className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-gray-900 transition-colors whitespace-nowrap px-2 py-1 border border-gray-200 rounded"
+            >
+              {t('myReservationsLink')}
+            </button>
+
             {role === 'admin' && (
               <button
                 onClick={() => navigate('admin')}
@@ -491,6 +558,7 @@ export function App() {
           {selectedCategory && (
             <div className="flex flex-wrap items-center gap-3 px-2 py-3 bg-white/50 border border-gray-100 rounded-xl shadow-sm animate-fade-in">
               <span className="text-xs font-bold text-gray-500 uppercase tracking-widest mr-2">{t('filters')}:</span>
+
               
               <select 
                 className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -556,7 +624,6 @@ export function App() {
           {/* Mostramos el contador de panoramas, cambiando a modo curado si hay planificación activa */}
           <div className="px-2 mt-2">
             <span className="text-xs font-bold text-gray-500 uppercase tracking-widest bg-gray-200/50 py-1 px-3 rounded-full">
-
             {planningState
               ? `${Math.min(6, filteredActivities.length)} ${t('panoramasFound')}`
               : `${filteredActivities.length} ${filteredActivities.length === 1 ? t('panoramaFound') : t('panoramasFound')}`
@@ -580,11 +647,12 @@ export function App() {
               <ActivityCard 
                 key={act.id} 
                 activity={act} 
-                isFavorite={userHistory.favorites.includes(act.id)}
-                isReserved={userHistory.reservations.includes(act.id)}
-                onToggleFavorite={handleToggleFavorite}
 
+                isFavorite={userHistory.favorites.includes(act.id)}
+                reservation={activeReservations[act.id] as any}
+                onToggleFavorite={handleToggleFavorite}
                 onSeeDetails={(activity) => setSelectedActivityForDetail(activity)}
+                onReservationChanged={handleReservationChanged}
                 userCoords={coords}
                 isRecommended={!!planningState}
                 rank={index + 1}
@@ -634,6 +702,7 @@ export function App() {
                 e.preventDefault();
                 if (planningDateType === 'today') {
                   setPlanningState({ date: 'today', time: undefined });
+
                 } else {
                   setPlanningState({
                     date: dateValue,

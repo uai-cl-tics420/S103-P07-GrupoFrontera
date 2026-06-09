@@ -11,6 +11,8 @@ import { randomInt, randomUUID } from 'crypto';
 import { getCurrentWeather, getWeatherForecast } from './services/weatherService';
 import { isOutdoorFriendly } from './utils/weatherHelpers';
 import { enrichWithPlacesAPI } from './services/placesService';
+import { processPayment } from './services/paymentService';
+
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -41,7 +43,6 @@ app.onRequest(async ({ request }) => {
     return await auth.handler(request);
   }
 });
-
 
 function getDistanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000; // Radio de la Tierra en metros
@@ -107,14 +108,16 @@ app.get("/api/activities", async ({ query, request }) => {
   });
 
   // Evaluación de condiciones climáticas adaptativas (Tu lógica + Barros)
-  const conditionClean = currentCondition.toLowerCase().trim();
+  const conditionClean = (weather?.condition || currentCondition || '').toLowerCase().trim();
   const aptoParaExteriores = isOutdoorFriendly(conditionClean);
   console.log(`¿El clima detectado es apto para exteriores?: ${aptoParaExteriores ? 'SÍ' : 'NO'}`);
 
   // Mapeamos el main de OpenWeatherMap a los tags oficiales de la BBDD (Sunny, Rainy)
-  const weatherTag = (currentCondition === 'Clear' || currentCondition === 'Clouds') ? 'Sunny' : 'Rainy';
+  const currentMainCondition = weather?.condition || currentCondition;
+  const weatherTag = (currentMainCondition === 'Clear' || currentMainCondition === 'Clouds') ? 'Sunny' : 'Rainy';
 
   // Ordenamos la grilla dejando primero las actividades que favorecen al clima actual de Santiago
+
   const climateRecommended = [...placesWithOccupancy].sort((a, b) => {
     const aCalzaClima = a.tagClima === weatherTag;
     const bCalzaClima = b.tagClima === weatherTag;
@@ -184,12 +187,8 @@ app.get("/api/activities", async ({ query, request }) => {
 
   // retornamos la lista combinada y optimizada, y la data del usuario
   return {
-    currentWeather: {
-      condition: currentCondition,
-      temperature: currentTemp,
-      cityName: cityName
-    },
-    activities: climateRecommended,
+    currentWeather: weather,
+    activities: finalOrdered,
     userHistory: {
       favorites: userFavs,
       reservations: userRes
@@ -296,6 +295,170 @@ app.delete("/api/favorites", async ({ body, request, set }) => {
   await db.delete(userFavorites)
     .where(and(eq(userFavorites.userId, session.user.id), eq(userFavorites.activityId, activityId)));
   return { success: true };
+});
+
+// --- RUTAS RESERVAS (issue #28) ---
+// POST /api/reservations { activityId, payNow? }: crea reserva.
+// payNow=false (default) => status='pendiente', sin cobro.
+// payNow=true => cobra al toque y guarda status='pagado'.
+app.post("/api/reservations", async ({ body, request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id) {
+    set.status = 401;
+    return { error: "No autorizado" };
+  }
+  const { activityId, payNow } = body as { activityId: string; payNow?: boolean };
+  if (!activityId) {
+    set.status = 400;
+    return { error: "activityId requerido" };
+  }
+
+  // Validar que la actividad existe
+  const [act] = await db.select().from(activities).where(eq(activities.id, activityId));
+  if (!act) {
+    set.status = 404;
+    return { error: "Actividad no encontrada" };
+  }
+
+  // Sin pago inmediato: queda pendiente
+  if (!payNow) {
+    const [created] = await db.insert(userReservations).values({
+      userId: session.user.id,
+      activityId,
+      status: "pendiente",
+    }).returning();
+    return { success: true, reservation: created, payment: null };
+  }
+
+  // Con pago inmediato: cobrar y guardar como pagado
+  const payment = await processPayment({ userId: session.user.id, activityId });
+  if (!payment.success) {
+    set.status = 402;
+    return { error: payment.error, processedAt: payment.processedAt };
+  }
+  const [created] = await db.insert(userReservations).values({
+    userId: session.user.id,
+    activityId,
+    status: "pagado",
+  }).returning();
+  return {
+    success: true,
+    reservation: created,
+    payment: { transactionId: payment.transactionId, processedAt: payment.processedAt },
+  };
+});
+
+// POST /api/reservations/:id/pay : cobra una reserva pendiente y la pasa a pagada
+app.post("/api/reservations/:id/pay", async ({ params, request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id) {
+    set.status = 401;
+    return { error: "No autorizado" };
+  }
+
+  const [existing] = await db.select().from(userReservations).where(eq(userReservations.id, params.id));
+  if (!existing) {
+    set.status = 404;
+    return { error: "Reserva no encontrada" };
+  }
+  if (existing.userId !== session.user.id) {
+    set.status = 403;
+    return { error: "Prohibido" };
+  }
+  if (existing.status !== "pendiente") {
+    set.status = 409;
+    return { error: `Reserva ya esta en estado ${existing.status}` };
+  }
+
+  const payment = await processPayment({ userId: session.user.id, activityId: existing.activityId });
+  if (!payment.success) {
+    set.status = 402;
+    return { error: payment.error, processedAt: payment.processedAt };
+  }
+
+  const [updated] = await db.update(userReservations)
+    .set({ status: "pagado" })
+    .where(eq(userReservations.id, params.id))
+    .returning();
+  return {
+    success: true,
+    reservation: updated,
+    payment: { transactionId: payment.transactionId, processedAt: payment.processedAt },
+  };
+});
+
+// GET /api/reservations/:userId : historial de reservas con detalle de actividad
+app.get("/api/reservations/:userId", async ({ params, request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id) {
+    set.status = 401;
+    return { error: "No autorizado" };
+  }
+  // Solo permitimos ver las propias (o si fuera admin se podria relajar)
+  if (session.user.id !== params.userId) {
+    set.status = 403;
+    return { error: "Prohibido" };
+  }
+
+  const rows = await db
+    .select({
+      id: userReservations.id,
+      activityId: userReservations.activityId,
+      status: userReservations.status,
+      createdAt: userReservations.createdAt,
+      activityName: activities.name,
+      activityCategory: activities.category,
+      activityLat: activities.lat,
+      activityLng: activities.lng,
+    })
+    .from(userReservations)
+    .leftJoin(activities, eq(userReservations.activityId, activities.id))
+    .where(eq(userReservations.userId, params.userId));
+
+  return rows.map(r => ({
+    id: r.id,
+    activityId: r.activityId,
+    status: r.status,
+    createdAt: r.createdAt,
+    activity: r.activityName ? {
+      id: r.activityId,
+      name: r.activityName,
+      category: r.activityCategory,
+      coordinates: { lat: r.activityLat, lng: r.activityLng },
+    } : null,
+  }));
+});
+
+// PATCH /api/reservations/:id { status }: cambiar estado (ej. cancelar)
+app.patch("/api/reservations/:id", async ({ params, body, request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id) {
+    set.status = 401;
+    return { error: "No autorizado" };
+  }
+  const { status } = body as { status: string };
+  if (!status) {
+    set.status = 400;
+    return { error: "status requerido" };
+  }
+
+  // Validar ownership: solo el dueno puede modificar
+  const [existing] = await db.select().from(userReservations).where(eq(userReservations.id, params.id));
+  if (!existing) {
+    set.status = 404;
+    return { error: "Reserva no encontrada" };
+  }
+  if (existing.userId !== session.user.id) {
+    set.status = 403;
+    return { error: "Prohibido" };
+  }
+
+  const [updated] = await db.update(userReservations)
+    .set({ status })
+    .where(eq(userReservations.id, params.id))
+    .returning();
+
+  return { success: true, reservation: updated };
 });
 
 // --- RUTAS OTP ---
