@@ -82,6 +82,48 @@ export const translations = {
     roleUser: { es: 'Usuario', en: 'User' },
     statusActive: { es: 'Verificado', en: 'Verified' },
     statusPending: { es: 'Pendiente', en: 'Pending' },
+
+    // Reservas (issues #25, #26, #28)
+    seeDetailsCta: { es: 'Reservar', en: 'Book' },
+    reservationModalTitle: { es: 'Confirmar reserva', en: 'Confirm booking' },
+    reservationModalDescription: { es: 'Vas a reservar este panorama. El pago se procesa al instante.', en: 'You are about to book this activity. Payment is processed instantly.' },
+    reservationConfirmPay: { es: 'Confirmar y pagar', en: 'Confirm and pay' },
+    reservationProcessing: { es: 'Procesando pago…', en: 'Processing payment…' },
+    reservationSuccess: { es: '¡Reserva confirmada!', en: 'Booking confirmed!' },
+    reservationSuccessHint: { es: 'Podés verla en Mis Reservas.', en: 'You can see it in My Bookings.' },
+    reservationFailed: { es: 'No pudimos procesar tu pago.', en: 'We could not process your payment.' },
+    reservationCancel: { es: 'Cancelar', en: 'Cancel' },
+    reservationClose: { es: 'Cerrar', en: 'Close' },
+    transactionLabel: { es: 'ID Transacción', en: 'Transaction ID' },
+
+    // Vista de Mis Reservas (issue #26)
+    myReservationsLink: { es: 'Mis Reservas', en: 'My Bookings' },
+    myReservationsTitle: { es: 'Mis Reservas', en: 'My Bookings' },
+    myReservationsEmpty: { es: 'Todavía no tenés reservas. Buscá un panorama y reservá.', en: 'You have no bookings yet. Browse activities and book one.' },
+    myReservationsLoading: { es: 'Cargando reservas…', en: 'Loading bookings…' },
+    reservationStatusComprado: { es: 'Comprado', en: 'Booked' },
+    reservationStatusCancelado: { es: 'Cancelado', en: 'Cancelled' },
+    reservationStatusPendiente: { es: 'Pendiente', en: 'Pending' },
+    reservationDate: { es: 'Fecha de reserva', en: 'Booking date' },
+    reservationCancelAction: { es: 'Cancelar reserva', en: 'Cancel booking' },
+    reservationCancelConfirm: { es: '¿Seguro que querés cancelar esta reserva?', en: 'Are you sure you want to cancel this booking?' },
+
+    // Refactor flujo reserva (v2)
+    viewEventCta: { es: 'Ver evento', en: 'View event' },
+    reserveOnlyCta: { es: 'Reservar', en: 'Book' },
+    payNowCta: { es: 'Pagar ahora', en: 'Pay now' },
+    payButton: { es: 'Pagar', en: 'Pay' },
+    rebookCta: { es: 'Reservar de nuevo', en: 'Book again' },
+    reservationCreatedPending: { es: '¡Reserva creada! Pendiente de pago.', en: 'Booking created! Pending payment.' },
+    reservationCreatedPaid: { es: '¡Reserva confirmada y pagada!', en: 'Booking confirmed and paid!' },
+    detailsModalTitle: { es: 'Detalle del evento', en: 'Event details' },
+    detailsCategoryLabel: { es: 'Categoría', en: 'Category' },
+    detailsWeatherLabel: { es: 'Clima recomendado', en: 'Recommended weather' },
+    detailsHoursLabel: { es: 'Horario', en: 'Schedule' },
+    detailsCoordsLabel: { es: 'Ubicación', en: 'Location' },
+    reservationStatusPagado: { es: 'Pagado', en: 'Paid' },
+    cardStatusPending: { es: 'Reservado (pendiente de pago)', en: 'Booked (pending payment)' },
+    cardStatusPaid: { es: 'Comprado', en: 'Paid' },
 } satisfies Record<string, TranslationEntry>;
 
 export type TranslationKey = keyof typeof translations;
