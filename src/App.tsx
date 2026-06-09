@@ -39,6 +39,27 @@ export function App() {
   const [dynamicActivities, setDynamicActivities] = React.useState<any[]>([]);
   const [loadingWeather, setLoadingWeather] = React.useState(true);
 
+  //estado local para la planificación de recomendaciones futuras
+  const [planningState, setPlanningState] = React.useState<{
+    date: string;
+    time?: string;
+    weather?: string;
+  } | null>(null);
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
+
+  // Estados temporales del formulario de planificación
+  const [planningDateType, setPlanningDateType] = React.useState<'today' | 'future'>('today');
+  const [planningTimeType, setPlanningTimeType] = React.useState<'any' | 'specific'>('any');
+  const [dateValue, setDateValue] = React.useState(() => new Date().toISOString().split('T')[0]);
+  const [timeValue, setTimeValue] = React.useState("20:00");
+
+  //estado local para los filtros de búsqueda en servidor
+  const [apiFilters, setApiFilters] = React.useState({
+    radius: 50000,
+    exactPrice: '',
+    openNow: false
+  });
+
   const { activities, loading, error } = useActivities();
   const { preferredCategory, setPreferredCategory, role } = useUserPreferences(session?.user?.id);
   const { t } = useT();
@@ -90,6 +111,7 @@ export function App() {
   const [userHistory, setUserHistory] = React.useState<{favorites: string[], reservations: string[]}>({ favorites: [], reservations: [] });
   // Map activityId -> { id, status } de reservas no canceladas (la mas reciente por actividad)
   const [activeReservations, setActiveReservations] = React.useState<Record<string, { id: string; status: string }>>({});
+  const historyLoadedRef = React.useRef(false);
 
   // Pide /api/reservations/:userId y arma el map de reservas activas
   const refreshReservations = React.useCallback(async () => {
@@ -122,35 +144,58 @@ export function App() {
     refreshReservations();
   }, [refreshReservations]);
 
-  //lógica dinámica: hacemos la consulta manual al backend inyectando las coordenadas en la url
-  React.useEffect(() => {
-    async function cargarPanoramasConClima() {
-      try {
-        setLoadingWeather(true);
-        const response = await fetch(`/api/activities?lat=${coords.lat}&lng=${coords.lng}`);
-        const data = await response.json();
+  //lógica dinámica: hacemos la consulta manual al backend inyectando las coordenadas y filtros
+  const fetchFilteredActivities = async (categoryOverride?: string | null, filtersOverride?: typeof apiFilters) => {
+    try {
+      setLoadingWeather(true);
+      const activeFilters = filtersOverride || apiFilters;
+      const activeCat = categoryOverride !== undefined ? categoryOverride : selectedCategory;
 
-        if (data && data.activities) {
-          setDynamicActivities(data.activities);
-          setWeatherInfo(data.currentWeather);
-          if (data.userHistory) {
-            setUserHistory(data.userHistory);
-          }
+      let url = `/api/activities?lat=${coords.lat}&lng=${coords.lng}&radius=${activeFilters.radius}`;
+      if (activeFilters.exactPrice !== '') url += `&exactPrice=${activeFilters.exactPrice}`;
+      if (activeFilters.openNow) url += `&openNow=true`;
+      
+      // Inyectar parámetros de planificación de fecha futura si están activos
+      if (planningState) {
+        url += `&date=${planningState.date}`;
+        if (planningState.time) {
+          url += `&time=${planningState.time}`;
         }
-      } catch (err) {
-        console.error("Error cargando panoramas dinámicos:", err);
-      } finally {
-        setLoadingWeather(false);
       }
-    }
 
-    if (session) {
-      cargarPanoramasConClima();
+      // Si hay una categoría seleccionada y no es "Todas"
+      if (activeCat && activeCat !== 'Todas') {
+        url += `&category=${activeCat}`;
+      }
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data && data.activities) {
+        setDynamicActivities(data.activities);
+        setWeatherInfo(data.currentWeather);
+        if (data.userHistory && !historyLoadedRef.current) {
+          setUserHistory(data.userHistory);
+          historyLoadedRef.current = true;
+        }
+      }
+    } catch (err) {
+      console.error("Error cargando panoramas dinámicos:", err);
+    } finally {
+      setLoadingWeather(false);
     }
-  }, [coords, session]);
+  };
+
+  React.useEffect(() => {
+    if (session) {
+      historyLoadedRef.current = false; // Permitir recarga limpia al cambiar usuario, ubicación o planificación
+      fetchFilteredActivities(selectedCategory, apiFilters);
+    }
+  }, [coords, session, planningState]); // Se ejecuta al cambiar ubicación, sesión o al activar/desactivar planificación
 
   const handleToggleFavorite = async (activityId: string) => {
     const isFav = userHistory.favorites.includes(activityId);
+    const activity = actualActivitiesList.find(a => a.id === activityId);
     
     // Update local state optimistically
     setUserHistory(prev => ({
@@ -171,7 +216,7 @@ export function App() {
         await fetch('/api/favorites', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ activityId })
+          body: JSON.stringify({ activityId, activity })
         });
       }
     } catch (err) {
@@ -186,11 +231,11 @@ export function App() {
 
   let actualActivitiesList: any[] = [];
 
-  // Si ya cargó nuestra petición manual con clima, usamos esa
-  if (dynamicActivities && dynamicActivities.length > 0) {
+  // Si ya terminó de cargar la petición filtrada por clima/parámetros, usamos estrictamente esa
+  if (!loadingWeather) {
     actualActivitiesList = dynamicActivities;
   } 
-  // Si no, revisamos el hook original y desempaquetamos con cuidado para que no explote
+  // Si aún está cargando la petición en segundo plano, usamos el hook original como fallback provisorio
   else if (activities) {
     if (Array.isArray(activities)) {
       actualActivitiesList = activities;
@@ -202,19 +247,27 @@ export function App() {
   const currentUser: User = {
     id: session?.user?.id ?? "anon",
     name: session?.user?.name ?? "Usuario",
-    preferences: preferredCategory ? [preferredCategory] : [],
+    preferences: [], // Eliminamos la preferencia fija heredada para usar el modelo 100% dinámico basado en likes, reservas, clima y distancia
     currentLocation: coords,
     history: userHistory
   };
 
-  const recommendedActivities = getRecommendedActivities(currentUser, actualActivitiesList);
-  const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(recommendedActivities, preferredCategory);
+  const weatherTag = weatherInfo ? ((weatherInfo.condition === 'Clear' || weatherInfo.condition === 'Clouds') ? 'Sunny' : 'Rainy') : undefined;
+  const activeWeather = weatherTag;
+  const activeTime = planningState 
+    ? (planningState.date === 'today' ? undefined : (planningState.time || 'any'))
+    : undefined;
+  const recommendedActivities = getRecommendedActivities(currentUser, actualActivitiesList, activeWeather, activeTime);
+  // Inicializar siempre la pestaña activa en 'Todas' (null) para evitar predisposiciones o bloqueos de carga en 'Teatro'
+  const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(recommendedActivities, null);
 
   const handleSelectCategory = (category: typeof selectedCategory) => {
     setSelectedCategory(category);
-    if (category !== null) {
-      setPreferredCategory(category);
-    }
+    // Reiniciar los filtros para que sean independientes por categoría
+    const resetFilters = { radius: 50000, exactPrice: '', openNow: false };
+    setApiFilters(resetFilters);
+    // Disparar búsqueda inmediatamente para que cargue los panoramas de la nueva pestaña
+    fetchFilteredActivities(category, resetFilters);
   };
 
   // a) Verificando sesión
@@ -327,9 +380,130 @@ export function App() {
             selectedCategory={selectedCategory}
             onSelectCategory={handleSelectCategory}
           />
-          <div className="px-2">
+
+          {/* Banner de Recomendación Asistida / Planificación (solo en pestaña Todas) */}
+          {!selectedCategory && !planningState && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-gradient-to-r from-orange-500/10 to-fuchsia-600/10 border border-orange-500/20 rounded-2xl shadow-sm mb-2 animate-fade-in">
+              <div className="flex flex-col gap-1 text-center sm:text-left">
+                <h3 className="text-base sm:text-lg font-black tracking-tight text-gray-900 leading-tight">
+                  🧠 ¿Quieres recomendaciones personalizadas de panoramas?
+                </h3>
+                <p className="text-xs text-gray-600 font-medium">
+                  Encuentra las mejores opciones según el clima y horarios de hoy o de cualquier fecha que elijas.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="w-full sm:w-auto bg-gradient-to-r from-orange-500 to-fuchsia-600 hover:from-orange-600 hover:to-fuchsia-700 text-white text-xs font-black px-6 py-3 rounded-xl transition-all active:scale-[0.97] shadow-md shadow-orange-500/10 uppercase tracking-wider whitespace-nowrap cursor-pointer"
+              >
+                ✨ Recomendar Panoramas
+              </button>
+            </div>
+          )}
+
+          {!selectedCategory && planningState && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-2xl shadow-sm mb-2 animate-fade-in">
+              <div className="flex flex-col gap-1 text-center sm:text-left">
+                <div className="flex items-center justify-center sm:justify-start gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                  <h3 className="text-base sm:text-lg font-black tracking-tight text-emerald-950 leading-tight">
+                    {planningState.date === 'today' ? '📅 Recomendación para Hoy Activa' : '📅 Recomendación Planificada Activa'}
+                  </h3>
+                </div>
+                <p className="text-xs text-emerald-800 font-semibold mt-1">
+                  {planningState.date === 'today' ? (
+                    <>
+                      Mostrando panoramas ideales para <span className="font-bold underline">hoy</span> en tiempo real. Clima detectado por API: <span className="font-bold underline">{weatherInfo?.condition === 'Clear' ? '☀️ Despejado' : weatherInfo?.condition === 'Clouds' ? '☁️ Nublado' : '🌧️ Lluvioso'} ({weatherInfo?.temperature.toFixed(1)}°C)</span>.
+                    </>
+                  ) : (
+                    <>
+                      Mostrando panoramas para el día <span className="font-bold underline">{planningState.date}</span> {planningState.time ? <>a las <span className="font-bold underline">{planningState.time}</span></> : 'a cualquier hora'}. Clima estimado por API: <span className="font-bold underline">{weatherInfo?.condition === 'Clear' ? '☀️ Despejado' : weatherInfo?.condition === 'Clouds' ? '☁️ Nublado' : '🌧️ Lluvioso'} ({weatherInfo?.temperature.toFixed(1)}°C)</span>.
+                    </>
+                  )}
+                </p>
+              </div>
+              <button
+                onClick={() => setPlanningState(null)}
+                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black px-6 py-3 rounded-xl transition-all active:scale-[0.97] shadow-md shadow-emerald-600/10 uppercase tracking-wider whitespace-nowrap cursor-pointer"
+              >
+                🔄 Volver al Tiempo Real
+              </button>
+            </div>
+          )}
+
+          {/* Toolbar de Filtros: Solo visible cuando hay una categoría específica seleccionada */}
+          {selectedCategory && (
+            <div className="flex flex-wrap items-center gap-3 px-2 py-3 bg-white/50 border border-gray-100 rounded-xl shadow-sm animate-fade-in">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-widest mr-2">{t('Filtros')}:</span>
+              
+              <select 
+                className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                value={apiFilters.radius}
+                onChange={(e) => setApiFilters({ ...apiFilters, radius: Number(e.target.value) })}
+              >
+                <option value={50000}>Toda la región</option>
+                <option value={10000}>A menos de 10km</option>
+                <option value={5000}>A menos de 5km</option>
+                <option value={2000}>A menos de 2km</option>
+              </select>
+
+              {(selectedCategory === 'Restaurante' || selectedCategory === 'Cine' || selectedCategory === 'Teatro' || selectedCategory === 'Museo' || selectedCategory === 'Miradores' || selectedCategory === 'Parque') && (
+                selectedCategory === 'Restaurante' ? (
+                  <select 
+                    className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                    value={apiFilters.exactPrice}
+                    onChange={(e) => setApiFilters({ ...apiFilters, exactPrice: e.target.value })}
+                  >
+                    <option value="">Cualquier precio</option>
+                    <option value="1">Económico ($)</option>
+                    <option value="2">Moderado ($$)</option>
+                    <option value="3">Costoso ($$$)</option>
+                    <option value="4">Muy Costoso ($$$$)</option>
+                  </select>
+                ) : (
+                  <select 
+                    className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                    value={apiFilters.exactPrice}
+                    onChange={(e) => setApiFilters({ ...apiFilters, exactPrice: e.target.value })}
+                  >
+                    <option value="">Cualquier precio</option>
+                    <option value="0">Gratis ($0)</option>
+                    <option value="1">De pago</option>
+                  </select>
+                )
+              )}
+
+              <label className="flex items-center gap-2 text-xs font-medium text-gray-600 cursor-pointer bg-white border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
+                <input 
+                  type="checkbox" 
+                  checked={apiFilters.openNow}
+                  onChange={(e) => setApiFilters({ ...apiFilters, openNow: e.target.checked })}
+                  className="accent-primary"
+                />
+                Solo Abiertos Ahora
+              </label>
+
+              <button 
+                onClick={() => fetchFilteredActivities(selectedCategory, apiFilters)}
+                disabled={loadingWeather}
+                className="ml-auto text-xs font-bold text-white bg-gray-900 px-4 py-1.5 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {loadingWeather ? (
+                  <span className="animate-pulse">Buscando...</span>
+                ) : (
+                  "Aplicar Filtros"
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Mostramos el contador de panoramas, cambiando a modo curado si hay planificación activa */}
+          <div className="px-2 mt-2">
             <span className="text-xs font-bold text-gray-500 uppercase tracking-widest bg-gray-200/50 py-1 px-3 rounded-full">
-              {filteredActivities.length} {filteredActivities.length === 1 ? t('panoramaFound') : t('panoramasFound')}
+              {planningState 
+                ? `${Math.min(6, filteredActivities.length)} panoramas recomendados ✨`
+                : `${filteredActivities.length} ${filteredActivities.length === 1 ? t('panoramaFound') : t('panoramasFound')}`
+              }
             </span>
           </div>
         </div>
@@ -340,7 +514,7 @@ export function App() {
               {t('emptyState')}
             </p>
           ) : (
-            filteredActivities.map((act) => (
+            (planningState ? filteredActivities.slice(0, 6) : filteredActivities).map((act, index) => (
               <ActivityCard
                 key={act.id}
                 activity={act}
@@ -348,6 +522,9 @@ export function App() {
                 reservation={activeReservations[act.id] as any}
                 onToggleFavorite={handleToggleFavorite}
                 onReservationChanged={handleReservationChanged}
+                userCoords={coords}
+                isRecommended={!!planningState}
+                rank={index + 1}
               />
             ))
           )}
@@ -357,6 +534,151 @@ export function App() {
       <footer className="mt-16 sm:mt-20 text-center opacity-20 font-black text-[10px] tracking-[0.5em] uppercase px-4">
         Grupo Frontera • 2026
       </footer>
+
+      {/* MODAL DE PLANIFICACIÓN DE RECOMENDACIÓN FUTURA */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 flex flex-col gap-5 relative animate-scale-up">
+            
+            <button
+              onClick={() => setIsModalOpen(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-900 text-lg font-bold p-1 transition-colors cursor-pointer"
+            >
+              ✕
+            </button>
+
+            <div className="flex flex-col gap-2 text-center sm:text-left">
+              <span className="text-[10px] font-bold text-orange-500 uppercase tracking-[0.2em] block">
+                Intelligent Assistant
+              </span>
+              <h2 className="text-2xl font-black text-gray-900 tracking-tighter leading-none">
+                Recomendar Panoramas
+              </h2>
+              <p className="text-xs text-gray-500 font-medium">
+                Indica cuándo realizarás la actividad para que el sistema calcule las mejores opciones de forma automática.
+              </p>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (planningDateType === 'today') {
+                  setPlanningState({ date: 'today' });
+                } else {
+                  setPlanningState({
+                    date: dateValue,
+                    time: planningTimeType === 'specific' ? timeValue : undefined
+                  });
+                }
+                setIsModalOpen(false);
+              }}
+              className="flex flex-col gap-5"
+            >
+              {/* Selector de tipo de fecha */}
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                  ¿Cuándo quieres realizar la actividad?
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPlanningDateType('today')}
+                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
+                      planningDateType === 'today'
+                        ? 'bg-black text-white border-black shadow-md shadow-black/10'
+                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    Hoy ☀️
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPlanningDateType('future')}
+                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
+                      planningDateType === 'future'
+                        ? 'bg-black text-white border-black shadow-md shadow-black/10'
+                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    Otro día 📅
+                  </button>
+                </div>
+              </div>
+
+              {/* Campos para fecha futura */}
+              {planningDateType === 'future' && (
+                <div className="flex flex-col gap-4 animate-fade-in">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                      Selecciona la fecha
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={dateValue}
+                      onChange={(e) => setDateValue(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-gray-700"
+                    />
+                  </div>
+
+                  {/* Selector de tipo de hora */}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                      ¿A qué hora estimas ir?
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setPlanningTimeType('any')}
+                        className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${
+                          planningTimeType === 'any'
+                            ? 'bg-gray-800 text-white border-gray-800'
+                            : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        Cualquier hora 🕒
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPlanningTimeType('specific')}
+                        className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${
+                          planningTimeType === 'specific'
+                            ? 'bg-gray-800 text-white border-gray-800'
+                            : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        Hora específica ⚡
+                      </button>
+                    </div>
+                  </div>
+
+                  {planningTimeType === 'specific' && (
+                    <div className="flex flex-col gap-1 animate-fade-in">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                        Define la hora específica
+                      </label>
+                      <input
+                        type="time"
+                        required
+                        value={timeValue}
+                        onChange={(e) => setTimeValue(e.target.value)}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-gray-700"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full bg-gradient-to-r from-orange-500 to-fuchsia-600 hover:from-orange-600 hover:to-fuchsia-700 text-white text-xs font-black py-4 rounded-2xl transition-all active:scale-[0.97] uppercase tracking-widest shadow-lg shadow-orange-500/10 cursor-pointer mt-2"
+              >
+                Obtener Recomendación 🚀
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
