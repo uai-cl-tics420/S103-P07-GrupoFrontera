@@ -666,6 +666,8 @@ export function App() {
           onClose={() => setSelectedActivityForDetail(null)}
           isReserved={selectedActivityForDetail ? userHistory.reservations.includes(selectedActivityForDetail.id) : false}
           onReserve={handleReserve}
+          onReservationChanged={handleReservationChanged}
+          userCoords={coords}
         />
       </main>
 

@@ -48,5 +48,7 @@ export interface Activity {
   occupancy?: "Low" | "Medium" | "High";
   vicinity?: string;
   imageUrl?: string;
+  description?: string;
+  price?: number;
 }
 

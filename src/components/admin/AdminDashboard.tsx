@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Users, MapPin, Mail, TrendingUp, ArrowLeft } from 'lucide-react';
+import { Users, MapPin, Mail, TrendingUp, ArrowLeft, LayoutDashboard, PlusCircle } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/i18n/context';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { MOCK_STATS, MOCK_RECENT_USERS, MOCK_ACTIVITIES_BY_CATEGORY } from '@/mocks/adminData';
 import { Category } from '@/types';
 import type { TranslationKey } from '@/i18n/translations';
+import { CreatePanoramaForm } from './CreatePanoramaForm';
+import { ManagePanoramasView } from './ManagePanoramasView';
 
 interface AdminDashboardProps {
     onBack: () => void;
@@ -39,6 +41,7 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
     const { t } = useT();
     const [realData, setRealData] = useState<any>(null);
     const [loadingData, setLoadingData] = useState(true);
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'crear' | 'gestionar'>('dashboard');
 
     useEffect(() => {
         fetch('/api/admin/stats')
@@ -176,6 +179,30 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                     <p className="text-gray-400 text-sm">Grupo Frontera • 2026</p>
                 </header>
 
+                {/* Pestañas del panel admin */}
+                <div className="flex items-center gap-2 mb-8 border-b border-gray-100">
+                    <button
+                        onClick={() => setActiveTab('dashboard')}
+                        className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-bold tracking-tight border-b-2 -mb-px transition ${activeTab === 'dashboard' ? 'border-black text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                    >
+                        <LayoutDashboard className="w-4 h-4" /> Dashboard
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('crear')}
+                        className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-bold tracking-tight border-b-2 -mb-px transition ${activeTab === 'crear' ? 'border-black text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                    >
+                        <PlusCircle className="w-4 h-4" /> Crear panorama
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('gestionar')}
+                        className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-bold tracking-tight border-b-2 -mb-px transition ${activeTab === 'gestionar' ? 'border-black text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                    >
+                        <MapPin className="w-4 h-4" /> Administrar panoramas
+                    </button>
+                </div>
+
+                {activeTab === 'dashboard' && (
+                <>
                 {/* Stat Cards */}
                 <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-12">
                     <StatCard
@@ -278,6 +305,11 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                         </div>
                     </div>
                 </section>
+                </>
+                )}
+
+                {activeTab === 'crear' && <CreatePanoramaForm />}
+                {activeTab === 'gestionar' && <ManagePanoramasView />}
             </main>
 
             <footer className="mt-16 sm:mt-20 text-center opacity-20 font-black text-[10px] tracking-[0.5em] uppercase px-4">

@@ -3,14 +3,14 @@ import { cors } from '@elysiajs/cors';
 import { auth } from './lib/auth';
 import { protectMiddleware } from 'src/middleware/protect';
 import { db } from "./lib/db";
-import { user, activities, userPreferences, userFavorites, userReservations } from "./lib/schema";
-import { and, count, eq, gt } from "drizzle-orm";
+import { user, activities, userPreferences, userFavorites, userReservations, activitySchedules } from "./lib/schema";
+import { and, count, eq, gt, ne } from "drizzle-orm";
 import nodemailer from 'nodemailer';
 import { verification } from '../auth-schema';
 import { randomInt, randomUUID } from 'crypto';
 import { getCurrentWeather, getWeatherForecast } from './services/weatherService';
 import { isOutdoorFriendly } from './utils/weatherHelpers';
-import { enrichWithPlacesAPI } from './services/placesService';
+import { getSimulatedOccupancy } from './services/placesService';
 import { processPayment } from './services/paymentService';
 
 
@@ -91,21 +91,44 @@ app.get("/api/activities", async ({ query, request }) => {
   //traemos las actividades de la bbdd
   const rows = await db.select().from(activities);
 
-  //mapeamos las filas al formato typescript
-  const mappedActivities = rows.map(row => ({
-    id: row.id,
-    name: row.name,
-    category: row.category,
-    tagClima: row.tag_clima,
-    coordinates: { lat: row.lat, lng: row.lng },
-    openingHour: row.openingHour || (row as any).opening_hour || undefined,
-    closingHour: row.closingHour || (row as any).closing_hour || undefined,
-  }));
+  //traemos los horarios de cada panorama
+  const allSchedules = await db.select().from(activitySchedules);
 
-  // Enriquecer con distancias reales, afluencia y lugares de Google Places (Track 1 - Daniel)
-  const placesWithOccupancy = await enrichWithPlacesAPI(mappedActivities as any, lat, lng, { 
-    filterCategory, radius, exactPrice, openNow 
+  //mapeamos las filas al formato typescript (panoramas creados por el admin)
+  const mappedActivities = rows.map(row => {
+    const sched = allSchedules
+      .filter(sch => sch.activityId === row.id)
+      .map(sch => ({ fecha: sch.fecha, horaInicio: sch.horaInicio, horaFin: sch.horaFin }));
+    const primera = sched[0];
+    return {
+      id: row.id,
+      name: row.name,
+      category: row.category,
+      tagClima: row.tag_clima,
+      coordinates: { lat: row.lat, lng: row.lng },
+      openingHour: row.openingHour || (row as any).opening_hour || primera?.horaInicio || undefined,
+      closingHour: row.closingHour || (row as any).closing_hour || primera?.horaFin || undefined,
+      imageUrl: (row as any).imageUrl ?? undefined,
+      description: (row as any).description ?? undefined,
+      price: (row as any).price ?? undefined,
+      vicinity: (row as any).address ?? undefined,
+      cuposPorDia: (row as any).cuposPorDia ?? undefined,
+      isTendencia: (row as any).isTendencia ?? false,
+      isPopular: (row as any).isPopular ?? false,
+      disponible: (row as any).disponible ?? true,
+      schedules: sched,
+    };
   });
+
+  // La fuente de panoramas ahora es la BD (creados por el admin), no Google Places.
+  // Excluimos los marcados como NO disponibles.
+  let baseList = mappedActivities.filter(a => a.disponible !== false);
+  if (filterCategory && filterCategory !== 'Todas') {
+    baseList = baseList.filter(a => a.category === filterCategory);
+  }
+
+  // Afluencia simulada por ahora (en standby hasta definir la fuente real con el profe)
+  const placesWithOccupancy = baseList.map(a => ({ ...a, occupancy: getSimulatedOccupancy() }));
 
   // Evaluación de condiciones climáticas adaptativas (Tu lógica + Barros)
   const conditionClean = (weather?.condition || currentCondition || '').toLowerCase().trim();
@@ -140,7 +163,7 @@ app.get("/api/activities", async ({ query, request }) => {
 
     const res = await db.select({ activityId: userReservations.activityId })
       .from(userReservations)
-      .where(eq(userReservations.userId, session.user.id));
+      .where(and(eq(userReservations.userId, session.user.id), ne(userReservations.status, 'cancelado')));
     userRes = res.map(r => r.activityId);
   }
 
@@ -194,6 +217,183 @@ app.get("/api/activities", async ({ query, request }) => {
       reservations: userRes
     }
   };
+});
+
+// --- Geocodificacion de direcciones (Google Geocoding API) ---
+async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+  const key = process.env.GOOGLE_PLACES_API_KEY;
+  if (!key || !address) return null;
+  try {
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${key}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.status === 'OK' && data.results?.[0]?.geometry?.location) {
+      const loc = data.results[0].geometry.location;
+      return { lat: loc.lat, lng: loc.lng };
+    }
+    console.warn('[geocode] sin resultado:', data.status, data.error_message || '');
+    return null;
+  } catch (e) {
+    console.error('[geocode] error:', e);
+    return null;
+  }
+}
+
+// --- Crear panorama (SOLO ADMIN) - nueva logica de panoramas ---
+app.post("/api/admin/activities", async ({ body, request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id) {
+    set.status = 401;
+    return { error: "No autorizado" };
+  }
+  const caller = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
+  if ((caller[0]?.role ?? 'user') !== 'admin') {
+    set.status = 403;
+    return { error: "Acceso denegado: se requieren permisos de administrador" };
+  }
+
+  const b = body as any;
+  if (!b?.name || !b?.category) {
+    set.status = 400;
+    return { error: "Faltan campos obligatorios: name y category" };
+  }
+
+  const coords = b.address ? await geocodeAddress(b.address) : null;
+
+  const id = randomUUID();
+  await db.insert(activities).values({
+    id,
+    name: b.name,
+    category: b.category,
+    tag_clima: b.tag_clima ?? 'All',
+    lat: coords?.lat ?? 0,
+    lng: coords?.lng ?? 0,
+    imageUrl: b.image_url ?? null,
+    description: b.description ?? null,
+    address: b.address ?? null,
+    price: typeof b.price === 'number' ? b.price : null,
+    cuposPorDia: typeof b.cupos_por_dia === 'number' ? b.cupos_por_dia : null,
+  });
+
+  const schedules = Array.isArray(b.schedules) ? b.schedules : [];
+  for (const dia of schedules) {
+    if (!dia?.fecha) continue;
+    const franjas = Array.isArray(dia.franjas) ? dia.franjas : [];
+    for (const f of franjas) {
+      await db.insert(activitySchedules).values({
+        activityId: id,
+        fecha: dia.fecha,
+        horaInicio: f?.horaInicio || null,
+        horaFin: f?.horaFin || null,
+      });
+    }
+  }
+
+  return { success: true, id, geocoded: coords !== null, coordinates: coords };
+});
+
+// --- Listar panoramas para administracion (SOLO ADMIN) ---
+app.get("/api/admin/activities", async ({ request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id) { set.status = 401; return { error: "No autorizado" }; }
+  const caller = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
+  if ((caller[0]?.role ?? 'user') !== 'admin') { set.status = 403; return { error: "Acceso denegado" }; }
+  const rows = await db.select().from(activities);
+  return rows.map(r => ({
+    id: r.id,
+    name: r.name,
+    category: r.category,
+    imageUrl: (r as any).imageUrl ?? null,
+    price: (r as any).price ?? null,
+    address: (r as any).address ?? null,
+    isTendencia: (r as any).isTendencia ?? false,
+    isPopular: (r as any).isPopular ?? false,
+    disponible: (r as any).disponible ?? true,
+  }));
+});
+
+// --- Eliminar panorama (SOLO ADMIN) ---
+app.delete("/api/admin/activities/:id", async ({ params, request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id) { set.status = 401; return { error: "No autorizado" }; }
+  const caller = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
+  if ((caller[0]?.role ?? 'user') !== 'admin') { set.status = 403; return { error: "Acceso denegado" }; }
+  await db.delete(activities).where(eq(activities.id, params.id));
+  return { success: true, id: params.id };
+});
+
+// --- Actualizar flags: tendencia / popular / disponible (SOLO ADMIN) ---
+app.patch("/api/admin/activities/:id", async ({ params, body, request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id) { set.status = 401; return { error: "No autorizado" }; }
+  const caller = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
+  if ((caller[0]?.role ?? 'user') !== 'admin') { set.status = 403; return { error: "Acceso denegado" }; }
+  const b = body as any;
+  const updates: any = {};
+  if (typeof b.isTendencia === 'boolean') updates.isTendencia = b.isTendencia;
+  if (typeof b.isPopular === 'boolean') updates.isPopular = b.isPopular;
+  if (typeof b.disponible === 'boolean') updates.disponible = b.disponible;
+  if (Object.keys(updates).length === 0) { set.status = 400; return { error: "Nada que actualizar" }; }
+  await db.update(activities).set(updates).where(eq(activities.id, params.id));
+  return { success: true, id: params.id, updated: updates };
+});
+
+// --- Re-geocodificar panoramas sin coordenadas (SOLO ADMIN) ---
+app.post("/api/admin/activities/regeocode", async ({ request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id) { set.status = 401; return { error: "No autorizado" }; }
+  const caller = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
+  if ((caller[0]?.role ?? 'user') !== 'admin') { set.status = 403; return { error: "Acceso denegado" }; }
+  const rows = await db.select().from(activities);
+  let actualizados = 0;
+  for (const r of rows) {
+    const addr = (r as any).address;
+    const sinCoords = (r.lat === 0 || r.lat == null) && (r.lng === 0 || r.lng == null);
+    if (addr && sinCoords) {
+      const coords = await geocodeAddress(addr);
+      if (coords) {
+        await db.update(activities).set({ lat: coords.lat, lng: coords.lng }).where(eq(activities.id, r.id));
+        actualizados++;
+      }
+    }
+  }
+  return { success: true, actualizados };
+});
+
+// --- Distancia en auto (por carretera) via Routes API ---
+app.get("/api/distance", async ({ query }) => {
+  const fromLat = parseFloat(query.fromLat as string);
+  const fromLng = parseFloat(query.fromLng as string);
+  const toLat = parseFloat(query.toLat as string);
+  const toLng = parseFloat(query.toLng as string);
+  const key = process.env.GOOGLE_PLACES_API_KEY;
+  if (!key || [fromLat, fromLng, toLat, toLng].some(n => Number.isNaN(n))) return { km: null };
+  if (toLat === 0 && toLng === 0) return { km: null };
+  try {
+    const res = await fetch('https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': key,
+        'X-Goog-FieldMask': 'originIndex,destinationIndex,distanceMeters,condition',
+      },
+      body: JSON.stringify({
+        origins: [{ waypoint: { location: { latLng: { latitude: fromLat, longitude: fromLng } } } }],
+        destinations: [{ waypoint: { location: { latLng: { latitude: toLat, longitude: toLng } } } }],
+        travelMode: 'DRIVE',
+      }),
+    });
+    const data = await res.json();
+    const el = Array.isArray(data) ? data[0] : null;
+    if (el && el.condition === 'ROUTE_EXISTS' && typeof el.distanceMeters === 'number') {
+      return { km: el.distanceMeters / 1000 };
+    }
+    console.warn('[distance] sin ruta:', JSON.stringify(data).slice(0, 200));
+    return { km: null };
+  } catch (e) {
+    console.error('[distance] error:', e);
+    return { km: null };
+  }
 });
 
 app.get("/api/preferences/:userId", async ({ params }) => {
@@ -297,6 +497,30 @@ app.delete("/api/favorites", async ({ body, request, set }) => {
   return { success: true };
 });
 
+// --- Disponibilidad de un panorama: fechas, horarios y cupos ---
+app.get("/api/activities/:id/availability", async ({ params }) => {
+  const [act] = await db.select().from(activities).where(eq(activities.id, params.id));
+  if (!act) return { error: "Panorama no encontrado", fechas: [] };
+  const cupos = (act as any).cuposPorDia ?? null;
+  const sched = await db.select().from(activitySchedules).where(eq(activitySchedules.activityId, params.id));
+  const reservas = await db.select({ d: userReservations.reservedDate })
+    .from(userReservations)
+    .where(and(eq(userReservations.activityId, params.id), ne(userReservations.status, 'cancelado')));
+  const usados: Record<string, number> = {};
+  for (const r of reservas) { if (r.d) usados[r.d] = (usados[r.d] ?? 0) + 1; }
+  const fechasMap: Record<string, { horaInicio: string | null; horaFin: string | null }[]> = {};
+  for (const sc of sched) {
+    (fechasMap[sc.fecha] ??= []).push({ horaInicio: sc.horaInicio, horaFin: sc.horaFin });
+  }
+  const fechas = Object.entries(fechasMap).map(([fecha, franjas]) => ({
+    fecha,
+    franjas,
+    cuposPorDia: cupos,
+    disponibles: cupos == null ? null : Math.max(0, cupos - (usados[fecha] ?? 0)),
+  })).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  return { activityId: params.id, name: act.name, price: (act as any).price ?? null, fechas };
+});
+
 // --- RUTAS RESERVAS (issue #28) ---
 // POST /api/reservations { activityId, payNow? }: crea reserva.
 // payNow=false (default) => status='pendiente', sin cobro.
@@ -307,7 +531,7 @@ app.post("/api/reservations", async ({ body, request, set }) => {
     set.status = 401;
     return { error: "No autorizado" };
   }
-  const { activityId, payNow } = body as { activityId: string; payNow?: boolean };
+  const { activityId, payNow, reservedDate, reservedTime } = body as { activityId: string; payNow?: boolean; reservedDate?: string; reservedTime?: string };
   if (!activityId) {
     set.status = 400;
     return { error: "activityId requerido" };
@@ -320,12 +544,25 @@ app.post("/api/reservations", async ({ body, request, set }) => {
     return { error: "Actividad no encontrada" };
   }
 
+  // Verificar cupos disponibles para la fecha elegida
+  const cuposDia = (act as any).cuposPorDia ?? null;
+  if (cuposDia != null && reservedDate) {
+    const usados = await db.select({ value: count() }).from(userReservations)
+      .where(and(eq(userReservations.activityId, activityId), eq(userReservations.reservedDate, reservedDate), ne(userReservations.status, 'cancelado')));
+    if ((usados[0]?.value ?? 0) >= cuposDia) {
+      set.status = 409;
+      return { error: "No quedan cupos para esa fecha" };
+    }
+  }
+
   // Sin pago inmediato: queda pendiente
   if (!payNow) {
     const [created] = await db.insert(userReservations).values({
       userId: session.user.id,
       activityId,
       status: "pendiente",
+      reservedDate: reservedDate ?? null,
+      reservedTime: reservedTime ?? null,
     }).returning();
     return { success: true, reservation: created, payment: null };
   }
@@ -340,6 +577,8 @@ app.post("/api/reservations", async ({ body, request, set }) => {
     userId: session.user.id,
     activityId,
     status: "pagado",
+    reservedDate: reservedDate ?? null,
+    reservedTime: reservedTime ?? null,
   }).returning();
   return {
     success: true,

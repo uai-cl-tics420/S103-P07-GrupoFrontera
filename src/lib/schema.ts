@@ -1,4 +1,4 @@
-import { pgTable, text, varchar, doublePrecision, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, doublePrecision, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 
 // --- 0. TABLAS DE BETTER-AUTH (¡Añade esto!) ---
 // Estas son las que faltaban y por eso daban error en auth.ts
@@ -65,6 +65,26 @@ export const activities = pgTable('activities', {
     lng: doublePrecision('lng').notNull(),
     openingHour: text('opening_hour'),
     closingHour: text('closing_hour'),
+    // --- Campos nuevos para panoramas creados por el admin (rama nueva-logica) ---
+    imageUrl: text('image_url'),
+    description: text('description'),
+    address: text('address'),
+    price: integer('price'),
+    cuposPorDia: integer('cupos_por_dia'),
+    // --- Flags de gestion (pestaña Administrar panoramas) ---
+    isTendencia: boolean('is_tendencia').default(false),
+    isPopular: boolean('is_popular').default(false),
+    disponible: boolean('disponible').default(true),
+});
+
+// --- Horarios de cada panorama: una fecha puede tener varias franjas ---
+export const activitySchedules = pgTable('activity_schedules', {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    activityId: varchar('activity_id', { length: 50 })
+        .references(() => activities.id, { onDelete: 'cascade' }).notNull(),
+    fecha: text('fecha').notNull(),        // "YYYY-MM-DD"
+    horaInicio: text('hora_inicio'),       // "HH:MM"
+    horaFin: text('hora_fin'),             // "HH:MM"
 });
 
 // --- 2. Tabla de Preferencias de Usuario ---
@@ -88,4 +108,6 @@ export const userReservations = pgTable('user_reservations', {
     activityId: varchar('activity_id', { length: 50 }).references(() => activities.id, { onDelete: 'cascade' }).notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     status: text('status').default('comprado').notNull(),
+    reservedDate: text('reserved_date'),   // "YYYY-MM-DD" elegida por el usuario
+    reservedTime: text('reserved_time'),   // "HH:MM-HH:MM"
 });
