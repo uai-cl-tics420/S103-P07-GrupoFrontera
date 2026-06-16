@@ -4,7 +4,7 @@ import { auth } from './lib/auth';
 import { protectMiddleware } from 'src/middleware/protect';
 import { db } from "./lib/db";
 import { user, activities, userPreferences, userFavorites, userReservations, activitySchedules } from "./lib/schema";
-import { and, count, eq, gt, ne } from "drizzle-orm";
+import { and, count, eq, gt, ne, sql } from "drizzle-orm";
 import nodemailer from 'nodemailer';
 import { verification } from '../auth-schema';
 import { randomInt, randomUUID } from 'crypto';
@@ -756,6 +756,79 @@ app.post("/api/otp/verify", async ({ body }) => {
   await db.update(user).set({ otpVerified: true } as any).where(eq(user.id, userId));
 
   return { status: "success" };
+});
+
+//ENDPOINT DE INSIGHTS PARA PANORAMA POPULAR Y TENDENCIA
+app.get("/api/admin/metrics", async ({ request, set }) => {
+  const session = await auth.api.getSession({
+    headers: request.headers
+  });
+
+  if (!session) {
+    set.status = 401;
+    return { error: "No autorizado" };
+  }
+
+  //Validamos que el solicitante sea un administrador real
+  const caller = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
+
+  const callerRole = caller[0]?.role ?? 'user';
+  if (callerRole !== 'admin') {
+    set.status = 403;
+    return { error: "Acceso denegado: se requieren privilegios de admin." };
+  }
+
+  try {
+    //1. Encontrar el panorama más popular (mayor sumatoria en user_favorites)
+    const popularResult = await db
+      .select({
+        activityId: userFavorites.activityId,
+        activityName: activities.name,
+        totalLikes: count(userFavorites.id),
+      })
+      .from(userFavorites)
+      .innerJoin(activities, eq(userFavorites.activityId, activities.id)) //inner join para heredar el nombre del panorama
+      .groupBy(userFavorites.activityId, activities.name)
+      .orderBy((fields) => [sql`count(${userFavorites.id}) desc`])
+      .limit(1);
+    
+    //2. Encontrar el panorama en tendencia (mayor sumatoria en user_reservations)
+    //Excluimos las reservas canceladas para que la métrica sea real
+    const tendenciaResult = await db
+      .select({
+        activityId: userReservations.activityId,
+        activityName: activities.name,
+        totalReservas: count(userReservations.id),
+      })
+      .from(userReservations)
+      .innerJoin(activities, eq(userReservations.activityId, activities.id))
+      .where(ne(userReservations.status, 'cancelado'))
+      .groupBy(userReservations.activityId, activities.name)
+      .orderBy((fields) => [sql`count(${userReservations.id}) desc`])
+      .limit(1);
+    
+    //Mapeo seguro por si la bbdd está vacía en las primeras pruebas
+    const masPopular = popularResult[0] || { activityName: "Sin likes registrados aún", totalLikes: 0 };
+    const enTendencia = tendenciaResult[0] || { activityName: "Sin reservas activas aún", totalReservas: 0 };
+
+    return {
+      success: true,
+      data: {
+        popular: {
+          name: masPopular.activityName,
+          count: masPopular.totalLikes
+        },
+        tendencia: {
+          name: enTendencia.activityName,
+          count: enTendencia.totalReservas
+        }
+      }
+    };   
+  } catch (error) {
+    console.error("Error al calcular métricas:", error);
+    set.status = 500;
+    return { error: "Error interno al procesar métricas analíticas" };
+  }
 });
 
 // --- ENDPOINT DE ESTADÍSTICAS REALES PARA ADMINISTRADOR ---
