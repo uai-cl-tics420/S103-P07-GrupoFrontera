@@ -11,7 +11,10 @@ export type ReservationStatus = 'pendiente' | 'pagado' | 'comprado' | 'cancelado
 
 
 interface ActivityCardProps {
-  activity: Activity;
+  activity: Activity & {
+    isPopular?: boolean;
+    isTendencia?: boolean;
+  };
   isFavorite?: boolean;
   isReserved?: boolean;
   /** Reserva activa de esta actividad (no cancelada), si existe. */
@@ -118,6 +121,18 @@ const ActivityCard = ({
           )}
 
           <div className="absolute top-3 right-3 sm:top-5 sm:right-5 flex flex-col gap-2 items-end z-10">
+            {activity.isPopular && (
+              <div className='bg-gradient-to-r from-pink-500 to-rose-400 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1 border border-pink-400/20 animate-fade-in'>
+                <span>⭐️</span> Popular
+              </div>
+            )}
+
+            {activity.isTendencia && (
+              <div className='bg-gradient-to-r from-orange-500 to-amber-400 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1 border border-orange-400/20 animate-fade-in'>
+                <span>📈</span> Tendencia
+              </div>
+            )}
+
             <div className="bg-white/80 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 border border-white/40 shadow-sm transition-all duration-200 group-hover:bg-white">
                {activity.tagClima === 'Sunny' ? t('weatherSunny') : t('weatherAll')}
             </div>

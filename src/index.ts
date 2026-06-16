@@ -334,7 +334,91 @@ app.patch("/api/admin/activities/:id", async ({ params, body, request, set }) =>
   if (typeof b.isPopular === 'boolean') updates.isPopular = b.isPopular;
   if (typeof b.disponible === 'boolean') updates.disponible = b.disponible;
   if (Object.keys(updates).length === 0) { set.status = 400; return { error: "Nada que actualizar" }; }
+
+  //Buscamos los datos actuales de la actividad antes de actualizar para saber si el flag cambió
+  const [currentActivity] = await db.select().from(activities).where(eq(activities.id, params.id));
+  if (!currentActivity) { set.status = 404; return { error: "Actividad no encontrada" }; }
+
+  //Actualizamos la bbdd
   await db.update(activities).set(updates).where(eq(activities.id, params.id));
+
+  //Motor de notificaciones en segundo plano
+  //evaluamos si se activó un flag que antes estaba apagado
+  const seVolvioTendencia = updates.isTendencia === true && !(currentActivity as any).isTendencia;
+  const seVolvioPopular = updates.isPopular === true && !(currentActivity as any).isPopular;
+
+  if (seVolvioTendencia || seVolvioPopular) {
+    //función asíncrona que se dispara
+    (async () => {
+      try {
+        console.log(`Iniciando campaña de correos masivos para: "${currentActivity.name}"`);
+
+        //buscamos a los usuarios reales registrados en el sistema
+        const allUsers = await db.select({ email: user.email }).from(user);
+        const recipientEmails = allUsers.map(u => u.email).filter(Boolean);
+
+        if (recipientEmails.length === 0) return;
+
+        //definimos el asunto y diseño visual adaptativo según el tipo de logo del panorama
+        let subject = "";
+        let badgeColor = "";
+        let badgeText = "";
+        let messageText = "";
+
+        if (seVolvioTendencia) {
+          subject = `📈 ¡ALERTA DE TENDENCIA! ${currentActivity.name} está arrasando`
+          badgeColor = "#f97316";
+          badgeText = "⚡️ TENDENCIA DEL MOMENTO";
+          messageText = "Este panorama está siendo el más reservado por la comunidad en los últimos días y los cupos vuelan. ¡No te quedes fuera!";
+        } else {
+          subject = `❤️ ¡A todos les encanta! ${currentActivity.name} es el nuevo favorito`
+          badgeColor = "#ec4899";
+          badgeText = "❤️ EL FAVORITO DE TODOS";
+          messageText = "¡Este panorama se ha convertido en el favorito de todos! La comunidad lo ha elegido como uno de los lugares más top e imperdibles.";
+        }
+
+        const htmlContent = `
+          <div style="font-family:sans-serif; max-width:500px; margin:0 auto; padding:30px; background:#fafafa; border-radius:20px; border: 1px solid #eee;">
+            <h1 style="font-size:26px; font-weight:900; margin-bottom:16px; color:#111; letter-spacing:-0.03em;">PANORAMAS</h1>
+            
+            <div style="display:inline-block; background:${badgeColor}; color:#fff; px-3; padding:6px 14px; rounded-full; border-radius:50px; font-size:11px; font-weight:bold; letter-spacing:0.05em; margin-bottom:20px;">
+              ${badgeText}
+            </div>
+
+            <h2 style="font-size:20px; font-weight:700; margin-top:0; color:#222;">${currentActivity.name}</h2>
+            <p style="color:#555; font-size:14px; line-height:1.6; margin-bottom:24px;">${messageText}</p>
+            
+            <div style="background:#fff; padding:20px; border-radius:12px; border:1px solid #eaeaea; margin-bottom:24px;">
+              <p style="margin:0 0 8px 0; font-size:13px; color:#888;"><strong>Categoría:</strong> ${currentActivity.category}</p>
+              ${(currentActivity as any).address ? `<p style="margin:0; font-size:13px; color:#888;"><strong>Ubicación:</strong> ${(currentActivity as any).address}</p>` : ''}
+            </div>
+
+            <div style="text-align:center; margin-top:30px;">
+              <a href="http://localhost:5173" style="background:#111; color:#fff; text-decoration:none; padding:12px 24px; font-size:14px; font-weight:600; border-radius:10px; display:inline-block;">
+                Ver detalles en la App
+              </a>
+            </div>
+            
+            <p style="color:#aaa; font-size:11px; text-align:center; margin-top:40px; border-top:1px solid #eee; padding-top:20px;">
+              Recibiste esta notificación automática porque formas parte de la comunidad Panoramas.
+            </p>
+          </div>
+        `;
+
+        //Enviamos el correo a la lista de distribución
+        await transporter.sendMail({
+          from: `"Panoramas App" <${process.env.GMAIL_USER}>`,
+          to: recipientEmails.join(', '),
+          subject: subject,
+          html: htmlContent,
+        });
+
+        console.log(`¡Notificaciones enviadas con éxito a ${recipientEmails.length} usuarios!`);
+      } catch (err) {
+        console.error("Error en el proceso de envío de correos:", err);
+      }
+    })();
+  }
   return { success: true, id: params.id, updated: updates };
 });
 
