@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Users, MapPin, Mail, TrendingUp, ArrowLeft } from 'lucide-react';
+import { Users, MapPin, Mail, TrendingUp, ArrowLeft, LayoutDashboard, PlusCircle, Heart, CalendarCheck } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/i18n/context';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { MOCK_STATS, MOCK_RECENT_USERS, MOCK_ACTIVITIES_BY_CATEGORY } from '@/mocks/adminData';
 import { Category } from '@/types';
 import type { TranslationKey } from '@/i18n/translations';
+import { CreatePanoramaForm } from './CreatePanoramaForm';
+import { ManagePanoramasView } from './ManagePanoramasView';
 
 interface AdminDashboardProps {
     onBack: () => void;
@@ -19,6 +21,7 @@ const categoryKeys: Record<Category, TranslationKey> = {
     [Category.TEATRO]: 'categoryTeatro',
     [Category.MUSEO]: 'categoryMuseo',
     [Category.RESTAURANTE]: 'categoryRestaurante',
+    [Category.MIRADORES]: 'categoryMiradores'
 };
 
 function StatCard({ icon: Icon, label, value, accent }: { icon: any; label: string; value: string | number; accent: string }) {
@@ -39,6 +42,27 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
     const { t } = useT();
     const [realData, setRealData] = useState<any>(null);
     const [loadingData, setLoadingData] = useState(true);
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'crear' | 'gestionar'>('dashboard');
+    const [metrics, setMetrics] = useState<any>(null);
+    const [loadingMetrics, setLoadingMetrics] = useState(true);
+
+    useEffect(() => {
+        console.log("GATILLANDO FETCH DE MÉTRICAS ALOOOOOO");
+        fetch('/api/admin/metrics')
+            .then(res => {
+                if (!res.ok) throw new Error('Falló la consulta de métricas');
+                return res.json();
+            })
+            .then(response => {
+                console.log("DATOS RECIBIDOS DEL BE:", response);
+                if (response.success) setMetrics(response.data);
+                setLoadingMetrics(false);
+            })
+            .catch(err => {
+                console.warn("Error cargando métricas dinámicas:", err);
+                setLoadingMetrics(false);
+            });
+    }, []);
 
     useEffect(() => {
         fetch('/api/admin/stats')
@@ -176,8 +200,32 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                     <p className="text-gray-400 text-sm">Grupo Frontera • 2026</p>
                 </header>
 
+                {/* Pestañas del panel admin */}
+                <div className="flex items-center gap-2 mb-8 border-b border-gray-100">
+                    <button
+                        onClick={() => setActiveTab('dashboard')}
+                        className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-bold tracking-tight border-b-2 -mb-px transition ${activeTab === 'dashboard' ? 'border-black text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                    >
+                        <LayoutDashboard className="w-4 h-4" /> Dashboard
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('crear')}
+                        className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-bold tracking-tight border-b-2 -mb-px transition ${activeTab === 'crear' ? 'border-black text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                    >
+                        <PlusCircle className="w-4 h-4" /> Crear panorama
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('gestionar')}
+                        className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-bold tracking-tight border-b-2 -mb-px transition ${activeTab === 'gestionar' ? 'border-black text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                    >
+                        <MapPin className="w-4 h-4" /> Administrar panoramas
+                    </button>
+                </div>
+
+                {activeTab === 'dashboard' && (
+                <>
                 {/* Stat Cards */}
-                <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-12">
+                <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-12">
                     <StatCard
                         icon={Users}
                         label={t('statTotalUsers')}
@@ -201,6 +249,20 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                         label={t('statTopCategory')}
                         value={topCategoryLabel}
                         accent="bg-gradient-to-tr from-emerald-500 to-teal-400"
+                    />
+
+                    <StatCard
+                        icon={Heart}
+                        label="Panorama Más Popular (Likes)"
+                        value={metrics?.popular?.name || "Cargando datos..."}
+                        accent='bg-gradient-to-tr from-pink-500 to-rose-400'
+                    />
+
+                    <StatCard
+                        icon={CalendarCheck}
+                        label="Evento en Tendencia"
+                        value={metrics?.tendencia?.name || "Calculando tendencias..."}
+                        accent="bg-gradient-to-tr from-orange-500 to-amber-400"
                     />
                 </section>
 
@@ -278,6 +340,11 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                         </div>
                     </div>
                 </section>
+                </>
+                )}
+
+                {activeTab === 'crear' && <CreatePanoramaForm />}
+                {activeTab === 'gestionar' && <ManagePanoramasView />}
             </main>
 
             <footer className="mt-16 sm:mt-20 text-center opacity-20 font-black text-[10px] tracking-[0.5em] uppercase px-4">

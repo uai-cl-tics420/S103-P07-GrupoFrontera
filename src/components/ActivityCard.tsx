@@ -1,5 +1,5 @@
 import React from 'react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { type Activity } from '../types/index';
 import { useT } from "@/i18n/context";
 import { Heart, Eye, CheckCircle2, Clock, Calendar, MapPin } from "lucide-react";
@@ -11,7 +11,10 @@ export type ReservationStatus = 'pendiente' | 'pagado' | 'comprado' | 'cancelado
 
 
 interface ActivityCardProps {
-  activity: Activity;
+  activity: Activity & {
+    isPopular?: boolean;
+    isTendencia?: boolean;
+  };
   isFavorite?: boolean;
   isReserved?: boolean;
   /** Reserva activa de esta actividad (no cancelada), si existe. */
@@ -60,6 +63,7 @@ const ActivityCard = ({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [reserveOpen, setReserveOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
+  const [drivingKm, setDrivingKm] = useState<number | null>(null);
 
   if (!activity) return null;
 
@@ -77,7 +81,21 @@ const ActivityCard = ({
   };
   const categoryKey = categoryKeyMap[activity.category];
   const categoryLabel = categoryKey ? t(categoryKey) : activity.category;
-  const distance = userCoords ? getDistance(userCoords.lat, userCoords.lng, activity.coordinates.lat, activity.coordinates.lng) : null;
+  const hasValidCoords = !!activity.coordinates && (activity.coordinates.lat !== 0 || activity.coordinates.lng !== 0);
+  const distance = userCoords && hasValidCoords ? getDistance(userCoords.lat, userCoords.lng, activity.coordinates.lat, activity.coordinates.lng) : null;
+
+  // Distancia en auto (por carretera) via backend/Routes API; cae a linea recta si no esta disponible
+  useEffect(() => {
+    if (!userCoords || !hasValidCoords) { setDrivingKm(null); return; }
+    let cancel = false;
+    fetch(`/api/distance?fromLat=${userCoords.lat}&fromLng=${userCoords.lng}&toLat=${activity.coordinates.lat}&toLng=${activity.coordinates.lng}`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => { if (!cancel && typeof d?.km === 'number') setDrivingKm(d.km); })
+      .catch(() => {});
+    return () => { cancel = true; };
+  }, [userCoords?.lat, userCoords?.lng, activity.coordinates.lat, activity.coordinates.lng, hasValidCoords]);
+
+  const shownKm = drivingKm ?? distance;
 
   return (
     <>
@@ -103,12 +121,24 @@ const ActivityCard = ({
           )}
 
           <div className="absolute top-3 right-3 sm:top-5 sm:right-5 flex flex-col gap-2 items-end z-10">
+            {activity.isPopular && (
+              <div className='bg-gradient-to-r from-pink-500 to-rose-400 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1 border border-pink-400/20 animate-fade-in'>
+                <span>⭐️</span> Popular
+              </div>
+            )}
+
+            {activity.isTendencia && (
+              <div className='bg-gradient-to-r from-orange-500 to-amber-400 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1 border border-orange-400/20 animate-fade-in'>
+                <span>📈</span> Tendencia
+              </div>
+            )}
+
             <div className="bg-white/80 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 border border-white/40 shadow-sm transition-all duration-200 group-hover:bg-white">
                {activity.tagClima === 'Sunny' ? t('weatherSunny') : t('weatherAll')}
             </div>
-            {activity.openingHour && activity.closingHour && (
-              <div className="bg-white/80 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 border border-white/40 shadow-sm transition-all duration-200 group-hover:bg-white flex items-center gap-1">
-                <span>🕒</span> {activity.openingHour} - {activity.closingHour}
+            {shownKm !== null && (
+              <div className="bg-white/80 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 border border-white/40 shadow-sm flex items-center gap-1">
+                <span>{drivingKm != null ? '🚗' : '📍'}</span> {shownKm.toFixed(1)} km
               </div>
             )}
           </div>
@@ -172,16 +202,10 @@ const ActivityCard = ({
               {activity.name}
             </h3>
             
-            <div className="flex flex-col gap-2 mb-4 text-sm text-gray-600 font-medium">
+            <div className="flex flex-col gap-2 mb-3 text-sm text-gray-600 font-medium">
               {activity.openingHour && activity.closingHour && (
                 <div className="flex items-center gap-2">
                   <span>🕒</span> Abierto: {activity.openingHour} - {activity.closingHour}
-                </div>
-              )}
-              
-              {distance !== null && (
-                <div className="flex items-center gap-2">
-                  <span>📍</span> A {distance.toFixed(1)} km de distancia
                 </div>
               )}
 
@@ -193,51 +217,29 @@ const ActivityCard = ({
               )}
             </div>
 
-            <button 
-              type="button"
-              onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${activity.coordinates.lat},${activity.coordinates.lng}`, '_blank')}
-              className="w-full bg-gray-100 text-gray-700 text-[10px] font-bold py-2 rounded-xl hover:bg-gray-200 transition-colors uppercase tracking-widest mb-2"
-            >
-              Ver en Google Maps 🗺️
-            </button>
+            {activity.price != null && (
+              <div className="mb-1">
+                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Precio base</span>
+                <div className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tighter">
+                  {activity.price === 0 ? 'Gratis' : `$${activity.price.toLocaleString('es-CL')}`}
+                </div>
+              </div>
+            )}
+
           </div>
 
-          {/* 🛠️ Panel de Acciones Unificado e Inteligente */}
-          <div className="flex gap-2 mt-auto">
+          {/* Accion unica: ver evento (la reserva ahora vive en el detalle) */}
+          <div className="mt-auto">
             <button
               type="button"
               onClick={() => {
                 onSeeDetails?.(activity);
-                setDetailsOpen(true);
               }}
-              className="flex-1 flex items-center justify-center gap-2 bg-gray-100 text-gray-700 text-xs font-black py-3 rounded-2xl hover:bg-gray-200 active:scale-[0.95] transition-all uppercase tracking-widest"
+              className="w-full flex items-center justify-center gap-2 bg-gray-100 text-gray-700 text-xs font-black py-3 rounded-2xl hover:bg-gray-200 active:scale-[0.95] transition-all uppercase tracking-widest"
             >
               <Eye className="w-3.5 h-3.5" />
               {t('viewEventCta')}
             </button>
-
-            {!isPaid && !isPending && (
-              <button
-                type="button"
-                onClick={() => {
-                  onReserve?.(activity.id);
-                  setReserveOpen(true);
-                }}
-                className="flex-1 bg-black text-white text-xs font-black py-3 rounded-2xl hover:bg-zinc-800 active:scale-[0.95] transition-all uppercase tracking-widest shadow-lg shadow-black/10"
-              >
-                {t('reserveOnlyCta')}
-              </button>
-            )}
-
-            {isPending && (
-              <button
-                type="button"
-                onClick={() => setPayOpen(true)}
-                className="flex-1 bg-emerald-600 text-white text-xs font-black py-3 rounded-2xl hover:bg-emerald-700 active:scale-[0.95] transition-all uppercase tracking-widest shadow-lg shadow-emerald-600/10"
-              >
-                {t('payButton')}
-              </button>
-            )}
           </div>
         </div>
       </div>
