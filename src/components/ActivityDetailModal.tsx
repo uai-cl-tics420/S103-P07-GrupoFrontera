@@ -30,11 +30,12 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
     const [selFecha, setSelFecha] = useState<string | null>(null);
     const [selFranja, setSelFranja] = useState<Franja | null>(null);
     const [busy, setBusy] = useState(false);
+    const [confirmPay, setConfirmPay] = useState(false);
     const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
     const [drivingKm, setDrivingKm] = useState<number | null>(null);
 
     useEffect(() => {
-        setStep('detalle'); setAvail(null); setSelFecha(null); setSelFranja(null); setMsg(null);
+        setStep('detalle'); setAvail(null); setSelFecha(null); setSelFranja(null); setMsg(null); setConfirmPay(false);
     }, [activity]);
 
     useEffect(() => {
@@ -64,7 +65,8 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
     const distMostrar = drivingKm ?? distanciaKm;
     const fechaSel = avail?.fechas.find((f) => f.fecha === selFecha) || null;
     const franjasDeFecha = fechaSel?.franjas || [];
-    const puedeReservar = !!selFecha && (selFranja !== null || franjasDeFecha.length === 0);
+    const agotadoSel = fechaSel?.disponibles === 0;
+    const puedeReservar = !!selFecha && !agotadoSel && (selFranja !== null || franjasDeFecha.length === 0);
 
     const consultar = async () => {
         setLoadingAvail(true); setMsg(null);
@@ -222,12 +224,12 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                                 {avail?.fechas.map((f) => {
                                     const agotado = f.disponibles === 0;
                                     return (
-                                        <button key={f.fecha} type='button' disabled={agotado}
+                                        <button key={f.fecha} type='button'
                                             onClick={() => { setSelFecha(f.fecha); setSelFranja(null); }}
-                                            className={chip(selFecha === f.fecha, agotado)}>
+                                            className={chip(selFecha === f.fecha)}>
                                             {f.fecha}
-                                            <span className='block text-[9px] font-bold opacity-70'>
-                                                {f.disponibles == null ? 'cupos libres' : agotado ? 'agotado' : `${f.disponibles} cupos`}
+                                            <span className={`block text-[9px] font-bold ${agotado ? 'text-red-500' : 'opacity-70'}`}>
+                                                {f.disponibles == null ? 'cupos libres' : agotado ? 'AGOTADO' : `${f.disponibles} cupos`}
                                             </span>
                                         </button>
                                     );
@@ -244,6 +246,16 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                                             </button>
                                         ))}
                                     </div>
+                                </div>
+                            )}
+
+                            {selFecha && fechaSel?.disponibles != null && (
+                                <div className={`text-center text-xs font-black rounded-xl py-2 ${fechaSel.disponibles === 0 ? 'bg-red-50 text-red-600' : fechaSel.disponibles <= 5 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                                    {fechaSel.disponibles === 0
+                                        ? 'Agotado para esta fecha'
+                                        : fechaSel.disponibles <= 5
+                                        ? `¡Solo quedan ${fechaSel.disponibles} cupos!`
+                                        : `${fechaSel.disponibles} cupos disponibles`}
                                 </div>
                             )}
                         </div>
@@ -264,22 +276,55 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
 
                     {step === 'fechas' && !msg?.ok && (
                         <>
-                            {puedeReservar && (
-                                <div className='flex gap-2'>
-                                    <button type='button' onClick={() => reservar(false)} disabled={busy}
-                                        className='flex-1 text-xs font-black py-4 rounded-2xl bg-gray-200 hover:bg-gray-300 text-gray-800 uppercase tracking-widest active:scale-[0.98] disabled:opacity-50'>
-                                        Reservar
-                                    </button>
+                            {confirmPay ? (
+                                <>
+                                    {(() => {
+                                        const base = activity.price ?? 0;
+                                        const servicio = Math.round(base * 0.10);
+                                        const total = base + servicio;
+                                        return (
+                                            <div className='bg-white border border-gray-100 rounded-2xl p-4 space-y-2'>
+                                                <p className='text-[10px] font-bold text-gray-400 uppercase tracking-widest'>Detalle del pedido</p>
+                                                <div className='flex justify-between text-sm text-gray-600'><span>Subtotal</span><span className='font-bold text-gray-900'>${base.toLocaleString('es-CL')}</span></div>
+                                                <div className='flex justify-between text-sm text-gray-600'><span>Cargo por servicio</span><span className='font-bold text-gray-900'>${servicio.toLocaleString('es-CL')}</span></div>
+                                                <div className='border-t border-gray-200 pt-2 flex justify-between items-center'><span className='text-sm font-black text-gray-900'>Total</span><span className='text-xl font-black text-blue-600'>${total.toLocaleString('es-CL')}</span></div>
+                                            </div>
+                                        );
+                                    })()}
                                     <button type='button' onClick={() => reservar(true)} disabled={busy}
-                                        className='flex-1 text-xs font-black py-4 rounded-2xl bg-black hover:bg-zinc-800 text-white uppercase tracking-widest active:scale-[0.98] disabled:opacity-50'>
-                                        Pagar al tiro
+                                        className='w-full text-xs font-black py-4 rounded-2xl bg-black hover:bg-zinc-800 text-white uppercase tracking-widest active:scale-[0.98] disabled:opacity-50'>
+                                        {busy ? 'Procesando...' : 'Continuar pago'}
                                     </button>
-                                </div>
+                                    <button type='button' onClick={() => setConfirmPay(false)}
+                                        className='w-full text-[11px] font-bold text-gray-400 hover:text-gray-700 uppercase tracking-widest'>
+                                        Volver
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    {agotadoSel ? (
+                                        <button type='button' disabled
+                                            className='w-full text-xs font-black py-4 rounded-2xl bg-gray-300 text-gray-500 uppercase tracking-widest cursor-not-allowed'>
+                                            Agotado
+                                        </button>
+                                    ) : puedeReservar && (
+                                        <div className='flex gap-2'>
+                                            <button type='button' onClick={() => reservar(false)} disabled={busy}
+                                                className='flex-1 text-xs font-black py-4 rounded-2xl bg-gray-200 hover:bg-gray-300 text-gray-800 uppercase tracking-widest active:scale-[0.98] disabled:opacity-50'>
+                                                Reservar
+                                            </button>
+                                            <button type='button' onClick={() => setConfirmPay(true)} disabled={busy}
+                                                className='flex-1 text-xs font-black py-4 rounded-2xl bg-black hover:bg-zinc-800 text-white uppercase tracking-widest active:scale-[0.98] disabled:opacity-50'>
+                                                Pagar al tiro
+                                            </button>
+                                        </div>
+                                    )}
+                                    <button type='button' onClick={() => { setStep('detalle'); setSelFecha(null); setSelFranja(null); }}
+                                        className='w-full text-[11px] font-bold text-gray-400 hover:text-gray-700 uppercase tracking-widest flex items-center justify-center gap-1'>
+                                        <ArrowLeft className='w-3 h-3' /> Volver al detalle
+                                    </button>
+                                </>
                             )}
-                            <button type='button' onClick={() => { setStep('detalle'); setSelFecha(null); setSelFranja(null); }}
-                                className='w-full text-[11px] font-bold text-gray-400 hover:text-gray-700 uppercase tracking-widest flex items-center justify-center gap-1'>
-                                <ArrowLeft className='w-3 h-3' /> Volver al detalle
-                            </button>
                         </>
                     )}
 

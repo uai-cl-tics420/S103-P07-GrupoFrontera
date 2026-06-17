@@ -258,35 +258,48 @@ app.post("/api/admin/activities", async ({ body, request, set }) => {
     return { error: "Faltan campos obligatorios: name y category" };
   }
 
-  const coords = b.address ? await geocodeAddress(b.address) : null;
+  const coords = (typeof b.coordinates?.lat === 'number' && typeof b.coordinates?.lng === 'number')
+    ? { lat: b.coordinates.lat, lng: b.coordinates.lng }
+    : (b.address ? await geocodeAddress(b.address) : null);
 
   const id = randomUUID();
-  await db.insert(activities).values({
-    id,
-    name: b.name,
-    category: b.category,
-    tag_clima: b.tag_clima ?? 'All',
-    lat: coords?.lat ?? 0,
-    lng: coords?.lng ?? 0,
-    imageUrl: b.image_url ?? null,
-    description: b.description ?? null,
-    address: b.address ?? null,
-    price: typeof b.price === 'number' ? b.price : null,
-    cuposPorDia: typeof b.cupos_por_dia === 'number' ? b.cupos_por_dia : null,
-  });
-
   const schedules = Array.isArray(b.schedules) ? b.schedules : [];
-  for (const dia of schedules) {
-    if (!dia?.fecha) continue;
-    const franjas = Array.isArray(dia.franjas) ? dia.franjas : [];
-    for (const f of franjas) {
-      await db.insert(activitySchedules).values({
-        activityId: id,
-        fecha: dia.fecha,
-        horaInicio: f?.horaInicio || null,
-        horaFin: f?.horaFin || null,
+
+  // Transaccion: el panorama y todos sus horarios se guardan atomicamente.
+  try {
+    await db.transaction(async (tx) => {
+      await tx.insert(activities).values({
+        id,
+        name: b.name,
+        category: b.category,
+        tag_clima: b.tag_clima ?? 'All',
+        lat: coords?.lat ?? 0,
+        lng: coords?.lng ?? 0,
+        imageUrl: b.image_url ?? null,
+        description: b.description ?? null,
+        address: b.address ?? null,
+        placeId: b.place_id ?? null,
+        price: typeof b.price === 'number' ? b.price : null,
+        cuposPorDia: typeof b.cupos_por_dia === 'number' ? b.cupos_por_dia : null,
       });
-    }
+
+      for (const dia of schedules) {
+        if (!dia?.fecha) continue;
+        const franjas = Array.isArray(dia.franjas) ? dia.franjas : [];
+        for (const f of franjas) {
+          await tx.insert(activitySchedules).values({
+            activityId: id,
+            fecha: dia.fecha,
+            horaInicio: f?.horaInicio || null,
+            horaFin: f?.horaFin || null,
+          });
+        }
+      }
+    });
+  } catch (e) {
+    console.error('[crear panorama] transaccion revertida:', e);
+    set.status = 500;
+    return { error: "No se pudo guardar el panorama (cambios revertidos)" };
   }
 
   return { success: true, id, geocoded: coords !== null, coordinates: coords };
@@ -605,6 +618,58 @@ app.get("/api/activities/:id/availability", async ({ params }) => {
   return { activityId: params.id, name: act.name, price: (act as any).price ?? null, fechas };
 });
 
+// --- Autocomplete de direcciones (Places API New) ---
+app.get("/api/places/autocomplete", async ({ query, request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id) { set.status = 401; return { suggestions: [] }; }
+  const input = (query.q as string) || '';
+  const key = process.env.GOOGLE_PLACES_API_KEY;
+  if (!key || input.trim().length < 3) return { suggestions: [] };
+  try {
+    const res = await fetch('https://places.googleapis.com/v1/places:autocomplete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key },
+      body: JSON.stringify({ input, includedRegionCodes: ['cl'] }),
+    });
+    const data = await res.json();
+    const suggestions = Array.isArray(data?.suggestions)
+      ? data.suggestions
+          .filter((sug: any) => sug?.placePrediction)
+          .map((sug: any) => ({ placeId: sug.placePrediction.placeId, description: sug.placePrediction.text?.text ?? '' }))
+      : [];
+    if (!suggestions.length && data?.error) console.warn('[autocomplete]', data.error?.message);
+    return { suggestions };
+  } catch (e) {
+    console.error('[autocomplete] error:', e);
+    return { suggestions: [] };
+  }
+});
+
+// --- Detalle de un lugar: direccion formateada + coordenadas (Places API New) ---
+app.get("/api/places/details", async ({ query, request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id) { set.status = 401; return { error: "No autorizado" }; }
+  const placeId = (query.placeId as string) || '';
+  const key = process.env.GOOGLE_PLACES_API_KEY;
+  if (!key || !placeId) { set.status = 400; return { error: "placeId requerido" }; }
+  try {
+    const res = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, {
+      headers: { 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': 'id,formattedAddress,location' },
+    });
+    const data = await res.json();
+    if (data?.location) {
+      return { placeId: data.id, address: data.formattedAddress ?? '', lat: data.location.latitude, lng: data.location.longitude };
+    }
+    console.warn('[place details]', data?.error?.message);
+    set.status = 502;
+    return { error: "No se pudo obtener el detalle del lugar" };
+  } catch (e) {
+    console.error('[place details] error:', e);
+    set.status = 500;
+    return { error: "Error consultando el detalle" };
+  }
+});
+
 // --- RUTAS RESERVAS (issue #28) ---
 // POST /api/reservations { activityId, payNow? }: crea reserva.
 // payNow=false (default) => status='pendiente', sin cobro.
@@ -628,47 +693,63 @@ app.post("/api/reservations", async ({ body, request, set }) => {
     return { error: "Actividad no encontrada" };
   }
 
-  // Verificar cupos disponibles para la fecha elegida
-  const cuposDia = (act as any).cuposPorDia ?? null;
-  if (cuposDia != null && reservedDate) {
-    const usados = await db.select({ value: count() }).from(userReservations)
-      .where(and(eq(userReservations.activityId, activityId), eq(userReservations.reservedDate, reservedDate), ne(userReservations.status, 'cancelado')));
-    if ((usados[0]?.value ?? 0) >= cuposDia) {
+  // Transaccion atomica anti-sobreventa: bloquea la actividad, valida cupos,
+  // (cobra si corresponde) e inserta la reserva. Si algo falla, se revierte todo.
+  try {
+    const result = await db.transaction(async (tx) => {
+      // Lock de la fila de la actividad para serializar reservas concurrentes
+      const [locked] = await tx.select().from(activities).where(eq(activities.id, activityId)).for('update');
+      const cuposDia = (locked as any)?.cuposPorDia ?? null;
+
+      if (cuposDia != null && reservedDate) {
+        const usados = await tx.select({ value: count() }).from(userReservations)
+          .where(and(eq(userReservations.activityId, activityId), eq(userReservations.reservedDate, reservedDate), ne(userReservations.status, 'cancelado')));
+        if ((usados[0]?.value ?? 0) >= cuposDia) {
+          throw Object.assign(new Error('SIN_CUPOS'), { code: 'SIN_CUPOS' });
+        }
+      }
+
+      let payment: any = null;
+      let status = 'pendiente';
+      if (payNow) {
+        payment = await processPayment({ userId: session.user.id, activityId });
+        if (!payment.success) {
+          throw Object.assign(new Error('PAGO_FALLO'), { code: 'PAGO_FALLO', payment });
+        }
+        status = 'pagado';
+      }
+
+      const [created] = await tx.insert(userReservations).values({
+        userId: session.user.id,
+        activityId,
+        status,
+        reservedDate: reservedDate ?? null,
+        reservedTime: reservedTime ?? null,
+      }).returning();
+
+      return { created, payment };
+    });
+
+    return {
+      success: true,
+      reservation: result.created,
+      payment: result.payment
+        ? { transactionId: result.payment.transactionId, processedAt: result.payment.processedAt }
+        : null,
+    };
+  } catch (e: any) {
+    if (e?.code === 'SIN_CUPOS') {
       set.status = 409;
       return { error: "No quedan cupos para esa fecha" };
     }
+    if (e?.code === 'PAGO_FALLO') {
+      set.status = 402;
+      return { error: e.payment?.error ?? "Pago rechazado", processedAt: e.payment?.processedAt };
+    }
+    console.error('[reservar] transaccion revertida:', e);
+    set.status = 500;
+    return { error: "No se pudo crear la reserva (cambios revertidos)" };
   }
-
-  // Sin pago inmediato: queda pendiente
-  if (!payNow) {
-    const [created] = await db.insert(userReservations).values({
-      userId: session.user.id,
-      activityId,
-      status: "pendiente",
-      reservedDate: reservedDate ?? null,
-      reservedTime: reservedTime ?? null,
-    }).returning();
-    return { success: true, reservation: created, payment: null };
-  }
-
-  // Con pago inmediato: cobrar y guardar como pagado
-  const payment = await processPayment({ userId: session.user.id, activityId });
-  if (!payment.success) {
-    set.status = 402;
-    return { error: payment.error, processedAt: payment.processedAt };
-  }
-  const [created] = await db.insert(userReservations).values({
-    userId: session.user.id,
-    activityId,
-    status: "pagado",
-    reservedDate: reservedDate ?? null,
-    reservedTime: reservedTime ?? null,
-  }).returning();
-  return {
-    success: true,
-    reservation: created,
-    payment: { transactionId: payment.transactionId, processedAt: payment.processedAt },
-  };
 });
 
 // POST /api/reservations/:id/pay : cobra una reserva pendiente y la pasa a pagada
@@ -733,6 +814,7 @@ app.get("/api/reservations/:userId", async ({ params, request, set }) => {
       activityCategory: activities.category,
       activityLat: activities.lat,
       activityLng: activities.lng,
+      activityPrice: activities.price,
     })
     .from(userReservations)
     .leftJoin(activities, eq(userReservations.activityId, activities.id))
@@ -747,6 +829,7 @@ app.get("/api/reservations/:userId", async ({ params, request, set }) => {
       id: r.activityId,
       name: r.activityName,
       category: r.activityCategory,
+      price: r.activityPrice ?? null,
       coordinates: { lat: r.activityLat, lng: r.activityLng },
     } : null,
   }));

@@ -50,5 +50,6 @@ export interface Activity {
   imageUrl?: string;
   description?: string;
   price?: number;
+  schedules?: { fecha: string; horaInicio: string | null; horaFin: string | null }[];
 }
 

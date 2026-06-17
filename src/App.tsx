@@ -268,12 +268,14 @@ export function App() {
 
   let actualActivitiesList: any[] = [];
 
-  // Si ya terminó de cargar la petición filtrada por clima/parámetros, usamos estrictamente esa
-  if (!loadingWeather) {
+  // Mantener lo ya cargado aunque haya una recarga en segundo plano (evita que la lista
+  // se vacie al volver a la pestana / al revalidar la sesion). Solo usamos el fallback
+  // provisorio si todavia no se ha cargado ningun panorama.
+  if (dynamicActivities.length > 0) {
     actualActivitiesList = dynamicActivities;
-  } 
-  // Si aún está cargando la petición en segundo plano, usamos el hook original como fallback provisorio
-  else if (activities) {
+  } else if (!loadingWeather) {
+    actualActivitiesList = dynamicActivities;
+  } else if (activities) {
     if (Array.isArray(activities)) {
       actualActivitiesList = activities;
     } else if ((activities as any).activities && Array.isArray((activities as any).activities)) {
@@ -301,7 +303,24 @@ export function App() {
   
   // Inicializamos la categoría usando preferredCategory pero con el resguardo de filtrado dinámico
   const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(recommendedActivities, preferredCategory || null);
-  
+
+  // Al volver a la pestaña (o recuperar el foco), recargamos la vista ACTUAL para que la
+  // lista no quede vacia tras la revalidacion de sesion de better-auth.
+  React.useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && session) {
+        fetchFilteredActivities(selectedCategory, apiFilters);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategory, apiFilters, coords, planningState, session]);
+
   // Manejador unificado de pestañas con tus Toasts y el reseteo de filtros de los chicos
   const handleSelectCategory = (category: typeof selectedCategory) => {
     setSelectedCategory(category);
@@ -633,7 +652,7 @@ export function App() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-10">
-          {(loading || loadingWeather) ? (
+          {((loading || loadingWeather) && actualActivitiesList.length === 0) ? (
             //Si la base de datos está cargando, pintamos 6 tarjetas fantasma c/ animación de pulso
             Array.from({ length: 6 }).map((_, index) => (
               <ActivityCardSkeleton key={`main-skeleton-${index}`} />

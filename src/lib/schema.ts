@@ -69,6 +69,7 @@ export const activities = pgTable('activities', {
     imageUrl: text('image_url'),
     description: text('description'),
     address: text('address'),
+    placeId: text('place_id'),
     price: integer('price'),
     cuposPorDia: integer('cupos_por_dia'),
     // --- Flags de gestion (pestaña Administrar panoramas) ---
