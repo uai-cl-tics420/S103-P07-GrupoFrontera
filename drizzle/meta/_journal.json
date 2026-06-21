@@ -22,6 +22,13 @@
       "when": 1779844458305,
       "tag": "0002_vengeful_steve_rogers",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781912491693,
+      "tag": "0003_far_kingpin",
+      "breakpoints": true
     }
   ]
 }

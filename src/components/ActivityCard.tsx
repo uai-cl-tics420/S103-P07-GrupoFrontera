@@ -59,7 +59,7 @@ const ActivityCard = ({
   rank
 }: ActivityCardProps) => {
 
-  const { t } = useT();
+  const { LL } = useT();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [reserveOpen, setReserveOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
@@ -80,7 +80,7 @@ const ActivityCard = ({
     'Miradores': 'categoryMiradores',
   };
   const categoryKey = categoryKeyMap[activity.category];
-  const categoryLabel = categoryKey ? t(categoryKey) : activity.category;
+  const categoryLabel = categoryKey ? LL[categoryKey]() : activity.category;
   const hasValidCoords = !!activity.coordinates && (activity.coordinates.lat !== 0 || activity.coordinates.lng !== 0);
   const distance = userCoords && hasValidCoords ? getDistance(userCoords.lat, userCoords.lng, activity.coordinates.lat, activity.coordinates.lng) : null;
 
@@ -123,18 +123,18 @@ const ActivityCard = ({
           <div className="absolute top-3 right-3 sm:top-5 sm:right-5 flex flex-col gap-2 items-end z-10">
             {activity.isPopular && (
               <div className='bg-gradient-to-r from-pink-500 to-rose-400 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1 border border-pink-400/20 animate-fade-in'>
-                <span>⭐️</span> Popular
+                <span>⭐️</span> {LL.badgePopular()}
               </div>
             )}
 
             {activity.isTendencia && (
               <div className='bg-gradient-to-r from-orange-500 to-amber-400 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1 border border-orange-400/20 animate-fade-in'>
-                <span>📈</span> Tendencia
+                <span>📈</span> {LL.badgeTendencia()}
               </div>
             )}
 
             <div className="bg-white/80 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 border border-white/40 shadow-sm transition-all duration-200 group-hover:bg-white">
-               {activity.tagClima === 'Sunny' ? t('weatherSunny') : t('weatherAll')}
+               {activity.tagClima === 'Sunny' ? LL.weatherSunny() : LL.weatherAll()}
             </div>
             {shownKm !== null && (
               <div className="bg-white/80 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 border border-white/40 shadow-sm flex items-center gap-1">
@@ -156,19 +156,19 @@ const ActivityCard = ({
             <div className="absolute bottom-3 left-3 sm:bottom-5 sm:left-5 z-10 animate-fade-in">
               {rank === 1 ? (
                 <span className="bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-amber-950 text-[10px] font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider shadow-lg shadow-amber-500/20 flex items-center gap-1.5 border border-amber-300">
-                  👑 #1 Recomendado
+                  👑 {LL.rank1Label()}
                 </span>
               ) : rank === 2 ? (
                 <span className="bg-gradient-to-r from-slate-200 via-zinc-100 to-slate-300 text-slate-800 text-[10px] font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider shadow-md flex items-center gap-1.5 border border-slate-300">
-                  🥈 #2 Recomendado
+                  🥈 {LL.rank2Label()}
                 </span>
               ) : rank === 3 ? (
                 <span className="bg-gradient-to-r from-amber-600 via-orange-500 to-amber-700 text-white text-[10px] font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider shadow-md flex items-center gap-1.5 border border-amber-500">
-                  🥉 #3 Recomendado
+                  🥉 {LL.rank3Label()}
                 </span>
               ) : (
                 <span className="bg-black/75 backdrop-blur-md text-white text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest flex items-center gap-1 shadow-sm">
-                  ✨ Recomendado
+                  ✨ {LL.recommendedLabel()}
                 </span>
               )}
             </div>
@@ -182,13 +182,13 @@ const ActivityCard = ({
               {isPending && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-amber-50 text-amber-700 border border-amber-200">
                   <Clock className="w-3 h-3" />
-                  {t('cardStatusPending')}
+                  {LL.cardStatusPending()}
                 </span>
               )}
               {isPaid && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-700 border border-emerald-200">
                   <CheckCircle2 className="w-3 h-3" />
-                  {t('cardStatusPaid')}
+                  {LL.cardStatusPaid()}
                 </span>
               )}
             </div>
@@ -205,23 +205,23 @@ const ActivityCard = ({
             <div className="flex flex-col gap-2 mb-3 text-sm text-gray-600 font-medium">
               {activity.openingHour && activity.closingHour && (
                 <div className="flex items-center gap-2">
-                  <span>🕒</span> Abierto: {activity.openingHour} - {activity.closingHour}
+                  <span>🕒</span> {LL.openHours({ open: activity.openingHour, close: activity.closingHour })}
                 </div>
               )}
 
               {activity.occupancy && (
                 <div className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full animate-pulse ${activity.occupancy === 'High' ? 'bg-red-500' : activity.occupancy === 'Medium' ? 'bg-yellow-500' : 'bg-green-500'}`}></div>
-                  <span>Afluencia: {activity.occupancy === 'High' ? 'Alta' : activity.occupancy === 'Medium' ? 'Media' : 'Baja'}</span>
+                  <span>{LL.occupancyLabel({ level: activity.occupancy === 'High' ? LL.occupancyHigh() : activity.occupancy === 'Medium' ? LL.occupancyMedium() : LL.occupancyLow() })}</span>
                 </div>
               )}
             </div>
 
             {activity.price != null && (
               <div className="mb-1">
-                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Precio base</span>
+                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{LL.priceLabel()}</span>
                 <div className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tighter">
-                  {activity.price === 0 ? 'Gratis' : `$${activity.price.toLocaleString('es-CL')}`}
+                  {activity.price === 0 ? LL.free() : `$${activity.price.toLocaleString('es-CL')}`}
                 </div>
               </div>
             )}
@@ -238,7 +238,7 @@ const ActivityCard = ({
               className="w-full flex items-center justify-center gap-2 bg-gray-100 text-gray-700 text-xs font-black py-3 rounded-2xl hover:bg-gray-200 active:scale-[0.95] transition-all uppercase tracking-widest"
             >
               <Eye className="w-3.5 h-3.5" />
-              {t('viewEventCta')}
+              {LL.viewEventCta()}
             </button>
           </div>
         </div>

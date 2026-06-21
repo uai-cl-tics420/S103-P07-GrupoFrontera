@@ -184,7 +184,7 @@ app.get("/api/activities", async ({ query, request }) => {
 
   const userInteractedActivities = filteredInteracted.map(a => ({
     ...a,
-    occupancy: 'Medium', // Simulación básica de afluencia
+    occupancy: getSimulatedOccupancy(), // Afluencia simulada real (issue #23)
     openingHour: a.openingHour || "09:00",
     closingHour: a.closingHour || "21:00"
   }));

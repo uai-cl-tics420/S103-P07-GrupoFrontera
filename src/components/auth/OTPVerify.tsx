@@ -4,7 +4,7 @@ import { useT } from "@/i18n/context";
 import { LanguageToggle } from "@/components/LanguageToggle";
 
 const OTPVerify = ({ userId, email, onVerified }: { userId: string, email: string, onVerified: (token: string) => void }) => {
-    const { t } = useT();
+    const { LL } = useT();
     const [code, setCode] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -44,10 +44,10 @@ const OTPVerify = ({ userId, email, onVerified }: { userId: string, email: strin
                 const tokenData = await tokenRes.json();
                 onVerified(tokenData.token ?? "");
             } else {
-                setError(t('otpInvalid'));
+                setError(LL.otpInvalid());
             }
         } catch (err) {
-            setError(t('serverError'));
+            setError(LL.serverError());
         } finally {
             setLoading(false);
         }
@@ -61,8 +61,8 @@ const OTPVerify = ({ userId, email, onVerified }: { userId: string, email: strin
                     <LanguageToggle />
                 </div>
 
-                <h2 className="text-2xl font-black tracking-tighter mb-4 mt-2">{t('otpTitle')}</h2>
-                <p className="text-gray-400 text-sm mb-8">{t('otpInstructions')}</p>
+                <h2 className="text-2xl font-black tracking-tighter mb-4 mt-2">{LL.otpTitle()}</h2>
+                <p className="text-gray-400 text-sm mb-8">{LL.otpInstructions()}</p>
 
                 <input
                     type="text"
@@ -80,13 +80,13 @@ const OTPVerify = ({ userId, email, onVerified }: { userId: string, email: strin
                     disabled={loading || code.length < 6}
                     className="w-full bg-black text-white py-4 rounded-2xl font-bold hover:bg-zinc-800 transition-all active:scale-95 disabled:opacity-50"
                 >
-                    {loading ? t('otpVerifying') : t('otpVerify')}
+                    {loading ? LL.otpVerifying() : LL.otpVerify()}
                 </button>
                 <button
                     onClick={() => authClient.signOut()}
                     className="w-full mt-3 bg-transparent text-gray-400 text-xs font-bold py-2 hover:text-gray-600 transition-all"
                 >
-                    {t('otpBackToLogin')}
+                    {LL.otpBackToLogin()}
                 </button>
 
             </div>

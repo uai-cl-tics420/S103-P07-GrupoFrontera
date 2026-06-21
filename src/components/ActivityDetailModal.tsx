@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { type Activity } from '../types/index.ts';
 import { X, MapPin, Clock, CloudSun, Ticket, Calendar, ArrowLeft, Navigation } from 'lucide-react';
+import { useT } from '@/i18n/context';
 
 interface Franja { horaInicio: string | null; horaFin: string | null; }
 interface AvailFecha { fecha: string; franjas: Franja[]; cuposPorDia: number | null; disponibles: number | null; }
@@ -24,6 +25,7 @@ function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): 
 }
 
 export function ActivityDetailModal({ activity, onClose, onReservationChanged, userCoords }: ActivityDetailModalProps) {
+    const { LL } = useT();
     const [step, setStep] = useState<'detalle' | 'fechas'>('detalle');
     const [avail, setAvail] = useState<AvailResp | null>(null);
     const [loadingAvail, setLoadingAvail] = useState(false);
@@ -74,7 +76,7 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
             setAvail(data);
             setStep('fechas');
         } catch {
-            setMsg({ ok: false, text: 'No se pudo cargar la disponibilidad.' });
+            setMsg({ ok: false, text: LL.availabilityLoadError() });
         } finally {
             setLoadingAvail(false);
         }
@@ -96,8 +98,8 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                 }),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data?.error || 'No se pudo reservar');
-            setMsg({ ok: true, text: payNow ? '¡Pago realizado! Reserva confirmada y cupo descontado.' : 'Reserva creada (pendiente de pago). Cupo descontado.' });
+            if (!res.ok) throw new Error(data?.error || LL.reservationFailedGeneric());
+            setMsg({ ok: true, text: payNow ? LL.paymentDoneConfirmed() : LL.reservationPendingSpotTaken() });
             onReservationChanged?.();
             // Refrescar la disponibilidad para que el cupo se vea descontado al instante
             try {
@@ -106,7 +108,7 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                 setSelFranja(null);
             } catch { /* noop */ }
         } catch (e: any) {
-            setMsg({ ok: false, text: e?.message || 'Error al reservar' });
+            setMsg({ ok: false, text: e?.message || LL.reservationErrorGeneric() });
         } finally {
             setBusy(false);
         }
@@ -144,8 +146,8 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                         <div className='bg-zinc-50 border border-gray-100 p-3 rounded-2xl flex items-center gap-2'>
                             <CloudSun className='w-4 h-4 text-amber-500' />
                             <div className='flex flex-col'>
-                                <span className='text-[9px] font-bold text-gray-400 uppercase tracking-wider'>Clima Sugerido</span>
-                                <span className='text-xs font-black text-gray-700'>{activity.tagClima === 'Sunny' ? 'Ideal Exterior' : 'Apto Todo Clima'}</span>
+                                <span className='text-[9px] font-bold text-gray-400 uppercase tracking-wider'>{LL.weatherSuggestedLabel()}</span>
+                                <span className='text-xs font-black text-gray-700'>{activity.tagClima === 'Sunny' ? LL.weatherIdealOutdoor() : LL.weatherAllWeatherFit()}</span>
                             </div>
                         </div>
 
@@ -153,7 +155,7 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                             <div className='bg-zinc-50 border border-gray-100 p-3 rounded-2xl flex items-center gap-2'>
                                 <Clock className='w-4 h-4 text-blue-500' />
                                 <div className='flex flex-col'>
-                                    <span className='text-[9px] font-bold text-gray-400 uppercase tracking-wider'>Horario</span>
+                                    <span className='text-[9px] font-bold text-gray-400 uppercase tracking-wider'>{LL.scheduleLabel()}</span>
                                     <span className='text-xs font-black text-gray-700'>{activity.openingHour} - {activity.closingHour}</span>
                                 </div>
                             </div>
@@ -163,9 +165,9 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                             <div className='bg-zinc-50 border border-gray-100 p-3 rounded-2xl flex items-center gap-2'>
                                 <Ticket className='w-4 h-4 text-emerald-500' />
                                 <div className='flex flex-col'>
-                                    <span className='text-[9px] font-bold text-gray-400 uppercase tracking-wider'>Precio base</span>
-                                    <span className='text-xs font-black text-gray-700'>{activity.price === 0 ? 'Gratis' : `$${activity.price.toLocaleString('es-CL')}`}</span>
-                                    <span className='text-[8px] text-gray-400'>+ costo de servicio al pagar</span>
+                                    <span className='text-[9px] font-bold text-gray-400 uppercase tracking-wider'>{LL.priceLabel()}</span>
+                                    <span className='text-xs font-black text-gray-700'>{activity.price === 0 ? LL.free() : `$${activity.price.toLocaleString('es-CL')}`}</span>
+                                    <span className='text-[8px] text-gray-400'>{LL.serviceFeeNote()}</span>
                                 </div>
                             </div>
                         )}
@@ -174,9 +176,9 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                             <div className='bg-zinc-50 border border-gray-100 p-3 rounded-2xl flex items-center gap-2'>
                                 <Navigation className='w-4 h-4 text-blue-500' />
                                 <div className='flex flex-col'>
-                                    <span className='text-[9px] font-bold text-gray-400 uppercase tracking-wider'>{drivingKm != null ? 'Distancia en auto' : 'Distancia aproximada'}</span>
+                                    <span className='text-[9px] font-bold text-gray-400 uppercase tracking-wider'>{drivingKm != null ? LL.drivingDistanceLabel() : LL.straightDistanceLabel()}</span>
                                     <span className='text-xs font-black text-gray-700'>~{distMostrar.toFixed(1)} km</span>
-                                    <span className='text-[8px] text-gray-400'>{drivingKm != null ? 'por carretera' : 'en línea recta'}</span>
+                                    <span className='text-[8px] text-gray-400'>{drivingKm != null ? LL.byRoad() : LL.straightLine()}</span>
                                 </div>
                             </div>
                         )}
@@ -185,7 +187,7 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                             <div className='col-span-2 bg-zinc-50 border border-gray-100 p-3 rounded-2xl flex items-start gap-2'>
                                 <MapPin className='w-4 h-4 text-rose-500 mt-0.5 shrink-0' />
                                 <div className='flex flex-col min-w-0'>
-                                    <span className='text-[9px] font-bold text-gray-400 uppercase tracking-wider'>Direccion</span>
+                                    <span className='text-[9px] font-bold text-gray-400 uppercase tracking-wider'>{LL.addressLabel()}</span>
                                     <span className='text-xs font-black text-gray-700 break-words'>{activity.vicinity}</span>
                                 </div>
                             </div>
@@ -195,7 +197,7 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                     {step === 'detalle' && (
                         <div className='space-y-2'>
                             <h4 className='text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-1'>
-                                <MapPin className='w-3.5 h-3.5 text-zinc-500' /> Mapa del Lugar
+                                <MapPin className='w-3.5 h-3.5 text-zinc-500' /> {LL.placeMapLabel()}
                             </h4>
                             {hasMap ? (
                                 <iframe title='mapa' className='w-full h-48 rounded-2xl border border-gray-100' loading='lazy'
@@ -203,7 +205,7 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                             ) : (
                                 <div className='w-full h-40 bg-zinc-100 border-2 border-dashed border-zinc-200 rounded-2xl flex flex-col items-center justify-center text-center p-4 select-none'>
                                     <span className='text-2xl mb-1'>🗺️</span>
-                                    <p className='text-[11px] font-bold text-zinc-400 uppercase tracking-wider'>Sin ubicacion</p>
+                                    <p className='text-[11px] font-bold text-zinc-400 uppercase tracking-wider'>{LL.noLocation()}</p>
                                 </div>
                             )}
                         </div>
@@ -212,11 +214,11 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                     {step === 'fechas' && (
                         <div className='space-y-4'>
                             <h4 className='text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-1'>
-                                <Calendar className='w-3.5 h-3.5 text-zinc-500' /> Elige fecha y horario
+                                <Calendar className='w-3.5 h-3.5 text-zinc-500' /> {LL.chooseDateTime()}
                             </h4>
-                            {loadingAvail && <p className='text-sm text-gray-400'>Cargando disponibilidad...</p>}
+                            {loadingAvail && <p className='text-sm text-gray-400'>{LL.loadingAvailability()}</p>}
                             {avail && avail.fechas.length === 0 && (
-                                <p className='text-sm text-gray-400'>Este panorama no tiene fechas cargadas todavía.</p>
+                                <p className='text-sm text-gray-400'>{LL.noDatesAvailable()}</p>
                             )}
                             <div className='flex flex-wrap gap-2'>
                                 {avail?.fechas.map((f) => {
@@ -227,7 +229,7 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                                             className={chip(selFecha === f.fecha, agotado)}>
                                             {f.fecha}
                                             <span className='block text-[9px] font-bold opacity-70'>
-                                                {f.disponibles == null ? 'cupos libres' : agotado ? 'agotado' : `${f.disponibles} cupos`}
+                                                {f.disponibles == null ? LL.slotsFree() : agotado ? LL.soldOut() : LL.slotsCount({ n: f.disponibles })}
                                             </span>
                                         </button>
                                     );
@@ -235,7 +237,7 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                             </div>
                             {selFecha && franjasDeFecha.length > 0 && (
                                 <div>
-                                    <p className='text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2'>Horario</p>
+                                    <p className='text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2'>{LL.scheduleLabel()}</p>
                                     <div className='flex flex-wrap gap-2'>
                                         {franjasDeFecha.map((fr, i) => (
                                             <button key={i} type='button' onClick={() => setSelFranja(fr)}
@@ -258,7 +260,7 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                     {step === 'detalle' && !msg?.ok && (
                         <button type='button' onClick={consultar} disabled={loadingAvail}
                             className='w-full text-xs font-black py-4 rounded-2xl bg-black hover:bg-zinc-800 text-white uppercase tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50'>
-                            <Calendar className='w-4 h-4' /> {loadingAvail ? 'Cargando...' : 'Consultar fecha y hora'}
+                            <Calendar className='w-4 h-4' /> {loadingAvail ? LL.loading() : LL.checkDateTime()}
                         </button>
                     )}
 
@@ -268,17 +270,17 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                                 <div className='flex gap-2'>
                                     <button type='button' onClick={() => reservar(false)} disabled={busy}
                                         className='flex-1 text-xs font-black py-4 rounded-2xl bg-gray-200 hover:bg-gray-300 text-gray-800 uppercase tracking-widest active:scale-[0.98] disabled:opacity-50'>
-                                        Reservar
+                                        {LL.reserveOnlyCta()}
                                     </button>
                                     <button type='button' onClick={() => reservar(true)} disabled={busy}
                                         className='flex-1 text-xs font-black py-4 rounded-2xl bg-black hover:bg-zinc-800 text-white uppercase tracking-widest active:scale-[0.98] disabled:opacity-50'>
-                                        Pagar al tiro
+                                        {LL.payRightNowCta()}
                                     </button>
                                 </div>
                             )}
                             <button type='button' onClick={() => { setStep('detalle'); setSelFecha(null); setSelFranja(null); }}
                                 className='w-full text-[11px] font-bold text-gray-400 hover:text-gray-700 uppercase tracking-widest flex items-center justify-center gap-1'>
-                                <ArrowLeft className='w-3 h-3' /> Volver al detalle
+                                <ArrowLeft className='w-3 h-3' /> {LL.backToDetailCta()}
                             </button>
                         </>
                     )}
@@ -286,7 +288,7 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                     {msg?.ok && (
                         <button type='button' onClick={onClose}
                             className='w-full text-xs font-black py-4 rounded-2xl bg-emerald-500 text-white uppercase tracking-widest active:scale-[0.98]'>
-                            Listo
+                            {LL.doneCta()}
                         </button>
                     )}
                 </div>

@@ -13,7 +13,7 @@ interface PayModalProps {
 type Phase = 'idle' | 'processing' | 'success' | 'error';
 
 export function PayModal({ reservationId, activityName, open, onClose, onSuccess }: PayModalProps) {
-    const { t } = useT();
+    const { LL } = useT();
     const [phase, setPhase] = useState<Phase>('idle');
     const [errorMsg, setErrorMsg] = useState('');
     const [txnId, setTxnId] = useState('');
@@ -48,7 +48,7 @@ export function PayModal({ reservationId, activityName, open, onClose, onSuccess
             const data = await res.json();
             if (!res.ok || !data.success) {
                 setPhase('error');
-                setErrorMsg(data?.error ?? t('reservationFailed'));
+                setErrorMsg(data?.error ?? LL.reservationFailed());
                 return;
             }
             setTxnId(data.payment?.transactionId ?? '');
@@ -56,7 +56,7 @@ export function PayModal({ reservationId, activityName, open, onClose, onSuccess
             onSuccess?.();
         } catch {
             setPhase('error');
-            setErrorMsg(t('reservationFailed'));
+            setErrorMsg(LL.reservationFailed());
         }
     };
 
@@ -71,14 +71,14 @@ export function PayModal({ reservationId, activityName, open, onClose, onSuccess
             >
                 <div className="flex items-center justify-between px-6 sm:px-8 pt-6 pb-2">
                     <h2 className="text-xl sm:text-2xl font-black tracking-tighter text-gray-900">
-                        {t('payButton')}
+                        {LL.payButton()}
                     </h2>
                     <button
                         type="button"
                         onClick={onClose}
                         disabled={phase === 'processing'}
                         className="text-gray-400 hover:text-gray-900 transition-colors disabled:opacity-30"
-                        aria-label={t('reservationClose')}
+                        aria-label={LL.reservationClose()}
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -92,12 +92,12 @@ export function PayModal({ reservationId, activityName, open, onClose, onSuccess
 
                 <div className="px-6 sm:px-8 py-6">
                     {phase === 'idle' && (
-                        <p className="text-sm text-gray-500">{t('reservationModalDescription')}</p>
+                        <p className="text-sm text-gray-500">{LL.reservationModalDescription()}</p>
                     )}
                     {phase === 'processing' && (
                         <div className="flex flex-col items-center gap-3 py-4">
                             <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
-                            <p className="text-sm font-bold text-gray-600">{t('reservationProcessing')}</p>
+                            <p className="text-sm font-bold text-gray-600">{LL.reservationProcessing()}</p>
                         </div>
                     )}
                     {phase === 'success' && (
@@ -105,10 +105,10 @@ export function PayModal({ reservationId, activityName, open, onClose, onSuccess
                             <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center">
                                 <Check className="w-6 h-6 text-emerald-600" />
                             </div>
-                            <p className="text-base font-black tracking-tighter text-gray-900">{t('reservationCreatedPaid')}</p>
+                            <p className="text-base font-black tracking-tighter text-gray-900">{LL.reservationCreatedPaid()}</p>
                             {txnId && (
                                 <p className="text-[10px] uppercase tracking-widest text-gray-400 font-mono mt-2 break-all">
-                                    {t('transactionLabel')}: {txnId}
+                                    {LL.transactionLabel()}: {txnId}
                                 </p>
                             )}
                         </div>
@@ -118,7 +118,7 @@ export function PayModal({ reservationId, activityName, open, onClose, onSuccess
                             <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center">
                                 <AlertCircle className="w-6 h-6 text-red-600" />
                             </div>
-                            <p className="text-base font-black tracking-tighter text-gray-900">{t('reservationFailed')}</p>
+                            <p className="text-base font-black tracking-tighter text-gray-900">{LL.reservationFailed()}</p>
                             {errorMsg && <p className="text-xs text-gray-500 max-w-xs break-words">{errorMsg}</p>}
                         </div>
                     )}
@@ -132,14 +132,14 @@ export function PayModal({ reservationId, activityName, open, onClose, onSuccess
                                 onClick={handlePay}
                                 className="w-full bg-emerald-600 text-white text-sm font-black py-3 sm:py-4 rounded-2xl hover:bg-emerald-700 active:scale-[0.98] transition-all uppercase tracking-widest shadow-lg shadow-emerald-600/10"
                             >
-                                {t('reservationConfirmPay')}
+                                {LL.reservationConfirmPay()}
                             </button>
                             <button
                                 type="button"
                                 onClick={onClose}
                                 className="w-full bg-gray-100 text-gray-600 text-xs font-bold py-3 px-4 rounded-2xl hover:bg-gray-200 transition-all uppercase tracking-widest"
                             >
-                                {t('reservationCancel')}
+                                {LL.reservationCancel()}
                             </button>
                         </>
                     )}
@@ -149,7 +149,7 @@ export function PayModal({ reservationId, activityName, open, onClose, onSuccess
                             onClick={onClose}
                             className="w-full bg-black text-white text-sm font-black py-3 sm:py-4 rounded-2xl hover:bg-zinc-800 active:scale-[0.98] transition-all uppercase tracking-widest"
                         >
-                            {t('reservationClose')}
+                            {LL.reservationClose()}
                         </button>
                     )}
                 </div>
