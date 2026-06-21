@@ -430,7 +430,7 @@ export function App() {
       <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 sm:px-6 py-4 sm:py-5 mb-8 sm:mb-12">
         <div className="max-w-5xl mx-auto flex justify-between items-center gap-3">
           <h1 className="text-xl sm:text-2xl font-black tracking-tighter text-gray-900 italic">
-            PANORAMAS
+            PanoramApp
           </h1>
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {loadingWeather ? (
