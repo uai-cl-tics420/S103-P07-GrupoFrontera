@@ -65,8 +65,12 @@ app.get("/api/activities", async ({ query, request }) => {
   // Extraemos parámetros dinámicos de filtrado
   const filterCategory = query.category as string | undefined;
   const radius = query.radius ? parseInt(query.radius as string) : 50000;
-  const exactPrice = query.exactPrice !== undefined && query.exactPrice !== '' ? parseInt(query.exactPrice as string) : undefined;
-  const openNow = query.openNow === 'true';
+  const priceSort = (query.priceSort === 'asc' || query.priceSort === 'desc') ? query.priceSort : undefined;
+  const priceMin = query.priceMin !== undefined && query.priceMin !== '' ? parseInt(query.priceMin as string) : undefined;
+  const priceMax = query.priceMax !== undefined && query.priceMax !== '' ? parseInt(query.priceMax as string) : undefined;
+  // Filtro de fecha/hora del toolbar de navegación (independiente de "Recomendar Panoramas")
+  const filterDate = query.filterDate as string | undefined;
+  const filterTime = query.filterTime as string | undefined;
 
   console.log(`Extrayendo clima para posición: lat ${lat}, lng ${lng}`);
 
@@ -125,39 +129,98 @@ app.get("/api/activities", async ({ query, request }) => {
   const today = new Date().toISOString().slice(0, 10);
   const targetDateStr = dateStr ? (dateStr === 'today' ? today : dateStr) : undefined;
 
-  // Cupos ya usados por panorama en la fecha objetivo (reservas activas de esa fecha),
-  // para poder excluir de las recomendaciones los panoramas AGOTADOS en esa fecha.
-  const usadosEnFecha: Record<string, number> = {};
-  if (targetDateStr) {
+  // Cupos ya usados por panorama en una fecha dada (reservas activas de esa fecha), para poder
+  // excluir los panoramas AGOTADOS en esa fecha. Se reusa tanto para la fecha de planificación
+  // ("Recomendar Panoramas") como para el filtro de fecha independiente del toolbar.
+  async function buildUsadosEnFecha(fecha: string): Promise<Record<string, number>> {
     const reservasFecha = await db.select({ activityId: userReservations.activityId })
       .from(userReservations)
-      .where(and(eq(userReservations.reservedDate, targetDateStr), ne(userReservations.status, 'cancelado')));
-    for (const r of reservasFecha) {
-      usadosEnFecha[r.activityId] = (usadosEnFecha[r.activityId] ?? 0) + 1;
-    }
+      .where(and(eq(userReservations.reservedDate, fecha), ne(userReservations.status, 'cancelado')));
+    const map: Record<string, number> = {};
+    for (const r of reservasFecha) map[r.activityId] = (map[r.activityId] ?? 0) + 1;
+    return map;
   }
 
   // Un panorama SIN fechas programadas se considera de entrada libre (disponible todos los días).
-  // Un panorama CON fechas programadas solo aparece si la fecha planificada coincide con alguna
-  // de sus fechas agendadas Y todavía quedan cupos para esa fecha (no está agotado).
-  function matchesPlannedDate(a: { id: string; schedules: { fecha: string }[]; cuposPorDia?: number }): boolean {
-    if (!targetDateStr) return true; // navegación normal, sin planificación: no filtramos por fecha
-    if (!a.schedules || a.schedules.length === 0) return true; // entrada libre
-    const tieneFecha = a.schedules.some(s => s.fecha === targetDateStr);
-    if (!tieneFecha) return false;
-    // Agotado: si hay cupo limitado y no quedan disponibles para esa fecha → excluir
-    if (a.cuposPorDia != null) {
-      const disponibles = a.cuposPorDia - (usadosEnFecha[a.id] ?? 0);
-      if (disponibles <= 0) return false;
-    }
+  // Un panorama CON fechas programadas solo aparece si la fecha coincide con alguna de sus fechas
+  // agendadas Y todavía quedan cupos para esa fecha (no está agotado).
+  function buildMatchesDate(fecha: string | undefined, usados: Record<string, number>) {
+    return (a: { id: string; schedules: { fecha: string }[]; cuposPorDia?: number }): boolean => {
+      if (!fecha) return true; // sin filtro de fecha
+      if (!a.schedules || a.schedules.length === 0) return true; // entrada libre
+      const tieneFecha = a.schedules.some(s => s.fecha === fecha);
+      if (!tieneFecha) return false;
+      if (a.cuposPorDia != null) {
+        const disponibles = a.cuposPorDia - (usados[a.id] ?? 0);
+        if (disponibles <= 0) return false;
+      }
+      return true;
+    };
+  }
+
+  const usadosEnFecha = targetDateStr ? await buildUsadosEnFecha(targetDateStr) : {};
+  const matchesPlannedDate = buildMatchesDate(targetDateStr, usadosEnFecha);
+
+  const usadosEnFiltroFecha = filterDate ? await buildUsadosEnFecha(filterDate) : {};
+  const matchesFilterDate = buildMatchesDate(filterDate, usadosEnFiltroFecha);
+
+  // Filtro de precio por rango, sobre el monto real en CLP guardado en la BD (activities.price)
+  function matchesPriceRange(a: { price?: number | null }): boolean {
+    const price = a.price ?? 0;
+    if (priceMin !== undefined && price < priceMin) return false;
+    if (priceMax !== undefined && price > priceMax) return false;
     return true;
+  }
+
+  // Filtro de hora: compara una hora objetivo (real "ahora" para la fecha de planificación de
+  // hoy, o la hora elegida en el toolbar) contra el horario del panorama. Sin horario definido
+  // o sin hora objetivo = entrada libre / sin restricción = siempre pasa.
+  function matchesTimeWindow(openingHour?: string, closingHour?: string, hhmm?: string): boolean {
+    if (!hhmm) return true;
+    if (!openingHour || !closingHour) return true;
+    const [h, m] = hhmm.split(':').map(Number);
+    const targetMinutes = (h ?? 0) * 60 + (m ?? 0);
+    const [oH, oM] = openingHour.split(':').map(Number);
+    const openMinutes = (oH ?? 0) * 60 + (oM ?? 0);
+    const [cH, cM] = closingHour.split(':').map(Number);
+    let closeMinutes = (cH ?? 0) * 60 + (cM ?? 0);
+    if (closeMinutes < openMinutes) closeMinutes += 24 * 60; // cruza medianoche
+    let targetAdj = targetMinutes;
+    if (targetAdj < openMinutes && targetAdj < closeMinutes - 24 * 60) targetAdj += 24 * 60;
+    return targetAdj >= openMinutes && targetAdj <= closeMinutes;
+  }
+
+  function matchesRadius(a: { coordinates: { lat: number; lng: number } }): boolean {
+    const distMeters = getDistanceInMeters(lat, lng, a.coordinates.lat, a.coordinates.lng);
+    return distMeters <= radius;
   }
 
   // La fuente de panoramas ahora es la BD (creados por el admin), no Google Places.
   // Excluimos los marcados como NO disponibles.
-  let baseList = mappedActivities.filter(a => a.disponible !== false).filter(matchesPlannedDate);
+  let baseList = mappedActivities
+    .filter(a => a.disponible !== false)
+    .filter(matchesPlannedDate)
+    .filter(matchesFilterDate)
+    .filter(matchesRadius)
+    .filter(matchesPriceRange)
+    .filter(a => matchesTimeWindow(a.openingHour, a.closingHour, filterTime));
   if (filterCategory && filterCategory !== 'Todas') {
     baseList = baseList.filter(a => a.category === filterCategory);
+  }
+
+  // Orden explícito del usuario: precio tiene prioridad si se eligió; si no, y el radio se
+  // acotó (distinto del default "Toda la región"), ordenamos por cercanía. Al ser sorts
+  // estables, dentro de cada grupo de clima (más abajo) se preserva este orden.
+  if (priceSort) {
+    baseList = [...baseList].sort((a, b) => {
+      const pa = a.price ?? 0, pb = b.price ?? 0;
+      return priceSort === 'asc' ? pa - pb : pb - pa;
+    });
+  } else if (radius !== 50000) {
+    baseList = [...baseList].sort((a, b) =>
+      getDistanceInMeters(lat, lng, a.coordinates.lat, a.coordinates.lng) -
+      getDistanceInMeters(lat, lng, b.coordinates.lat, b.coordinates.lng)
+    );
   }
 
   // Afluencia simulada por ahora (en standby hasta definir la fuente real con el profe)
@@ -205,7 +268,8 @@ app.get("/api/activities", async ({ query, request }) => {
   // planificada seleccionados para que no distorsionen los filtros
   let filteredInteracted = mappedActivities
     .filter(a => userFavs.includes(a.id) || userRes.includes(a.id))
-    .filter(matchesPlannedDate);
+    .filter(matchesPlannedDate)
+    .filter(matchesFilterDate);
 
   // 1. Filtrar por categoría si se especificó una distinta de 'Todas'
   if (filterCategory && filterCategory !== 'Todas') {
@@ -213,10 +277,12 @@ app.get("/api/activities", async ({ query, request }) => {
   }
 
   // 2. Filtrar por radio de distancia aproximada (radius viene en metros)
-  filteredInteracted = filteredInteracted.filter(a => {
-    const distMeters = getDistanceInMeters(lat, lng, a.coordinates.lat, a.coordinates.lng);
-    return distMeters <= radius;
-  });
+  filteredInteracted = filteredInteracted.filter(matchesRadius);
+
+  // 3. Mismos filtros de precio y horario que el catálogo principal, para consistencia
+  filteredInteracted = filteredInteracted
+    .filter(matchesPriceRange)
+    .filter(a => matchesTimeWindow(a.openingHour, a.closingHour, filterTime));
 
   const userInteractedActivities = filteredInteracted.map(a => ({
     ...a,
