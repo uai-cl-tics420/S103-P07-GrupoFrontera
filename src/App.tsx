@@ -47,7 +47,7 @@ export function App() {
 
   //estados para capturar las coordenadas reales del navegador
   const [coords, setCoords] = React.useState({ lat: -33.4372, lng: -70.6506 }); //Stgo. centro por defecto
-  const [weatherInfo, setWeatherInfo] = React.useState<{ condition: string; temperature: number; cityName?: string } | null>(null);
+  const [weatherInfo, setWeatherInfo] = React.useState<{ condition: string; temperature: number; cityName?: string; reliable?: boolean } | null>(null);
 
   //estado local para guardar los panoramas que traemos dinámicamente
   const [dynamicActivities, setDynamicActivities] = React.useState<any[]>([]);
@@ -126,7 +126,7 @@ export function App() {
     }
   }, [session]);
 
-  const [userHistory, setUserHistory] = React.useState<{favorites: string[], reservations: string[]}>({ favorites: [], reservations: [] });
+  const [userHistory, setUserHistory] = React.useState<{ favorites: string[], reservations: string[] }>({ favorites: [], reservations: [] });
 
   const [activeReservations, setActiveReservations] = React.useState<Record<string, { id: string; status: string }>>({});
   const historyLoadedRef = React.useRef(false);
@@ -171,7 +171,7 @@ export function App() {
       let url = `/api/activities?lat=${coords.lat}&lng=${coords.lng}&radius=${activeFilters.radius}`;
       if (activeFilters.exactPrice !== '') url += `&exactPrice=${activeFilters.exactPrice}`;
       if (activeFilters.openNow) url += `&openNow=true`;
-      
+
       // Inyectar parámetros de planificación de fecha futura si están activos
       if (planningState) {
         url += `&date=${planningState.date}`;
@@ -224,10 +224,10 @@ export function App() {
   const handleToggleFavorite = async (activityId: string) => {
     const isFav = userHistory.favorites.includes(activityId);
 
-    
+
     const activity = actualActivitiesList.find(a => a.id === activityId);
 
-    
+
     if (isFav) {
       showToast("Eliminado de tus favoritos.", "info");
     } else {
@@ -237,7 +237,7 @@ export function App() {
     // Update local state optimistically
     setUserHistory(prev => ({
       ...prev,
-      favorites: isFav 
+      favorites: isFav
         ? prev.favorites.filter(id => id !== activityId)
         : [...prev.favorites, activityId]
     }));
@@ -283,24 +283,34 @@ export function App() {
     }
   }
 
+  // Panoramas ya realizados (comprados/pagados): cuentan como interés para la similitud,
+  // pero el panorama en sí NO debe recomendarse de nuevo (ya se hizo).
+  const purchasedIds = Object.entries(activeReservations)
+    .filter(([, r]) => r.status === 'pagado' || r.status === 'comprado')
+    .map(([id]) => id);
+
   const currentUser: User = {
     id: session?.user?.id ?? "anon",
     name: session?.user?.name ?? "Usuario",
     preferences: [], // Eliminamos la preferencia fija heredada para usar el modelo 100% dinámico basado en likes, reservas, clima y distancia
     currentLocation: coords,
-    history: userHistory
+    history: { ...userHistory, purchased: purchasedIds }
   };
 
   // Parámetros avanzados de clima y tiempo
-  const weatherTag = weatherInfo ? ((weatherInfo.condition === 'Clear' || weatherInfo.condition === 'Clouds') ? 'Sunny' : 'Rainy') : undefined;
+  // El clima solo se usa para ordenar/penalizar si el pronóstico es confiable (fecha <= 5 días).
+  // Para fechas lejanas el clima es solo informativo, así que no condiciona la recomendación.
+  const weatherTag = (weatherInfo && weatherInfo.reliable !== false)
+    ? ((weatherInfo.condition === 'Clear' || weatherInfo.condition === 'Clouds') ? 'Sunny' : 'Rainy')
+    : undefined;
   const activeWeather = weatherTag;
-  const activeTime = planningState 
+  const activeTime = planningState
     ? (planningState.date === 'today' ? undefined : (planningState.time || 'any'))
     : undefined;
 
   // Motor de recomendaciones optimizado con las variables de tus compañeros
   const recommendedActivities = getRecommendedActivities(currentUser, actualActivitiesList, activeWeather, activeTime);
-  
+
   // Inicializamos la categoría usando preferredCategory pero con el resguardo de filtrado dinámico
   const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(recommendedActivities, preferredCategory || null);
 
@@ -326,13 +336,13 @@ export function App() {
     setSelectedCategory(category);
     if (category !== null) {
       setPreferredCategory(category);
-      showToast(`Preferencias guardadas: Mostrando ${category}.`, "info");
+      showToast(`Mostrando ${category}.`, "info");
     }
 
     // Reiniciar los filtros locales para que sean independientes por categoría (Lógica de Barros/Daniel)
     const resetFilters = { radius: 50000, exactPrice: '', openNow: false };
     setApiFilters(resetFilters);
-    
+
     // Disparar búsqueda inmediatamente para que cargue los panoramas de la nueva pestaña
 
     fetchFilteredActivities(category, resetFilters);
@@ -422,7 +432,7 @@ export function App() {
     try {
       const response = await fetch('/api/reservations', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ activityId })
@@ -431,12 +441,12 @@ export function App() {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       console.log("¡Reserva confirmada con éxito en el servidor!");
 
     } catch (err) {
       console.error("🚨 Error real en la petición de reserva, revirtiendo estado:", err);
-      
+
       setUserHistory(prev => ({
         ...prev,
         reservations: prev.reservations.filter(id => id !== activityId)
@@ -467,8 +477,8 @@ export function App() {
 
                   const iconColor =
                     weatherInfo.condition === 'Clear' ? 'text-amber-500 animate-spin-slow' :
-                    weatherInfo.condition === 'Rain' || weatherInfo.condition === 'Drizzle' ? 'text-blue-500' :
-                    weatherInfo.condition === 'Thunderstorm' ? 'text-purple-600' : 'text-zinc-400';
+                      weatherInfo.condition === 'Rain' || weatherInfo.condition === 'Drizzle' ? 'text-blue-500' :
+                        weatherInfo.condition === 'Thunderstorm' ? 'text-purple-600' : 'text-zinc-400';
 
                   return <IconComponent className={`w-4 h-4 ${iconColor}`} />;
                 })()}
@@ -528,7 +538,7 @@ export function App() {
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-gradient-to-r from-orange-500/10 to-fuchsia-600/10 border border-orange-500/20 rounded-2xl shadow-sm mb-2 animate-fade-in">
               <div className="flex flex-col gap-1 text-center sm:text-left">
                 <h3 className="text-base sm:text-lg font-black tracking-tight text-gray-900 leading-tight">
-                  🧠 ¿Quieres recomendaciones personalizadas de panoramas?
+                  🧠 ¿No sabes qué hacer? ¡Te recomendamos panoramas!
                 </h3>
                 <p className="text-xs text-gray-600 font-medium">
                   Encuentra las mejores opciones según el clima y horarios de hoy o de cualquier fecha que elijas.
@@ -538,7 +548,7 @@ export function App() {
                 onClick={() => setIsModalOpen(true)}
                 className="w-full sm:w-auto bg-gradient-to-r from-orange-500 to-fuchsia-600 hover:from-orange-600 hover:to-fuchsia-700 text-white text-xs font-black px-6 py-3 rounded-xl transition-all active:scale-[0.97] shadow-md shadow-orange-500/10 uppercase tracking-wider whitespace-nowrap cursor-pointer"
               >
-                ✨ Recomendar Panoramas
+                Recomendar Panoramas
               </button>
             </div>
           )}
@@ -559,7 +569,12 @@ export function App() {
                     </>
                   ) : (
                     <>
-                      Mostrando panoramas para el día <span className="font-bold underline">{planningState.date}</span> {planningState.time ? <>a las <span className="font-bold underline">{planningState.time}</span></> : 'a cualquier hora'}. Clima estimado por API: <span className="font-bold underline">{weatherInfo?.condition === 'Clear' ? '☀️ Despejado' : weatherInfo?.condition === 'Clouds' ? '☁️ Nublado' : '🌧️ Lluvioso'} ({weatherInfo?.temperature.toFixed(1)}°C)</span>.
+                      Mostrando panoramas para el día <span className="font-bold underline">{planningState.date}</span> {planningState.time ? <>a las <span className="font-bold underline">{planningState.time}</span></> : 'a cualquier hora'}.{' '}
+                      {weatherInfo?.reliable === false ? (
+                        <span className="font-bold">El clima no se considera para esta fecha (fuera del pronóstico de 5 días).</span>
+                      ) : (
+                        <>Clima estimado por API: <span className="font-bold underline">{weatherInfo?.condition === 'Clear' ? '☀️ Despejado' : weatherInfo?.condition === 'Clouds' ? '☁️ Nublado' : '🌧️ Lluvioso'} ({weatherInfo?.temperature.toFixed(1)}°C)</span>.</>
+                      )}
                     </>
                   )}
                 </p>
@@ -578,8 +593,8 @@ export function App() {
             <div className="flex flex-wrap items-center gap-3 px-2 py-3 bg-white/50 border border-gray-100 rounded-xl shadow-sm animate-fade-in">
               <span className="text-xs font-bold text-gray-500 uppercase tracking-widest mr-2">{t('filters')}:</span>
 
-              
-              <select 
+
+              <select
                 className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
                 value={apiFilters.radius}
                 onChange={(e) => setApiFilters({ ...apiFilters, radius: Number(e.target.value) })}
@@ -592,7 +607,7 @@ export function App() {
 
               {(selectedCategory === 'Restaurante' || selectedCategory === 'Cine' || selectedCategory === 'Teatro' || selectedCategory === 'Museo' || selectedCategory === 'Miradores' || selectedCategory === 'Parque') && (
                 selectedCategory === 'Restaurante' ? (
-                  <select 
+                  <select
                     className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
                     value={apiFilters.exactPrice}
                     onChange={(e) => setApiFilters({ ...apiFilters, exactPrice: e.target.value })}
@@ -604,7 +619,7 @@ export function App() {
                     <option value="4">Muy Costoso ($$$$)</option>
                   </select>
                 ) : (
-                  <select 
+                  <select
                     className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
                     value={apiFilters.exactPrice}
                     onChange={(e) => setApiFilters({ ...apiFilters, exactPrice: e.target.value })}
@@ -617,8 +632,8 @@ export function App() {
               )}
 
               <label className="flex items-center gap-2 text-xs font-medium text-gray-600 cursor-pointer bg-white border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={apiFilters.openNow}
                   onChange={(e) => setApiFilters({ ...apiFilters, openNow: e.target.checked })}
                   className="accent-primary"
@@ -626,7 +641,7 @@ export function App() {
                 Solo Abiertos Ahora
               </label>
 
-              <button 
+              <button
                 onClick={() => fetchFilteredActivities(selectedCategory, apiFilters)}
                 disabled={loadingWeather}
                 className="ml-auto text-xs font-bold text-white bg-gray-900 px-4 py-1.5 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center gap-2"
@@ -643,10 +658,10 @@ export function App() {
           {/* Mostramos el contador de panoramas, cambiando a modo curado si hay planificación activa */}
           <div className="px-2 mt-2">
             <span className="text-xs font-bold text-gray-500 uppercase tracking-widest bg-gray-200/50 py-1 px-3 rounded-full">
-            {planningState
-              ? `${Math.min(6, filteredActivities.length)} ${t('panoramasFound')}`
-              : `${filteredActivities.length} ${filteredActivities.length === 1 ? t('panoramaFound') : t('panoramasFound')}`
-            }
+              {planningState
+                ? `${Math.min(6, filteredActivities.length)} ${t('panoramasFound')}`
+                : `${filteredActivities.length} ${filteredActivities.length === 1 ? t('panoramaFound') : t('panoramasFound')}`
+              }
             </span>
           </div>
         </div>
@@ -663,9 +678,9 @@ export function App() {
             </p>
           ) : (
             (planningState ? filteredActivities.slice(0, 6) : filteredActivities).map((act, index) => (
-              <ActivityCard 
-                key={act.id} 
-                activity={act} 
+              <ActivityCard
+                key={act.id}
+                activity={act}
 
                 isFavorite={userHistory.favorites.includes(act.id)}
                 reservation={activeReservations[act.id] as any}
@@ -698,7 +713,7 @@ export function App() {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 flex flex-col gap-5 relative animate-scale-up">
-            
+
             <button
               onClick={() => setIsModalOpen(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-900 text-lg font-bold p-1 transition-colors cursor-pointer"
@@ -743,22 +758,20 @@ export function App() {
                   <button
                     type="button"
                     onClick={() => setPlanningDateType('today')}
-                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
-                      planningDateType === 'today'
-                        ? 'bg-black text-white border-black shadow-md shadow-black/10'
-                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                    }`}
+                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${planningDateType === 'today'
+                      ? 'bg-black text-white border-black shadow-md shadow-black/10'
+                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                      }`}
                   >
-                    Hoy ☀️
+                    Hoy
                   </button>
                   <button
                     type="button"
                     onClick={() => setPlanningDateType('future')}
-                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
-                      planningDateType === 'future'
-                        ? 'bg-black text-white border-black shadow-md shadow-black/10'
-                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                    }`}
+                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${planningDateType === 'future'
+                      ? 'bg-black text-white border-black shadow-md shadow-black/10'
+                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                      }`}
                   >
                     Otro día 📅
                   </button>
@@ -790,24 +803,22 @@ export function App() {
                       <button
                         type="button"
                         onClick={() => setPlanningTimeType('any')}
-                        className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${
-                          planningTimeType === 'any'
-                            ? 'bg-gray-800 text-white border-gray-800'
-                            : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                        }`}
+                        className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${planningTimeType === 'any'
+                          ? 'bg-gray-800 text-white border-gray-800'
+                          : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                          }`}
                       >
                         Cualquier hora 🕒
                       </button>
                       <button
                         type="button"
                         onClick={() => setPlanningTimeType('specific')}
-                        className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${
-                          planningTimeType === 'specific'
-                            ? 'bg-gray-800 text-white border-gray-800'
-                            : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                        }`}
+                        className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${planningTimeType === 'specific'
+                          ? 'bg-gray-800 text-white border-gray-800'
+                          : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                          }`}
                       >
-                        Hora específica ⚡
+                        Hora específica
                       </button>
                     </div>
                   </div>
@@ -833,7 +844,7 @@ export function App() {
                 type="submit"
                 className="w-full bg-gradient-to-r from-orange-500 to-fuchsia-600 hover:from-orange-600 hover:to-fuchsia-700 text-white text-xs font-black py-4 rounded-2xl transition-all active:scale-[0.97] uppercase tracking-widest shadow-lg shadow-orange-500/10 cursor-pointer mt-2"
               >
-                Obtener Recomendación 🚀
+                Obtener Recomendación
               </button>
             </form>
           </div>

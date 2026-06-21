@@ -88,13 +88,6 @@ export const activitySchedules = pgTable('activity_schedules', {
     horaFin: text('hora_fin'),             // "HH:MM"
 });
 
-// --- 2. Tabla de Preferencias de Usuario ---
-export const userPreferences = pgTable('user_preferences', {
-    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
-    preferredCategories: text('preferred_categories').array(),
-});
-
 // --- 3. Favoritos y Reservas (Issue #50) ---
 export const userFavorites = pgTable('user_favorites', {
     id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),

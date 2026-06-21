@@ -25,8 +25,9 @@ export interface User {
     lng: number;
   };
   history?: {
-    favorites: string[]; // IDs de actividades favoritas
-    reservations: string[]; // IDs de actividades reservadas
+    favorites: string[]; // IDs de actividades favoritas (like = interés)
+    reservations: string[]; // IDs de actividades reservadas activas (reserva = interés)
+    purchased?: string[]; // IDs de actividades compradas/pagadas (realizado: interés, pero NO se recomienda de nuevo)
   };
 }
 

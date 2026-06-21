@@ -4,6 +4,9 @@ export interface WeatherData {
     condition: string;
     temperature: number;
     cityName: string;
+    // true si el clima corresponde de verdad a la fecha pedida (hoy o pronóstico válido <= 5 días).
+    // false si la fecha está fuera del alcance del pronóstico (el clima es solo referencial).
+    reliable?: boolean;
 }
 
 export async function getCurrentWeather(lat: number, lng: number): Promise<WeatherData> {
@@ -32,7 +35,8 @@ export async function getCurrentWeather(lat: number, lng: number): Promise<Weath
         return {
             condition,
             temperature,
-            cityName
+            cityName,
+            reliable: true // clima actual: siempre confiable para "hoy"
         };
     } catch (error) {
         //bloque try/catch para fallos de red/api key
@@ -40,7 +44,8 @@ export async function getCurrentWeather(lat: number, lng: number): Promise<Weath
         return { //fallback seguro
             condition: "Clear",
             temperature: 22,
-            cityName: "Santiago"
+            cityName: "Santiago",
+            reliable: true
         };
     }
 }
@@ -69,7 +74,8 @@ export async function getWeatherForecast(
         const data = await response.json() as any;
 
         if (!data.list || !Array.isArray(data.list) || data.list.length === 0) {
-            return getCurrentWeather(lat, lng);
+            const cur = await getCurrentWeather(lat, lng);
+            return { ...cur, reliable: false }; // no hubo pronóstico real para esa fecha
         }
 
         // Construir fecha y hora objetivo para comparar
@@ -92,12 +98,20 @@ export async function getWeatherForecast(
         const condition = closestItem.weather?.[0]?.main ?? "Clear";
         const temperature = closestItem.main?.temp ?? 20;
 
+        // El pronóstico gratuito cubre ~5 días en pasos de 3h. Si el item más cercano queda
+        // a más de un paso (3h) del objetivo, la fecha está fuera de alcance: clima no confiable.
+        const RELIABLE_THRESHOLD_MS = 3 * 60 * 60 * 1000;
+        const reliable = minDiff <= RELIABLE_THRESHOLD_MS;
+
         return {
             condition,
             temperature,
+            cityName: data.city?.name ?? "Santiago",
+            reliable,
         };
     } catch (error) {
         console.error("Error al consultar el pronóstico de OpenWeatherMap:", error);
-        return getCurrentWeather(lat, lng); // Fallback al clima actual
+        const cur = await getCurrentWeather(lat, lng); // Fallback al clima actual
+        return { ...cur, reliable: false };
     }
 }

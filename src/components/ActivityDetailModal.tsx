@@ -293,7 +293,7 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                                     })()}
                                     <button type='button' onClick={() => reservar(true)} disabled={busy}
                                         className='w-full text-xs font-black py-4 rounded-2xl bg-black hover:bg-zinc-800 text-white uppercase tracking-widest active:scale-[0.98] disabled:opacity-50'>
-                                        {busy ? 'Procesando...' : 'Continuar pago'}
+                                        {busy ? 'Procesando...' : 'Pagar al tiro'}
                                     </button>
                                     <button type='button' onClick={() => setConfirmPay(false)}
                                         className='w-full text-[11px] font-bold text-gray-400 hover:text-gray-700 uppercase tracking-widest'>
@@ -315,7 +315,7 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                                             </button>
                                             <button type='button' onClick={() => setConfirmPay(true)} disabled={busy}
                                                 className='flex-1 text-xs font-black py-4 rounded-2xl bg-black hover:bg-zinc-800 text-white uppercase tracking-widest active:scale-[0.98] disabled:opacity-50'>
-                                                Pagar al tiro
+                                                Continuar con el pago
                                             </button>
                                         </div>
                                     )}

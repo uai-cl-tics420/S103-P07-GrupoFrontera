@@ -3,7 +3,7 @@ import { cors } from '@elysiajs/cors';
 import { auth } from './lib/auth';
 import { protectMiddleware } from 'src/middleware/protect';
 import { db } from "./lib/db";
-import { user, activities, userPreferences, userFavorites, userReservations, activitySchedules } from "./lib/schema";
+import { user, activities, userFavorites, userReservations, activitySchedules } from "./lib/schema";
 import { and, count, eq, gt, ne, sql } from "drizzle-orm";
 import nodemailer from 'nodemailer';
 import { verification } from '../auth-schema';
@@ -120,9 +120,42 @@ app.get("/api/activities", async ({ query, request }) => {
     };
   });
 
+  // Fecha objetivo de la planificación (si el usuario usó "Recomendar Panoramas").
+  // 'today' se traduce a la fecha real de hoy para poder comparar contra activitySchedules.
+  const today = new Date().toISOString().slice(0, 10);
+  const targetDateStr = dateStr ? (dateStr === 'today' ? today : dateStr) : undefined;
+
+  // Cupos ya usados por panorama en la fecha objetivo (reservas activas de esa fecha),
+  // para poder excluir de las recomendaciones los panoramas AGOTADOS en esa fecha.
+  const usadosEnFecha: Record<string, number> = {};
+  if (targetDateStr) {
+    const reservasFecha = await db.select({ activityId: userReservations.activityId })
+      .from(userReservations)
+      .where(and(eq(userReservations.reservedDate, targetDateStr), ne(userReservations.status, 'cancelado')));
+    for (const r of reservasFecha) {
+      usadosEnFecha[r.activityId] = (usadosEnFecha[r.activityId] ?? 0) + 1;
+    }
+  }
+
+  // Un panorama SIN fechas programadas se considera de entrada libre (disponible todos los días).
+  // Un panorama CON fechas programadas solo aparece si la fecha planificada coincide con alguna
+  // de sus fechas agendadas Y todavía quedan cupos para esa fecha (no está agotado).
+  function matchesPlannedDate(a: { id: string; schedules: { fecha: string }[]; cuposPorDia?: number }): boolean {
+    if (!targetDateStr) return true; // navegación normal, sin planificación: no filtramos por fecha
+    if (!a.schedules || a.schedules.length === 0) return true; // entrada libre
+    const tieneFecha = a.schedules.some(s => s.fecha === targetDateStr);
+    if (!tieneFecha) return false;
+    // Agotado: si hay cupo limitado y no quedan disponibles para esa fecha → excluir
+    if (a.cuposPorDia != null) {
+      const disponibles = a.cuposPorDia - (usadosEnFecha[a.id] ?? 0);
+      if (disponibles <= 0) return false;
+    }
+    return true;
+  }
+
   // La fuente de panoramas ahora es la BD (creados por el admin), no Google Places.
   // Excluimos los marcados como NO disponibles.
-  let baseList = mappedActivities.filter(a => a.disponible !== false);
+  let baseList = mappedActivities.filter(a => a.disponible !== false).filter(matchesPlannedDate);
   if (filterCategory && filterCategory !== 'Todas') {
     baseList = baseList.filter(a => a.category === filterCategory);
   }
@@ -168,8 +201,11 @@ app.get("/api/activities", async ({ query, request }) => {
   }
 
   // Filtrar las actividades de la base de datos que el usuario ha interactuado
-  // (Likes y Reservas), y asegurarnos de que cumplan con la categoría y el radio seleccionado para que no distorsionen los filtros
-  let filteredInteracted = mappedActivities.filter(a => userFavs.includes(a.id) || userRes.includes(a.id));
+  // (Likes y Reservas), y asegurarnos de que cumplan con la categoría, el radio y la fecha
+  // planificada seleccionados para que no distorsionen los filtros
+  let filteredInteracted = mappedActivities
+    .filter(a => userFavs.includes(a.id) || userRes.includes(a.id))
+    .filter(matchesPlannedDate);
 
   // 1. Filtrar por categoría si se especificó una distinta de 'Todas'
   if (filterCategory && filterCategory !== 'Todas') {
@@ -493,52 +529,14 @@ app.get("/api/distance", async ({ query }) => {
   }
 });
 
+// Devuelve solo el ROL del usuario (admin/user). La categoría dejó de ser una preferencia
+// persistida: el interés del usuario se modela con likes/reservas/compras.
 app.get("/api/preferences/:userId", async ({ params }) => {
-  let rows = await db.select().from(userPreferences)
-    .where(eq(userPreferences.userId, params.userId));
-  
-  if (rows.length === 0) {
-    await db.insert(userPreferences).values({
-      userId: params.userId,
-      preferredCategories: [],
-    });
-    
-    rows = await db.select().from(userPreferences)
-      .where(eq(userPreferences.userId, params.userId));
-  }
-  
-  // Buscar el rol real directamente en la tabla user
   const u = await db.select().from(user)
     .where(eq(user.id, params.userId))
     .limit(1);
-  
-  const role = u[0]?.role ?? 'user';
-  
-  return { 
-    categories: rows[0]?.preferredCategories ?? [],
-    role: role
-  };
-});
 
-app.put("/api/preferences/:userId", async ({ params, body }) => {
-  const { categories } = body as { categories: string[] };
-  
-  const existing = await db.select().from(userPreferences)
-    .where(eq(userPreferences.userId, params.userId))
-    .limit(1);
-    
-  if (existing.length > 0) {
-    await db.update(userPreferences)
-      .set({ preferredCategories: categories })
-      .where(eq(userPreferences.userId, params.userId));
-  } else {
-    await db.insert(userPreferences).values({
-      userId: params.userId,
-      preferredCategories: categories,
-    });
-  }
-  
-  return { ok: true, categories };
+  return { role: u[0]?.role ?? 'user' };
 });
 
 // --- RUTAS FAVORITOS ---
