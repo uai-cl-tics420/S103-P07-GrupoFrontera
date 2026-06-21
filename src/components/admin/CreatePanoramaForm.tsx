@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, MapPin, Image as ImageIcon, Clock, Ticket, Users, Info } from 'lucide-react';
 import { Category } from '@/types';
+import { useT } from '@/i18n/context';
 
 /**
  * Formulario de creación de panoramas (segunda pestaña del panel admin).
@@ -24,6 +25,7 @@ const labelCls = "block text-[10px] font-bold text-gray-400 uppercase tracking-w
 const inputCls = "w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-black focus:border-black transition";
 
 export function CreatePanoramaForm() {
+    const { LL } = useT();
     const [imageUrl, setImageUrl] = useState('');
     const [nombre, setNombre] = useState('');
     const [descripcion, setDescripcion] = useState('');
@@ -97,15 +99,15 @@ export function CreatePanoramaForm() {
                 body: JSON.stringify(payload),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data?.error || 'Error al crear el panorama');
+            if (!res.ok) throw new Error(data?.error || LL.adminFormErrorCreating());
             setResultMsg({
                 ok: true,
                 text: data.geocoded
-                    ? 'Panorama creado y guardado. Direccion geocodificada.'
-                    : 'Panorama creado y guardado (la direccion no se pudo geocodificar; sin distancia por ahora).',
+                    ? LL.adminFormSuccessGeocoded()
+                    : LL.adminFormSuccessNotGeocoded(),
             });
         } catch (err: any) {
-            setResultMsg({ ok: false, text: err?.message || 'No se pudo guardar el panorama.' });
+            setResultMsg({ ok: false, text: err?.message || LL.adminFormSaveErrorGeneric() });
         } finally {
             setSaving(false);
         }
@@ -118,35 +120,35 @@ export function CreatePanoramaForm() {
                 {/* Datos principales */}
                 <section className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm">
                     <h2 className="text-lg font-black tracking-tighter text-gray-900 mb-6">
-                        Datos del panorama
+                        {LL.adminFormSectionPanoramaData()}
                     </h2>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                         {/* Imagen URL */}
                         <div className="sm:col-span-2">
                             <label className={labelCls}>
-                                <span className="inline-flex items-center gap-1.5"><ImageIcon className="w-3 h-3" /> Imagen (URL)</span>
+                                <span className="inline-flex items-center gap-1.5"><ImageIcon className="w-3 h-3" /> {LL.adminFormImageLabel()}</span>
                             </label>
                             <input
                                 type="url"
                                 value={imageUrl}
                                 onChange={(e) => { setImageUrl(e.target.value); setImgError(false); }}
-                                placeholder="https://...  URL directa de imagen (.jpg/.png) o blob de Azure"
+                                placeholder={LL.adminFormImagePlaceholder()}
                                 className={inputCls}
                             />
                             <p className="text-[11px] text-gray-400 mt-1">
-                                Se guarda como URL para poder cambiar la imagen en Azure sin tocar el código.
+                                {LL.adminFormImageHint()}
                             </p>
                         </div>
 
                         {/* Nombre */}
                         <div className="sm:col-span-2">
-                            <label className={labelCls}>Nombre del panorama</label>
+                            <label className={labelCls}>{LL.adminFormNameLabel()}</label>
                             <input
                                 type="text"
                                 value={nombre}
                                 onChange={(e) => setNombre(e.target.value)}
-                                placeholder="Ej. Festival de Jazz en el Parque"
+                                placeholder={LL.adminFormNamePlaceholder()}
                                 className={inputCls}
                                 required
                             />
@@ -154,11 +156,11 @@ export function CreatePanoramaForm() {
 
                         {/* Descripción */}
                         <div className="sm:col-span-2">
-                            <label className={labelCls}>Descripción</label>
+                            <label className={labelCls}>{LL.adminFormDescriptionLabel()}</label>
                             <textarea
                                 value={descripcion}
                                 onChange={(e) => setDescripcion(e.target.value)}
-                                placeholder="Cuenta de qué se trata el panorama..."
+                                placeholder={LL.adminFormDescriptionPlaceholder()}
                                 rows={3}
                                 className={inputCls + ' resize-none'}
                             />
@@ -166,7 +168,7 @@ export function CreatePanoramaForm() {
 
                         {/* Categoría */}
                         <div>
-                            <label className={labelCls}>Categoría</label>
+                            <label className={labelCls}>{LL.detailsCategoryLabel()}</label>
                             <select
                                 value={categoria}
                                 onChange={(e) => setCategoria(e.target.value as Category)}
@@ -180,14 +182,14 @@ export function CreatePanoramaForm() {
 
                         {/* Etiqueta de clima */}
                         <div>
-                            <label className={labelCls}>Etiqueta de clima</label>
+                            <label className={labelCls}>{LL.adminFormWeatherTagLabel()}</label>
                             <select
                                 value={tagClima}
                                 onChange={(e) => setTagClima(e.target.value as 'All' | 'Sunny')}
                                 className={inputCls + ' cursor-pointer'}
                             >
-                                <option value="All">Disponible para todo clima</option>
-                                <option value="Sunny">Solo días despejados</option>
+                                <option value="All">{LL.adminFormWeatherAllOption()}</option>
+                                <option value="Sunny">{LL.adminFormWeatherSunnyOption()}</option>
                             </select>
                         </div>
                     </div>
@@ -196,25 +198,23 @@ export function CreatePanoramaForm() {
                 {/* Dirección + nota de distancia */}
                 <section className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm">
                     <h2 className="text-lg font-black tracking-tighter text-gray-900 mb-6">
-                        Ubicación
+                        {LL.detailsCoordsLabel()}
                     </h2>
                     <label className={labelCls}>
-                        <span className="inline-flex items-center gap-1.5"><MapPin className="w-3 h-3" /> Dirección o localidad real</span>
+                        <span className="inline-flex items-center gap-1.5"><MapPin className="w-3 h-3" /> {LL.adminFormAddressLabel()}</span>
                     </label>
                     <input
                         type="text"
                         value={direccion}
                         onChange={(e) => setDireccion(e.target.value)}
-                        placeholder="Ej. Av. Kennedy 5413, Las Condes, Santiago"
+                        placeholder={LL.adminFormAddressPlaceholder()}
                         className={inputCls}
                     />
                     <div className="mt-3 flex items-start gap-2 bg-blue-50/60 border border-blue-100 rounded-xl p-3">
                         <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
                         <p className="text-[12px] text-blue-700 leading-relaxed">
-                            Desde esta dirección, el backend obtendrá las <strong>coordenadas (lat/lng)</strong> mediante
-                            geocodificación con Google. Con esas coordenadas y la ubicación del usuario, la app calcula
-                            la <strong>distancia aproximada</strong>, que se muestra en la tarjeta del panorama (no se ingresa aquí).
-                            <span className="block text-blue-400 mt-1">→ Ver dónde aparece en la vista previa de la derecha.</span>
+                            <span dangerouslySetInnerHTML={{ __html: LL.adminFormGeoInfoHtml() }} />
+                            <span className="block text-blue-400 mt-1">{LL.adminFormGeoInfoHint()}</span>
                         </p>
                     </div>
                 </section>
@@ -223,14 +223,14 @@ export function CreatePanoramaForm() {
                 <section className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm">
                     <div className="flex items-center justify-between mb-6">
                         <h2 className="text-lg font-black tracking-tighter text-gray-900">
-                            <span className="inline-flex items-center gap-2"><Clock className="w-4 h-4" /> Horarios y fechas</span>
+                            <span className="inline-flex items-center gap-2"><Clock className="w-4 h-4" /> {LL.adminFormSchedulesSection()}</span>
                         </h2>
                         <button
                             type="button"
                             onClick={addDia}
                             className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest bg-black text-white px-3 py-2 rounded-xl hover:bg-gray-800 transition"
                         >
-                            <Plus className="w-3 h-3" /> Agregar fecha
+                            <Plus className="w-3 h-3" /> {LL.adminFormAddDateCta()}
                         </button>
                     </div>
 
@@ -240,7 +240,7 @@ export function CreatePanoramaForm() {
                                 {/* Fecha */}
                                 <div className="grid grid-cols-12 gap-2 items-end mb-3">
                                     <div className="col-span-11">
-                                        <label className={labelCls}>Fecha</label>
+                                        <label className={labelCls}>{LL.adminFormDateLabel()}</label>
                                         <input type="date" value={dia.fecha}
                                             onChange={(e) => updateFecha(di, e.target.value)}
                                             className={inputCls} />
@@ -248,7 +248,7 @@ export function CreatePanoramaForm() {
                                     <div className="col-span-1 flex justify-center pb-1">
                                         <button type="button" onClick={() => removeDia(di)}
                                             className="text-gray-300 hover:text-red-500 transition p-1"
-                                            title="Quitar fecha">
+                                            title={LL.adminFormRemoveDateTitle()}>
                                             <Trash2 className="w-4 h-4" />
                                         </button>
                                     </div>
@@ -259,13 +259,13 @@ export function CreatePanoramaForm() {
                                     {dia.franjas.map((f, fi) => (
                                         <div key={fi} className="grid grid-cols-12 gap-2 items-end">
                                             <div className="col-span-5">
-                                                <label className={labelCls}>Inicio</label>
+                                                <label className={labelCls}>{LL.adminFormStartLabel()}</label>
                                                 <input type="time" value={f.horaInicio}
                                                     onChange={(e) => updateFranja(di, fi, 'horaInicio', e.target.value)}
                                                     className={inputCls} />
                                             </div>
                                             <div className="col-span-5">
-                                                <label className={labelCls}>Fin</label>
+                                                <label className={labelCls}>{LL.adminFormEndLabel()}</label>
                                                 <input type="time" value={f.horaFin}
                                                     onChange={(e) => updateFranja(di, fi, 'horaFin', e.target.value)}
                                                     className={inputCls} />
@@ -273,7 +273,7 @@ export function CreatePanoramaForm() {
                                             <div className="col-span-2 flex justify-center pb-1">
                                                 <button type="button" onClick={() => removeFranja(di, fi)}
                                                     className="text-gray-300 hover:text-red-500 transition p-1"
-                                                    title="Quitar horario">
+                                                    title={LL.adminFormRemoveSlotTitle()}>
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
                                             </div>
@@ -282,7 +282,7 @@ export function CreatePanoramaForm() {
 
                                     <button type="button" onClick={() => addFranja(di)}
                                         className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-gray-500 hover:text-black transition mt-1">
-                                        <Plus className="w-3 h-3" /> Agregar horario a esta fecha
+                                        <Plus className="w-3 h-3" /> {LL.adminFormAddSlotCta()}
                                     </button>
                                 </div>
                             </div>
@@ -293,28 +293,28 @@ export function CreatePanoramaForm() {
                 {/* Precio + Cupos */}
                 <section className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm">
                     <h2 className="text-lg font-black tracking-tighter text-gray-900 mb-6">
-                        Precio y disponibilidad
+                        {LL.adminFormPriceSection()}
                     </h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                         <div>
                             <label className={labelCls}>
-                                <span className="inline-flex items-center gap-1.5"><Ticket className="w-3 h-3" /> Precio (CLP)</span>
+                                <span className="inline-flex items-center gap-1.5"><Ticket className="w-3 h-3" /> {LL.adminFormPriceLabel()}</span>
                             </label>
                             <input type="number" min="0" value={precio}
                                 onChange={(e) => setPrecio(e.target.value)}
-                                placeholder="0 = gratis"
+                                placeholder={LL.adminFormPricePlaceholder()}
                                 className={inputCls} />
                         </div>
                         <div>
                             <label className={labelCls}>
-                                <span className="inline-flex items-center gap-1.5"><Users className="w-3 h-3" /> Cupos por día</span>
+                                <span className="inline-flex items-center gap-1.5"><Users className="w-3 h-3" /> {LL.adminFormSlotsLabel()}</span>
                             </label>
                             <input type="number" min="0" value={cuposPorDia}
                                 onChange={(e) => setCuposPorDia(e.target.value)}
-                                placeholder="Ej. 50"
+                                placeholder={LL.adminFormSlotsPlaceholder()}
                                 className={inputCls} />
                             <p className="text-[11px] text-gray-400 mt-1">
-                                Cupos que entrega el convenio cada día. Se descuentan con cada reserva/compra y se reinician al día siguiente.
+                                {LL.adminFormSlotsHint()}
                             </p>
                         </div>
                     </div>
@@ -327,7 +327,7 @@ export function CreatePanoramaForm() {
                         disabled={saving}
                         className="inline-flex items-center gap-2 bg-black text-white text-sm font-bold px-6 py-3 rounded-2xl hover:bg-gray-800 transition shadow-sm disabled:opacity-50"
                     >
-                        <Plus className="w-4 h-4" /> {saving ? 'Guardando...' : 'Crear panorama'}
+                        <Plus className="w-4 h-4" /> {saving ? LL.adminFormSavingCta() : LL.adminFormSubmitCta()}
                     </button>
                     {resultMsg && (
                         <span className={`text-xs font-bold ${resultMsg.ok ? 'text-emerald-600' : 'text-red-500'}`}>
@@ -340,7 +340,7 @@ export function CreatePanoramaForm() {
                 {preview && (
                     <section className="bg-gray-900 rounded-3xl p-6 shadow-sm">
                         <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">
-                            Datos que se enviarán al backend (próxima etapa)
+                            {LL.adminFormPreviewPayloadTitle()}
                         </h3>
                         <pre className="text-[12px] text-emerald-300 overflow-x-auto whitespace-pre-wrap">
                             {JSON.stringify(preview, null, 2)}
@@ -352,7 +352,7 @@ export function CreatePanoramaForm() {
             {/* ====== VISTA PREVIA EN VIVO (1 columna) ====== */}
             <div className="lg:col-span-1">
                 <div className="lg:sticky lg:top-28 space-y-3">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Vista previa</p>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{LL.adminFormPreviewLabel()}</p>
 
                     <div className="w-full bg-white rounded-[28px] overflow-hidden border border-gray-100 shadow-sm">
                         {/* Imagen */}
@@ -372,7 +372,7 @@ export function CreatePanoramaForm() {
                             {/* Badges arriba a la derecha (clima + distancia), como la tarjeta real */}
                             <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
                                 <div className="bg-white/90 backdrop-blur text-[10px] font-bold text-gray-700 px-2.5 py-1 rounded-full shadow-sm uppercase tracking-widest">
-                                    {tagClima === 'Sunny' ? 'Despejado' : 'Todo clima'}
+                                    {tagClima === 'Sunny' ? LL.adminWeatherSunnyShort() : LL.adminWeatherAllShort()}
                                 </div>
                                 <div className="bg-white/90 backdrop-blur text-[11px] font-bold text-gray-700 px-2.5 py-1 rounded-full shadow-sm inline-flex items-center gap-1">
                                     <MapPin className="w-3 h-3 text-orange-500" /> ~2,4 km
@@ -384,71 +384,71 @@ export function CreatePanoramaForm() {
                         <div className="p-5">
                             <span className="text-[9px] font-black text-orange-500 uppercase tracking-widest">{categoria}</span>
                             <h4 className="text-base font-black tracking-tighter text-gray-900 mt-1 mb-1">
-                                {nombre || 'Nombre del panorama'}
+                                {nombre || LL.adminFormNameLabel()}
                             </h4>
                             <div className="flex flex-col gap-1.5 text-xs text-gray-600 font-medium mb-2">
                                 <div className="flex items-center gap-2">
-                                    <span>🕒</span> Abierto: {dias[0]?.franjas[0]?.horaInicio && dias[0]?.franjas[0]?.horaFin
-                                        ? `${dias[0].franjas[0].horaInicio} - ${dias[0].franjas[0].horaFin}`
-                                        : 'por definir'}
+                                    <span>🕒</span> {dias[0]?.franjas[0]?.horaInicio && dias[0]?.franjas[0]?.horaFin
+                                        ? LL.openHours({ open: dias[0].franjas[0].horaInicio, close: dias[0].franjas[0].horaFin })
+                                        : LL.adminFormScheduleTBD()}
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                                    <span>Afluencia: Media</span>
+                                    <span>{LL.occupancyLabel({ level: LL.occupancyMedium() })}</span>
                                 </div>
                             </div>
-                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Precio base</span>
+                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{LL.priceLabel()}</span>
                             <div className="text-2xl font-black text-gray-900 tracking-tighter">
-                                {precio === '' ? '-' : Number(precio) === 0 ? 'Gratis' : `$${Number(precio).toLocaleString('es-CL')}`}
+                                {precio === '' ? '-' : Number(precio) === 0 ? LL.free() : `$${Number(precio).toLocaleString('es-CL')}`}
                             </div>
                         </div>
                     </div>
 
                     {/* Mini-preview del detalle: mismos bloques que el detalle real */}
                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Detalle (al tocar "Ver evento")</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{LL.adminFormDetailPreviewLabel()}</p>
                         <div>
                             <span className="text-[9px] font-black text-orange-500 uppercase tracking-widest">{categoria}</span>
-                            <h5 className="text-sm font-black text-gray-900">{nombre || 'Nombre del panorama'}</h5>
+                            <h5 className="text-sm font-black text-gray-900">{nombre || LL.adminFormNameLabel()}</h5>
                         </div>
                         <p className="text-xs text-gray-500 break-words whitespace-pre-line">
-                            {descripcion || 'Aqui aparecera la descripcion que escribas.'}
+                            {descripcion || LL.adminFormDescriptionFallback()}
                         </p>
                         <div className="grid grid-cols-2 gap-2">
                             <div className="bg-zinc-50 border border-gray-100 p-2 rounded-xl">
-                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">Clima sugerido</span>
-                                <div className="text-[11px] font-black text-gray-700">{tagClima === 'Sunny' ? 'Ideal Exterior' : 'Apto Todo Clima'}</div>
+                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">{LL.weatherSuggestedLabel()}</span>
+                                <div className="text-[11px] font-black text-gray-700">{tagClima === 'Sunny' ? LL.weatherIdealOutdoor() : LL.weatherAllWeatherFit()}</div>
                             </div>
                             <div className="bg-zinc-50 border border-gray-100 p-2 rounded-xl">
-                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">Horario</span>
+                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">{LL.scheduleLabel()}</span>
                                 <div className="text-[11px] font-black text-gray-700">
                                     {dias[0]?.franjas[0]?.horaInicio && dias[0]?.franjas[0]?.horaFin
-                                        ? `${dias[0].franjas[0].horaInicio} - ${dias[0].franjas[0].horaFin}`
-                                        : 'por definir'}
+                                        ? LL.openHours({ open: dias[0].franjas[0].horaInicio, close: dias[0].franjas[0].horaFin })
+                                        : LL.adminFormScheduleTBD()}
                                 </div>
                             </div>
                             <div className="bg-zinc-50 border border-gray-100 p-2 rounded-xl">
-                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">Precio base</span>
+                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">{LL.priceLabel()}</span>
                                 <div className="text-[11px] font-black text-gray-700">
-                                    {precio === '' ? '-' : Number(precio) === 0 ? 'Gratis' : `$${Number(precio).toLocaleString('es-CL')}`}
+                                    {precio === '' ? '-' : Number(precio) === 0 ? LL.free() : `$${Number(precio).toLocaleString('es-CL')}`}
                                 </div>
-                                <span className="text-[8px] text-gray-400">+ costo de servicio al pagar</span>
+                                <span className="text-[8px] text-gray-400">{LL.serviceFeeNote()}</span>
                             </div>
                             <div className="bg-zinc-50 border border-gray-100 p-2 rounded-xl">
-                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">Direccion</span>
-                                <div className="text-[11px] font-black text-gray-700 break-words">{direccion || 'Sin direccion'}</div>
+                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">{LL.addressLabel()}</span>
+                                <div className="text-[11px] font-black text-gray-700 break-words">{direccion || LL.adminFormNoAddressValue()}</div>
                             </div>
                         </div>
                         <div>
-                            <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">Mapa del lugar</span>
+                            <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">{LL.placeMapLabel()}</span>
                             <div className="w-full h-20 bg-zinc-100 border-2 border-dashed border-zinc-200 rounded-xl flex items-center justify-center text-[10px] text-gray-400 text-center px-2">
-                                Aquí se mostrará el mapa de Google del lugar
+                                {LL.adminFormMapPlaceholderText()}
                             </div>
                         </div>
                     </div>
 
                     <p className="text-[11px] text-gray-400 leading-relaxed">
-                        El badge ~2,4 km es donde se mostrara la distancia real al usuario (calculada desde la direccion geocodificada). El numero es de ejemplo hasta conectar la geocodificacion.
+                        {LL.adminFormDistanceNote()}
                     </p>
                 </div>
             </div>

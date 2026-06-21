@@ -775,6 +775,65 @@ type RootTranslation = {
 	 * R​e​c​o​m​e​n​d​a​d​o
 	 */
 	recommendedLabel: string
+	adminFormSectionPanoramaData: string
+	adminFormImageLabel: string
+	adminFormImagePlaceholder: string
+	adminFormImageHint: string
+	adminFormNameLabel: string
+	adminFormNamePlaceholder: string
+	adminFormDescriptionLabel: string
+	adminFormDescriptionPlaceholder: string
+	adminFormWeatherTagLabel: string
+	adminFormWeatherAllOption: string
+	adminFormWeatherSunnyOption: string
+	adminFormAddressLabel: string
+	adminFormAddressPlaceholder: string
+	adminFormGeoInfoHtml: string
+	adminFormGeoInfoHint: string
+	adminFormSchedulesSection: string
+	adminFormAddDateCta: string
+	adminFormDateLabel: string
+	adminFormRemoveDateTitle: string
+	adminFormStartLabel: string
+	adminFormEndLabel: string
+	adminFormRemoveSlotTitle: string
+	adminFormAddSlotCta: string
+	adminFormPriceSection: string
+	adminFormPriceLabel: string
+	adminFormPricePlaceholder: string
+	adminFormSlotsLabel: string
+	adminFormSlotsPlaceholder: string
+	adminFormSlotsHint: string
+	adminFormSavingCta: string
+	adminFormSubmitCta: string
+	adminFormPreviewPayloadTitle: string
+	adminFormPreviewLabel: string
+	adminWeatherSunnyShort: string
+	adminWeatherAllShort: string
+	adminFormScheduleTBD: string
+	adminFormDetailPreviewLabel: string
+	adminFormDescriptionFallback: string
+	adminFormNoAddressValue: string
+	adminFormMapPlaceholderText: string
+	adminFormDistanceNote: string
+	adminFormErrorCreating: string
+	adminFormSuccessGeocoded: string
+	adminFormSuccessNotGeocoded: string
+	adminFormSaveErrorGeneric: string
+	adminManageLoadError: string
+	adminManageLoadErrorGeneric: string
+	adminManageDeleteConfirm: RequiredParams<'name'>
+	adminManageRegeoSuccess: RequiredParams<'n'>
+	adminManageRegeoError: string
+	adminManageGeocodingCta: string
+	adminManageRegeocodeCta: string
+	adminManageReloadCta: string
+	adminManageEmptyCategory: string
+	adminManageNoPrice: string
+	adminManageAvailabilityTitle: string
+	adminManageAvailableLabel: string
+	adminManageUnavailableLabel: string
+	adminManageDeleteTitle: string
 }
 
 export type TranslationFunctions = {
@@ -1534,6 +1593,65 @@ export type TranslationFunctions = {
 	 * Recomendado
 	 */
 	recommendedLabel: () => LocalizedString
+	adminFormSectionPanoramaData: () => LocalizedString
+	adminFormImageLabel: () => LocalizedString
+	adminFormImagePlaceholder: () => LocalizedString
+	adminFormImageHint: () => LocalizedString
+	adminFormNameLabel: () => LocalizedString
+	adminFormNamePlaceholder: () => LocalizedString
+	adminFormDescriptionLabel: () => LocalizedString
+	adminFormDescriptionPlaceholder: () => LocalizedString
+	adminFormWeatherTagLabel: () => LocalizedString
+	adminFormWeatherAllOption: () => LocalizedString
+	adminFormWeatherSunnyOption: () => LocalizedString
+	adminFormAddressLabel: () => LocalizedString
+	adminFormAddressPlaceholder: () => LocalizedString
+	adminFormGeoInfoHtml: () => LocalizedString
+	adminFormGeoInfoHint: () => LocalizedString
+	adminFormSchedulesSection: () => LocalizedString
+	adminFormAddDateCta: () => LocalizedString
+	adminFormDateLabel: () => LocalizedString
+	adminFormRemoveDateTitle: () => LocalizedString
+	adminFormStartLabel: () => LocalizedString
+	adminFormEndLabel: () => LocalizedString
+	adminFormRemoveSlotTitle: () => LocalizedString
+	adminFormAddSlotCta: () => LocalizedString
+	adminFormPriceSection: () => LocalizedString
+	adminFormPriceLabel: () => LocalizedString
+	adminFormPricePlaceholder: () => LocalizedString
+	adminFormSlotsLabel: () => LocalizedString
+	adminFormSlotsPlaceholder: () => LocalizedString
+	adminFormSlotsHint: () => LocalizedString
+	adminFormSavingCta: () => LocalizedString
+	adminFormSubmitCta: () => LocalizedString
+	adminFormPreviewPayloadTitle: () => LocalizedString
+	adminFormPreviewLabel: () => LocalizedString
+	adminWeatherSunnyShort: () => LocalizedString
+	adminWeatherAllShort: () => LocalizedString
+	adminFormScheduleTBD: () => LocalizedString
+	adminFormDetailPreviewLabel: () => LocalizedString
+	adminFormDescriptionFallback: () => LocalizedString
+	adminFormNoAddressValue: () => LocalizedString
+	adminFormMapPlaceholderText: () => LocalizedString
+	adminFormDistanceNote: () => LocalizedString
+	adminFormErrorCreating: () => LocalizedString
+	adminFormSuccessGeocoded: () => LocalizedString
+	adminFormSuccessNotGeocoded: () => LocalizedString
+	adminFormSaveErrorGeneric: () => LocalizedString
+	adminManageLoadError: () => LocalizedString
+	adminManageLoadErrorGeneric: () => LocalizedString
+	adminManageDeleteConfirm: (arg: { name: unknown }) => LocalizedString
+	adminManageRegeoSuccess: (arg: { n: unknown }) => LocalizedString
+	adminManageRegeoError: () => LocalizedString
+	adminManageGeocodingCta: () => LocalizedString
+	adminManageRegeocodeCta: () => LocalizedString
+	adminManageReloadCta: () => LocalizedString
+	adminManageEmptyCategory: () => LocalizedString
+	adminManageNoPrice: () => LocalizedString
+	adminManageAvailabilityTitle: () => LocalizedString
+	adminManageAvailableLabel: () => LocalizedString
+	adminManageUnavailableLabel: () => LocalizedString
+	adminManageDeleteTitle: () => LocalizedString
 }
 
 export type Formatters = {}
