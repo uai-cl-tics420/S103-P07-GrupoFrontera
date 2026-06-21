@@ -38,7 +38,7 @@ export const auth = betterAuth({
         },
     },
 
-    trustedOrigins: ["http://localhost:4000", "http://localhost:5173"],
+    trustedOrigins: ["http://localhost:4000", "http://localhost:5173", "https://panoramapp.onrender.com"],
 
     session: {
         expiresIn: 60 * 60 * 24 * 30,
