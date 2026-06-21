@@ -28,12 +28,12 @@ const makeActivity = (
     return act;
 };
 
-const makeUser = (preferences: Category[], lat: number, lng: number, favorites: string[] = [], reservations: string[] = []): User => ({
+const makeUser = (preferences: Category[], lat: number, lng: number, favorites: string[] = [], reservations: string[] = [], purchased: string[] = []): User => ({
     id: "test-user",
     name: "Test",
     preferences,
     currentLocation: { lat, lng },
-    history: { favorites, reservations }
+    history: { favorites, reservations, purchased }
 });
 
 describe("getRecommendedActivities (Smart Engine)", () => {
@@ -46,7 +46,8 @@ describe("getRecommendedActivities (Smart Engine)", () => {
         ];
         const user = makeUser([Category.PARQUE], 0, 0);
 
-        const result = getRecommendedActivities(user, activities);
+        // Hora diurna fija ("14:00") para que la regla de "exterior de noche" no afecte al Parque.
+        const result = getRecommendedActivities(user, activities, undefined, "14:00");
         expect(result[0]!.category).toBe(Category.PARQUE);
     });
 
@@ -86,20 +87,35 @@ describe("getRecommendedActivities (Smart Engine)", () => {
         // Le gusta el parque
         const user = makeUser([], 0, 0, ["2"], []);
 
-        const result = getRecommendedActivities(user, activities);
+        // Hora diurna fija ("14:00") para aislar el efecto del favorito de la regla de noche.
+        const result = getRecommendedActivities(user, activities, undefined, "14:00");
         expect(result[0]!.id).toBe("2");
     });
 
-    it("penaliza las actividades que el usuario ya reservó", () => {
+    it("trata una reserva (pendiente) como interés: el panorama reservado se recomienda", () => {
         const activities = [
             makeActivity("1", Category.CINE, 0, 0),
             makeActivity("2", Category.CINE, 0, 0),
         ];
-        // Ya reservó el cine 1
+        // Reservó el cine 1 (aún no lo paga/realiza) => es interés, como un like
         const user = makeUser([], 0, 0, [], ["1"]);
 
         const result = getRecommendedActivities(user, activities);
-        expect(result[0]!.id).toBe("2"); // Recomienda el cine 2 no reservado primero
+        expect(result[0]!.id).toBe("1"); // El reservado (interés) queda arriba
+    });
+
+    it("NO recomienda un panorama ya comprado/realizado aunque sea de interés (cae al fondo)", () => {
+        const activities = [
+            makeActivity("1", Category.CINE, 0, 0),
+            makeActivity("2", Category.CINE, 0, 0),
+        ];
+        // Compró/pagó el cine 1 (realizado): sigue contando como interés para similitud,
+        // pero el panorama en sí no debe recomendarse de nuevo.
+        const user = makeUser([], 0, 0, [], ["1"], ["1"]);
+
+        const result = getRecommendedActivities(user, activities);
+        expect(result[result.length - 1]!.id).toBe("1"); // El realizado cae al fondo
+        expect(result[0]!.id).toBe("2"); // El no realizado queda recomendado primero
     });
 
     it("array vacío de actividades retorna array vacío", () => {
@@ -230,5 +246,59 @@ describe("getRecommendedActivities (Smart Engine)", () => {
         // Con el bono de descubrimiento, la actividad más cercana/compatible puede ganar terreno frente a favoritos lejanos
         const result = getRecommendedActivities(user, activities);
         expect(result[0]!.id).toBe("2"); // El descubrimiento más cercano y compatible pasa al puesto 1
+    });
+
+    // --- NUEVOS TEST CASES: REGLAS HORARIAS DEL MOTOR HÍBRIDO (#61) ---
+
+    it("reachability: penaliza un evento de hora fija si no alcanzas a llegar a tiempo", () => {
+        // Dos cines con la misma función corta (20:00-22:00 = ventana de 2h => evento de hora fija)
+        const activities = [
+            makeActivity("near", Category.CINE, 0, 0, "20:00", "22:00", "Cine Cercano"),
+            makeActivity("far", Category.CINE, 0.5, 0.5, "20:00", "22:00", "Cine Lejano"), // ~78km => ETA enorme
+        ];
+        const user = makeUser([], 0, 0);
+
+        // Objetivo 20:00: el cercano llega a tiempo (ETA~0), el lejano llega cuando ya empezó.
+        const result = getRecommendedActivities(user, activities, undefined, "20:00");
+        expect(result[0]!.id).toBe("near");
+        expect(result[result.length - 1]!.id).toBe("far");
+    });
+
+    it("reachability: en entrada libre penaliza si llegas sin tiempo útil antes del cierre", () => {
+        // Dos museos a la misma distancia (ventana larga => entrada libre); uno cierra pronto.
+        const activities = [
+            makeActivity("amplio", Category.MUSEO, 0, 0, "09:00", "23:00", "Museo Amplio"),
+            makeActivity("cerrando", Category.MUSEO, 0, 0, "09:00", "18:00", "Museo Cerrando"),
+        ];
+        const user = makeUser([], 0, 0);
+
+        // A las 17:45, llegar al que cierra 18:00 deja < 30 min de disfrute => penalizado.
+        const result = getRecommendedActivities(user, activities, undefined, "17:45");
+        expect(result[0]!.id).toBe("amplio");
+    });
+
+    it("noche: penaliza panoramas al aire libre entre las 20:00 y las 07:00", () => {
+        const activities = [
+            makeActivity("parque", Category.PARQUE, 0, 0, undefined, undefined, "Parque Nocturno"),
+            makeActivity("museo", Category.MUSEO, 0, 0, undefined, undefined, "Museo Nocturno"),
+        ];
+        const user = makeUser([], 0, 0);
+
+        // A las 22:00, el Parque (exterior) baja y el Museo (interior) queda primero.
+        const result = getRecommendedActivities(user, activities, undefined, "22:00");
+        expect(result[0]!.category).toBe(Category.MUSEO);
+        expect(result[result.length - 1]!.category).toBe(Category.PARQUE);
+    });
+
+    it("noche: con targetTime 'any' NO se aplica la penalización de exterior", () => {
+        const activities = [
+            makeActivity("parque", Category.PARQUE, 0, 0, undefined, undefined, "Parque Libre"),
+            makeActivity("museo", Category.MUSEO, 0, 0, undefined, undefined, "Museo Libre"),
+        ];
+        // El usuario prefiere Parque: sin penalización de noche, debe quedar primero.
+        const user = makeUser([Category.PARQUE], 0, 0);
+
+        const result = getRecommendedActivities(user, activities, undefined, "any");
+        expect(result[0]!.category).toBe(Category.PARQUE);
     });
 });

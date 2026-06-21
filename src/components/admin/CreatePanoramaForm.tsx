@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Plus, Trash2, MapPin, Image as ImageIcon, Clock, Ticket, Users, Info } from 'lucide-react';
 import { Category } from '@/types';
+import { useToast } from '@/context/ToastContext';
 
 /**
  * Formulario de creación de panoramas (segunda pestaña del panel admin).
@@ -39,6 +40,12 @@ export function CreatePanoramaForm() {
     const [imgError, setImgError] = useState(false);
     const [saving, setSaving] = useState(false);
     const [resultMsg, setResultMsg] = useState<{ ok: boolean; text: string } | null>(null);
+    const { showToast } = useToast();
+    const [placeId, setPlaceId] = useState<string | null>(null);
+    const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+    const [suggestions, setSuggestions] = useState<{ placeId: string; description: string }[]>([]);
+    const [showSug, setShowSug] = useState(false);
+    const acTimer = useRef<any>(null);
 
     const addDia = () =>
         setDias((d) => [...d, { fecha: '', franjas: [{ horaInicio: '', horaFin: '' }] }]);
@@ -65,8 +72,59 @@ export function CreatePanoramaForm() {
                 ? { ...row, franjas: row.franjas.map((fr, j) => (j === fi ? { ...fr, [field]: value } : fr)) }
                 : row));
 
+    const onDireccionChange = (value: string) => {
+        setDireccion(value);
+        setPlaceId(null);
+        setCoords(null);
+        if (acTimer.current) clearTimeout(acTimer.current);
+        if (value.trim().length < 3) { setSuggestions([]); setShowSug(false); return; }
+        acTimer.current = setTimeout(async () => {
+            try {
+                const res = await fetch(`/api/places/autocomplete?q=${encodeURIComponent(value)}`, { credentials: 'include' });
+                const data = await res.json();
+                setSuggestions(data?.suggestions || []);
+                setShowSug(true);
+            } catch { setSuggestions([]); }
+        }, 350);
+    };
+
+    const pickSuggestion = async (sug: { placeId: string; description: string }) => {
+        setShowSug(false);
+        setSuggestions([]);
+        setDireccion(sug.description);
+        setPlaceId(sug.placeId);
+        try {
+            const res = await fetch(`/api/places/details?placeId=${encodeURIComponent(sug.placeId)}`, { credentials: 'include' });
+            const data = await res.json();
+            if (res.ok && typeof data?.lat === 'number') {
+                setCoords({ lat: data.lat, lng: data.lng });
+                if (data.address) setDireccion(data.address);
+            }
+        } catch { /* noop */ }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Validacion de inputs
+        const errores: string[] = [];
+        if (!nombre.trim()) errores.push('El nombre es obligatorio.');
+        if (precio !== '' && Number(precio) < 0) errores.push('El precio no puede ser negativo.');
+        if (cuposPorDia !== '' && Number(cuposPorDia) < 0) errores.push('Los cupos no pueden ser negativos.');
+        for (const d of dias) {
+            if (!d.fecha) continue;
+            for (const f of d.franjas) {
+                if (f.horaInicio && f.horaFin && f.horaInicio >= f.horaFin) {
+                    errores.push(`En la fecha ${d.fecha}, la hora de inicio debe ser anterior a la de fin.`);
+                    break;
+                }
+            }
+        }
+        if (errores.length > 0) {
+            showToast(errores[0], 'error');
+            setResultMsg({ ok: false, text: errores[0] });
+            return;
+        }
         // Objeto que (en la próxima etapa) se enviará a POST /api/admin/activities
         const payload = {
             name: nombre,
@@ -77,14 +135,15 @@ export function CreatePanoramaForm() {
             price: precio === '' ? null : Number(precio),
             cupos_por_dia: cuposPorDia === '' ? null : Number(cuposPorDia),
             image_url: imageUrl || null,
+            place_id: placeId,
             schedules: dias
                 .filter((d) => d.fecha)
                 .map((d) => ({
                     fecha: d.fecha,
                     franjas: d.franjas.filter((f) => f.horaInicio || f.horaFin),
                 })),
-            // lat/lng se calcularán en el backend geocodificando "address"
-            coordinates: null,
+            // Coordenadas capturadas del autocomplete de Google; si es null, el backend geocodifica "address"
+            coordinates: coords,
         };
         setPreview(payload);
         setSaving(true);
@@ -98,14 +157,15 @@ export function CreatePanoramaForm() {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data?.error || 'Error al crear el panorama');
-            setResultMsg({
-                ok: true,
-                text: data.geocoded
-                    ? 'Panorama creado y guardado. Direccion geocodificada.'
-                    : 'Panorama creado y guardado (la direccion no se pudo geocodificar; sin distancia por ahora).',
-            });
+            const okText = data.geocoded
+                ? 'Panorama creado y guardado. Direccion geocodificada.'
+                : 'Panorama creado y guardado (sin geocodificar; la direccion no se pudo ubicar).';
+            setResultMsg({ ok: true, text: okText });
+            showToast(okText, 'success');
         } catch (err: any) {
-            setResultMsg({ ok: false, text: err?.message || 'No se pudo guardar el panorama.' });
+            const errText = err?.message || 'No se pudo guardar el panorama.';
+            setResultMsg({ ok: false, text: errText });
+            showToast(errText, 'error');
         } finally {
             setSaving(false);
         }
@@ -201,20 +261,38 @@ export function CreatePanoramaForm() {
                     <label className={labelCls}>
                         <span className="inline-flex items-center gap-1.5"><MapPin className="w-3 h-3" /> Dirección o localidad real</span>
                     </label>
-                    <input
-                        type="text"
-                        value={direccion}
-                        onChange={(e) => setDireccion(e.target.value)}
-                        placeholder="Ej. Av. Kennedy 5413, Las Condes, Santiago"
-                        className={inputCls}
-                    />
+                    <div className="relative">
+                        <input
+                            type="text"
+                            value={direccion}
+                            onChange={(e) => onDireccionChange(e.target.value)}
+                            onFocus={() => suggestions.length > 0 && setShowSug(true)}
+                            placeholder="Escribe y elige una direccion de Google..."
+                            className={inputCls}
+                            autoComplete="off"
+                        />
+                        {showSug && suggestions.length > 0 && (
+                            <ul className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-56 overflow-auto">
+                                {suggestions.map((sug) => (
+                                    <li key={sug.placeId}>
+                                        <button type="button" onClick={() => pickSuggestion(sug)}
+                                            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                                            {sug.description}
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                    {coords && (
+                        <p className="text-[11px] text-emerald-600 font-bold mt-1">✓ Ubicacion seleccionada de Google (coordenadas capturadas).</p>
+                    )}
                     <div className="mt-3 flex items-start gap-2 bg-blue-50/60 border border-blue-100 rounded-xl p-3">
                         <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
                         <p className="text-[12px] text-blue-700 leading-relaxed">
-                            Desde esta dirección, el backend obtendrá las <strong>coordenadas (lat/lng)</strong> mediante
-                            geocodificación con Google. Con esas coordenadas y la ubicación del usuario, la app calcula
-                            la <strong>distancia aproximada</strong>, que se muestra en la tarjeta del panorama (no se ingresa aquí).
-                            <span className="block text-blue-400 mt-1">→ Ver dónde aparece en la vista previa de la derecha.</span>
+                            Escribe la direccion y <strong>elige una sugerencia de Google</strong> para capturar el placeId y las
+                            <strong> coordenadas exactas</strong>. Si no eliges sugerencia, el backend geocodifica el texto al guardar.
+                            La distancia se calcula con esas coordenadas y se muestra en la tarjeta.
                         </p>
                     </div>
                 </section>
