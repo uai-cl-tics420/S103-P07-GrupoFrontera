@@ -32,7 +32,7 @@ if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !JWT_SECRET || !OPENWEATHER_AP
 const app = new Elysia();
 
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: ['http://localhost:5173', 'https://panoramapp.onrender.com'],
   credentials: true
 }));
 
