@@ -6,6 +6,7 @@
 ALTER TABLE activities ADD COLUMN IF NOT EXISTS image_url text;
 ALTER TABLE activities ADD COLUMN IF NOT EXISTS description text;
 ALTER TABLE activities ADD COLUMN IF NOT EXISTS address text;
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS place_id text;
 ALTER TABLE activities ADD COLUMN IF NOT EXISTS price integer;
 ALTER TABLE activities ADD COLUMN IF NOT EXISTS cupos_por_dia integer;
 

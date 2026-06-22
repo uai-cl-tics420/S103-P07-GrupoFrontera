@@ -1,62 +1,35 @@
 import { useState, useEffect } from 'react';
 import { Category } from '../types';
 
-// Clave con la que guardamos en localStorage
-const STORAGE_KEY = 'panoramas_categoria_preferida';
-
 /**
- * Hook que persiste la categoría preferida del usuario.
- * - Al arrancar: lee primero desde la DB (/api/preferences). Si no hay nada, usa localStorage.
- * - Al cambiar: guarda en localStorage inmediatamente Y llama PUT /api/preferences (fire-and-forget).
+ * Hook de estado del usuario.
+ *
+ * - `role`: se consulta desde la BD (/api/preferences) para distinguir admin/user.
+ * - `preferredCategory`: filtro de categoría TRANSITORIO de la sesión actual.
+ *   IMPORTANTE: NO es una preferencia persistida. La categoría solo sirve para
+ *   filtrar la vista y como señal de "panoramas similares" en el motor.
+ *   La preferencia REAL del usuario se infiere de sus likes / reservas / compras,
+ *   no de la pestaña de categoría que tenga seleccionada.
  */
 export function useUserPreferences(userId?: string) {
-    const [preferredCategory, setPreferredCategory] = useState<Category | null>(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved && Object.values(Category).includes(saved as Category)) {
-            return saved as Category;
-        }
-        return null;
-    });
+    const [preferredCategory, setPreferredCategory] = useState<Category | null>(null);
     const [role, setRole] = useState<'user' | 'admin'>('user');
 
-    // Al montar (y cuando llega el userId), consulta la DB.
+    // Solo consultamos el ROL del usuario. La categoría no se carga ni se persiste:
+    // es un filtro de navegación, no una preferencia.
     useEffect(() => {
         if (!userId) return;
         fetch(`/api/preferences/${userId}`)
             .then(r => r.json())
-            .then((data: { categories: string[]; role?: 'user' | 'admin' }) => {
-                const first = data.categories[0];
-                if (first && Object.values(Category).includes(first as Category)) {
-                    setPreferredCategory(first as Category);
-                }
+            .then((data: { role?: 'user' | 'admin' }) => {
                 if (data.role) {
                     setRole(data.role);
                 }
             })
             .catch(() => {
-                // Si la DB no responde, el localStorage ya está activo como fallback.
+                // Si la DB no responde, asumimos rol 'user' por defecto.
             });
     }, [userId]);
-
-    // Al cambiar categoría: guarda en localStorage Y envía a la DB en segundo plano.
-    useEffect(() => {
-        if (preferredCategory === null) {
-            localStorage.removeItem(STORAGE_KEY);
-        } else {
-            localStorage.setItem(STORAGE_KEY, preferredCategory);
-        }
-
-        if (!userId) return;
-        const categories = preferredCategory ? [preferredCategory] : [];
-        fetch(`/api/preferences/${userId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ categories }),
-        }).catch(() => {
-            // Error de red: la preferencia ya quedó en localStorage, no es crítico.
-        });
-    }, [preferredCategory, userId]);
-
 
     return {
         preferredCategory,
