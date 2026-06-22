@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { X, Tag, CloudSun, Clock, MapPin } from 'lucide-react';
 import { useT } from '@/i18n/context';
-import type { TranslationKey } from '@/i18n/translations';
+type CategoryKey = 'categoryCine' | 'categoryParque' | 'categoryTeatro' | 'categoryMuseo' | 'categoryRestaurante' | 'categoryMiradores';
 
 interface DetailsModalProps {
     activity: {
@@ -18,7 +18,7 @@ interface DetailsModalProps {
     onReserve?: () => void;
 }
 
-const categoryKeyMap: Record<string, TranslationKey> = {
+const categoryKeyMap: Record<string, CategoryKey> = {
     'Cine': 'categoryCine',
     'Parque': 'categoryParque',
     'Teatro': 'categoryTeatro',
@@ -28,7 +28,7 @@ const categoryKeyMap: Record<string, TranslationKey> = {
 };
 
 export function DetailsModal({ activity, open, onClose, onReserve }: DetailsModalProps) {
-    const { t } = useT();
+    const { LL } = useT();
 
     useEffect(() => {
         if (!open) return;
@@ -39,12 +39,11 @@ export function DetailsModal({ activity, open, onClose, onReserve }: DetailsModa
 
     if (!open || !activity) return null;
 
-    const categoryLabel = categoryKeyMap[activity.category]
-        ? t(categoryKeyMap[activity.category])
-        : activity.category;
+    const categoryKey = categoryKeyMap[activity.category];
+    const categoryLabel = categoryKey ? LL[categoryKey]() : activity.category;
     const weatherLabel = activity.tagClima === 'Sunny'
-        ? t('weatherSunny')
-        : t('weatherAll');
+        ? LL.weatherSunny()
+        : LL.weatherAll();
 
     return (
         <div
@@ -57,13 +56,13 @@ export function DetailsModal({ activity, open, onClose, onReserve }: DetailsModa
             >
                 <div className="flex items-center justify-between px-6 sm:px-8 pt-6 pb-2">
                     <h2 className="text-xl sm:text-2xl font-black tracking-tighter text-gray-900">
-                        {t('detailsModalTitle')}
+                        {LL.detailsModalTitle()}
                     </h2>
                     <button
                         type="button"
                         onClick={onClose}
                         className="text-gray-400 hover:text-gray-900 transition-colors"
-                        aria-label={t('reservationClose')}
+                        aria-label={LL.reservationClose()}
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -79,15 +78,15 @@ export function DetailsModal({ activity, open, onClose, onReserve }: DetailsModa
                 </div>
 
                 <div className="px-6 sm:px-8 py-5 flex flex-col gap-3">
-                    <Row icon={Tag} label={t('detailsCategoryLabel')} value={categoryLabel} />
-                    <Row icon={CloudSun} label={t('detailsWeatherLabel')} value={weatherLabel} />
+                    <Row icon={Tag} label={LL.detailsCategoryLabel()} value={categoryLabel} />
+                    <Row icon={CloudSun} label={LL.detailsWeatherLabel()} value={weatherLabel} />
                     {activity.openingHour && activity.closingHour && (
-                        <Row icon={Clock} label={t('detailsHoursLabel')} value={`${activity.openingHour} - ${activity.closingHour}`} />
+                        <Row icon={Clock} label={LL.detailsHoursLabel()} value={`${activity.openingHour} - ${activity.closingHour}`} />
                     )}
                     {activity.coordinates && (
                         <Row
                             icon={MapPin}
-                            label={t('detailsCoordsLabel')}
+                            label={LL.detailsCoordsLabel()}
                             value={`${activity.coordinates.lat.toFixed(4)}, ${activity.coordinates.lng.toFixed(4)}`}
                         />
                     )}
@@ -100,7 +99,7 @@ export function DetailsModal({ activity, open, onClose, onReserve }: DetailsModa
                             onClick={() => { onClose(); onReserve(); }}
                             className="flex-1 bg-black text-white text-sm font-black py-3 sm:py-4 rounded-2xl hover:bg-zinc-800 active:scale-[0.98] transition-all uppercase tracking-widest shadow-lg shadow-black/10"
                         >
-                            {t('reserveOnlyCta')}
+                            {LL.reserveOnlyCta()}
                         </button>
                     )}
                     <button
@@ -108,7 +107,7 @@ export function DetailsModal({ activity, open, onClose, onReserve }: DetailsModa
                         onClick={onClose}
                         className="flex-1 sm:flex-initial bg-gray-100 text-gray-600 text-xs font-bold py-3 sm:py-4 px-4 rounded-2xl hover:bg-gray-200 transition-all uppercase tracking-widest"
                     >
-                        {t('reservationClose')}
+                        {LL.reservationClose()}
                     </button>
                 </div>
             </div>

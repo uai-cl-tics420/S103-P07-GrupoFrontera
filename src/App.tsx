@@ -88,7 +88,7 @@ export function App() {
 
   const { activities, loading, error } = useActivities();
   const { preferredCategory, setPreferredCategory, role } = useUserPreferences(session?.user?.id);
-  const { t } = useT();
+  const { LL } = useT();
 
   // Sincroniza el estado con el boton "Atras" del browser
   React.useEffect(() => {
@@ -132,7 +132,12 @@ export function App() {
         }
       );
     }
-  }, [session]);
+    // Usamos session?.user?.id (primitivo estable) en vez del objeto `session` completo:
+    // el objeto que devuelve useSession() puede cambiar de referencia entre renders
+    // aunque los datos sean los mismos, lo que disparaba este efecto en loop infinito
+    // (geolocalización -> setCoords -> re-render -> fetch a /api/activities -> ...)
+    // y terminaba agotando la conexión a Postgres.
+  }, [session?.user?.id]);
 
   const [userHistory, setUserHistory] = React.useState<{ favorites: string[], reservations: string[] }>({ favorites: [], reservations: [] });
 
@@ -227,7 +232,7 @@ export function App() {
       }
     } catch (err) {
       console.error("Error cargando panoramas dinámicos:", err);
-      showToast("No se pudo conectar con el servicio meteorológico.", "error");
+      showToast(LL.toastWeatherError(), "error");
 
 
     } finally {
@@ -240,7 +245,8 @@ export function App() {
       historyLoadedRef.current = false; // Permitir recarga limpia al cambiar usuario, ubicación o planificación
       fetchFilteredActivities(preferredCategory, apiFilters);
     }
-  }, [coords, session, planningState, preferredCategory]); // Se ejecuta al cambiar ubicación, sesión o preferencia
+    // session?.user?.id en vez de session completo: misma razón que el efecto de geolocalización.
+  }, [coords, session?.user?.id, planningState, preferredCategory]); // Se ejecuta al cambiar ubicación, sesión o preferencia
 
   const handleToggleFavorite = async (activityId: string) => {
     const isFav = userHistory.favorites.includes(activityId);
@@ -250,9 +256,9 @@ export function App() {
 
 
     if (isFav) {
-      showToast("Eliminado de tus favoritos.", "info");
+      showToast(LL.toastFavRemoved(), "info");
     } else {
-      showToast("¡Panorama guardado en tus favoritos!", "success");
+      showToast(LL.toastFavAdded(), "success");
     }
 
     // Update local state optimistically
@@ -371,7 +377,9 @@ export function App() {
     setSelectedCategory(category);
     if (category !== null) {
       setPreferredCategory(category);
-      showToast(`Mostrando ${category}.`, "info");
+
+      showToast(LL.toastPrefsSaved({ category: category as string }), "info");
+
     }
 
     // Reiniciar los filtros locales para que sean independientes por categoría (Lógica de Barros/Daniel)
@@ -386,7 +394,7 @@ export function App() {
   if (isPending) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA] px-4">
-        <p className="font-black italic text-gray-400 animate-pulse">{t('loading')}</p>
+        <p className="font-black italic text-gray-400 animate-pulse">{LL.loading()}</p>
       </div>
     );
   }
@@ -426,7 +434,7 @@ export function App() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center px-4">
-        <p className="text-gray-400 font-bold tracking-widest uppercase text-sm">{t('loadingPanoramas')}</p>
+        <p className="text-gray-400 font-bold tracking-widest uppercase text-sm">{LL.loadingPanoramas()}</p>
       </div>
     );
   }
@@ -435,7 +443,7 @@ export function App() {
   if (error) {
     return (
       <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center px-4">
-        <p className="text-red-400 font-bold tracking-widest uppercase text-sm text-center">{t('errorPrefix')}: {error}</p>
+        <p className="text-red-400 font-bold tracking-widest uppercase text-sm text-center">{LL.errorPrefix()}: {error}</p>
       </div>
     );
   }
@@ -444,16 +452,16 @@ export function App() {
   const handleSignOut = async () => {
     try {
       await authClient.signOut();
-      showToast("Sesión cerrada correctamente. ¡Vuelve pronto!", "info");
+      showToast(LL.toastSignoutSuccess(), "info");
     } catch (err) {
       console.error("Error al cerrar sesión:", err);
-      showToast("Hubo un problema al cerrar tu sesión.", "error");
+      showToast(LL.toastSignoutError(), "error");
     }
   };
 
   //Función para manejar las reservas por ahora
   const handleReserve = async (activityId: string) => {
-    showToast("¡Reserva completada con éxito!", "success");
+    showToast(LL.toastReservationSuccess(), "success");
     //Estado optimista inmediato (Se pone verde)
     setUserHistory(prev => {
       if (prev.reservations.includes(activityId)) return prev;
@@ -527,7 +535,7 @@ export function App() {
               onClick={() => navigate('reservations')}
               className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-gray-900 transition-colors whitespace-nowrap px-2 py-1 border border-gray-200 rounded"
             >
-              {t('myReservationsLink')}
+              {LL.myReservationsLink()}
             </button>
 
             {role === 'admin' && (
@@ -535,7 +543,7 @@ export function App() {
                 onClick={() => navigate('admin')}
                 className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-gray-900 transition-colors whitespace-nowrap px-2 py-1 border border-gray-200 rounded"
               >
-                {t('adminAccessLink')}
+                {LL.adminAccessLink()}
               </button>
             )}
             <LanguageToggle />
@@ -546,7 +554,7 @@ export function App() {
               onClick={handleSignOut}
               className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-red-400 transition-colors whitespace-nowrap"
             >
-              {t('logout')}
+              {LL.logout()}
             </button>
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-fuchsia-600 border-2 border-white shadow-md flex-shrink-0"></div>
           </div>
@@ -572,17 +580,17 @@ export function App() {
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-gradient-to-r from-orange-500/10 to-fuchsia-600/10 border border-orange-500/20 rounded-2xl shadow-sm mb-2 animate-fade-in">
               <div className="flex flex-col gap-1 text-center sm:text-left">
                 <h3 className="text-base sm:text-lg font-black tracking-tight text-gray-900 leading-tight">
-                  🧠 ¿No sabes qué hacer? ¡Te recomendamos panoramas!
+                  {LL.recommendBannerTitle()}
                 </h3>
                 <p className="text-xs text-gray-600 font-medium">
-                  Encuentra las mejores opciones según el clima y horarios de hoy o de cualquier fecha que elijas.
+                  {LL.recommendBannerText()}
                 </p>
               </div>
               <button
                 onClick={() => setIsModalOpen(true)}
                 className="w-full sm:w-auto bg-gradient-to-r from-orange-500 to-fuchsia-600 hover:from-orange-600 hover:to-fuchsia-700 text-white text-xs font-black px-6 py-3 rounded-xl transition-all active:scale-[0.97] shadow-md shadow-orange-500/10 uppercase tracking-wider whitespace-nowrap cursor-pointer"
               >
-                Recomendar Panoramas
+                {LL.recommendBannerCta()}
               </button>
             </div>
           )}
@@ -593,22 +601,22 @@ export function App() {
                 <div className="flex items-center justify-center sm:justify-start gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
                   <h3 className="text-base sm:text-lg font-black tracking-tight text-emerald-950 leading-tight">
-                    {planningState.date === 'today' ? '📅 Recomendación para Hoy Activa' : '📅 Recomendación Planificada Activa'}
+                    {planningState.date === 'today' ? LL.planningActiveTodayTitle() : LL.planningActiveFutureTitle()}
                   </h3>
                 </div>
                 <p className="text-xs text-emerald-800 font-semibold mt-1">
                   {planningState.date === 'today' ? (
                     <>
-                      Mostrando panoramas ideales para <span className="font-bold underline">hoy</span> en tiempo real. Clima detectado por API: <span className="font-bold underline">{weatherInfo?.condition === 'Clear' ? '☀️ Despejado' : weatherInfo?.condition === 'Clouds' ? '☁️ Nublado' : '🌧️ Lluvioso'} ({weatherInfo?.temperature.toFixed(1)}°C)</span>.
+                      {LL.planningTodayIntro()} <span className="font-bold underline">{LL.today()}</span> {LL.inRealTime()} {LL.weatherDetectedBy()} <span className="font-bold underline">{weatherInfo?.condition === 'Clear' ? LL.weatherClear() : weatherInfo?.condition === 'Clouds' ? LL.weatherCloudy() : LL.weatherRainy()} ({weatherInfo?.temperature.toFixed(1)}°C)</span>.
                     </>
                   ) : (
                     <>
-                      Mostrando panoramas para el día <span className="font-bold underline">{planningState.date}</span> {planningState.time ? <>a las <span className="font-bold underline">{planningState.time}</span></> : 'a cualquier hora'}.{' '}
-                      {weatherInfo?.reliable === false ? (
-                        <span className="font-bold">El clima no se considera para esta fecha (fuera del pronóstico de 5 días).</span>
-                      ) : (
-                        <>Clima estimado por API: <span className="font-bold underline">{weatherInfo?.condition === 'Clear' ? '☀️ Despejado' : weatherInfo?.condition === 'Clouds' ? '☁️ Nublado' : '🌧️ Lluvioso'} ({weatherInfo?.temperature.toFixed(1)}°C)</span>.</>
-                      )}
+                    {LL.planningFutureIntro()} <span className="font-bold underline">{planningState.date}</span> {planningState.time ? <>{LL.atTime()} <span className="font-bold underline">{planningState.time}</span></> : LL.anyTimeText()}.{' '}
+                    {weatherInfo?.reliable === false ? (
+                      <span className="font-bold">{LL.weatherNotConsidered || "El clima no se considera para esta fecha (fuera del pronóstico de 5 días)."}</span>
+                    ) : (
+                      <>{LL.weatherEstimatedBy()} <span className="font-bold underline">{weatherInfo?.condition === 'Clear' ? LL.weatherClear() : weatherInfo?.condition === 'Clouds' ? LL.weatherCloudy() : LL.weatherRainy()} ({weatherInfo?.temperature.toFixed(1)}°C)</span>.</>
+                    )}
                     </>
                   )}
                 </p>
@@ -617,14 +625,14 @@ export function App() {
                 onClick={() => setPlanningState(null)}
                 className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black px-6 py-3 rounded-xl transition-all active:scale-[0.97] shadow-md shadow-emerald-600/10 uppercase tracking-wider whitespace-nowrap cursor-pointer"
               >
-                🔄 Volver al Tiempo Real
+                {LL.backToRealTimeCta()}
               </button>
             </div>
           )}
 
           {/* Toolbar de Filtros: visible siempre, tanto en "Todas" como en una categoría específica */}
           <div className="flex flex-wrap items-center gap-3 px-2 py-3 bg-white/50 border border-gray-100 rounded-xl shadow-sm animate-fade-in">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest mr-2">{t('filters')}:</span>
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest mr-2">{LL.filters()}:</span>
 
 
             <select
@@ -717,9 +725,9 @@ export function App() {
               className="ml-auto text-xs font-bold text-white bg-gray-900 px-4 py-1.5 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center gap-2"
             >
               {loadingWeather ? (
-                <span className="animate-pulse">Buscando...</span>
+                <span className="animate-pulse">{LL.searching()}</span>
               ) : (
-                "Aplicar Filtros"
+                LL.applyFilters()
               )}
             </button>
           </div>
@@ -727,10 +735,10 @@ export function App() {
           {/* Mostramos el contador de panoramas, cambiando a modo curado si hay planificación activa */}
           <div className="px-2 mt-2">
             <span className="text-xs font-bold text-gray-500 uppercase tracking-widest bg-gray-200/50 py-1 px-3 rounded-full">
-              {planningState
-                ? `${Math.min(6, filteredActivities.length)} ${t('panoramasFound')}`
-                : `${filteredActivities.length} ${filteredActivities.length === 1 ? t('panoramaFound') : t('panoramasFound')}`
-              }
+            {planningState
+              ? `${Math.min(6, filteredActivities.length)} ${LL.panoramasFound()}`
+              : `${filteredActivities.length} ${filteredActivities.length === 1 ? LL.panoramaFound() : LL.panoramasFound()}`
+            }
             </span>
           </div>
         </div>
@@ -743,7 +751,7 @@ export function App() {
             ))
           ) : filteredActivities.length === 0 ? (
             <p className="text-muted-foreground col-span-full text-center py-8">
-              {t('emptyState')}
+              {LL.emptyState()}
             </p>
           ) : (
             (planningState ? filteredActivities.slice(0, 6) : filteredActivities).map((act, index) => (
@@ -792,13 +800,13 @@ export function App() {
 
             <div className="flex flex-col gap-2 text-center sm:text-left">
               <span className="text-[10px] font-bold text-orange-500 uppercase tracking-[0.2em] block">
-                Intelligent Assistant
+                {LL.planningModalKicker()}
               </span>
               <h2 className="text-2xl font-black text-gray-900 tracking-tighter leading-none">
-                Recomendar Panoramas
+                {LL.planningModalTitle()}
               </h2>
               <p className="text-xs text-gray-500 font-medium">
-                Indica cuándo realizarás la actividad para que el sistema calcule las mejores opciones de forma automática.
+                {LL.planningModalDescription()}
               </p>
             </div>
 
@@ -821,7 +829,7 @@ export function App() {
               {/* Selector de tipo de fecha */}
               <div className="flex flex-col gap-2">
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                  ¿Cuándo quieres realizar la actividad?
+                  {LL.whenQuestion()}
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
@@ -832,7 +840,9 @@ export function App() {
                       : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
                       }`}
                   >
-                    Hoy
+
+                    {LL.todayOptionCta()}
+
                   </button>
                   <button
                     type="button"
@@ -842,7 +852,7 @@ export function App() {
                       : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
                       }`}
                   >
-                    Otro día 📅
+                    {LL.otherDayOptionCta()}
                   </button>
                 </div>
               </div>
@@ -852,7 +862,7 @@ export function App() {
                 <div className="flex flex-col gap-4 animate-fade-in">
                   <div className="flex flex-col gap-1">
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                      Selecciona la fecha
+                      {LL.selectDateLabel()}
                     </label>
                     <input
                       type="date"
@@ -866,7 +876,7 @@ export function App() {
                   {/* Selector de tipo de hora */}
                   <div className="flex flex-col gap-2">
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                      ¿A qué hora estimas ir?
+                      {LL.whatTimeQuestion()}
                     </label>
                     <div className="grid grid-cols-2 gap-3">
                       <button
@@ -877,7 +887,7 @@ export function App() {
                           : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
                           }`}
                       >
-                        Cualquier hora 🕒
+                        {LL.anyTimeOptionCta()}
                       </button>
                       <button
                         type="button"
@@ -887,7 +897,7 @@ export function App() {
                           : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
                           }`}
                       >
-                        Hora específica
+                        {LL.specificTimeOptionCta()}
                       </button>
                     </div>
                   </div>
@@ -895,7 +905,7 @@ export function App() {
                   {planningTimeType === 'specific' && (
                     <div className="flex flex-col gap-1 animate-fade-in">
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                        Define la hora específica
+                        {LL.specificTimeLabel()}
                       </label>
                       <input
                         type="time"
@@ -913,7 +923,7 @@ export function App() {
                 type="submit"
                 className="w-full bg-gradient-to-r from-orange-500 to-fuchsia-600 hover:from-orange-600 hover:to-fuchsia-700 text-white text-xs font-black py-4 rounded-2xl transition-all active:scale-[0.97] uppercase tracking-widest shadow-lg shadow-orange-500/10 cursor-pointer mt-2"
               >
-                Obtener Recomendación
+                {LL.getRecommendationCta()}
               </button>
             </form>
           </div>

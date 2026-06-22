@@ -2,7 +2,7 @@ import { Button } from "./ui/button";
 import { Category } from "../types";
 import { Tent, Clapperboard, Drama, Landmark, Grid2X2, Utensils, Mountain } from "lucide-react";
 import { useT } from "@/i18n/context";
-import type { TranslationKey } from "@/i18n/translations";
+type CategoryKey = 'categoryAll' | 'categoryCine' | 'categoryParque' | 'categoryTeatro' | 'categoryMuseo' | 'categoryRestaurante' | 'categoryMiradores';
 
 interface CategoryFilterProps {
     selectedCategory: Category | null;
@@ -10,10 +10,10 @@ interface CategoryFilterProps {
 }
 
 export function CategoryFilter({ selectedCategory, onSelectCategory }: CategoryFilterProps) {
-    const { t } = useT();
+    const { LL } = useT();
 
     // Cada categoría con su valor, clave de traducción y ícono
-    const categories: Array<{ value: Category | null; key: TranslationKey; icon: typeof Grid2X2 }> = [
+    const categories: Array<{ value: Category | null; key: CategoryKey; icon: typeof Grid2X2 }> = [
         { value: null, key: 'categoryAll', icon: Grid2X2 },
         { value: Category.CINE, key: 'categoryCine', icon: Clapperboard },
         { value: Category.PARQUE, key: 'categoryParque', icon: Tent },
@@ -28,7 +28,7 @@ export function CategoryFilter({ selectedCategory, onSelectCategory }: CategoryF
             {categories.map((cat) => {
                 const isActive = selectedCategory === cat.value;
                 const Icon = cat.icon;
-                const label = t(cat.key);
+                const label = LL[cat.key]();
 
                 return (
                     <Button

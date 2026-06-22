@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { useT } from '@/i18n/context';
-import type { TranslationKey } from '@/i18n/translations';
+type CategoryKey = 'categoryCine' | 'categoryParque' | 'categoryTeatro' | 'categoryMuseo' | 'categoryRestaurante' | 'categoryMiradores';
 
 interface Activity {
     id: string;
@@ -19,7 +19,7 @@ interface ReservationModalProps {
 
 type Phase = 'idle' | 'processing' | 'success' | 'error';
 
-const categoryKeyMap: Record<string, TranslationKey> = {
+const categoryKeyMap: Record<string, CategoryKey> = {
     'Cine': 'categoryCine',
     'Parque': 'categoryParque',
     'Teatro': 'categoryTeatro',
@@ -29,7 +29,7 @@ const categoryKeyMap: Record<string, TranslationKey> = {
 };
 
 export function ReservationModal({ activity, open, onClose, onSuccess }: ReservationModalProps) {
-    const { t } = useT();
+    const { LL } = useT();
     const [phase, setPhase] = useState<Phase>('idle');
     const [paid, setPaid] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string>('');
@@ -55,9 +55,8 @@ export function ReservationModal({ activity, open, onClose, onSuccess }: Reserva
 
     if (!open) return null;
 
-    const categoryLabel = categoryKeyMap[activity.category]
-        ? t(categoryKeyMap[activity.category])
-        : activity.category;
+    const categoryKey = categoryKeyMap[activity.category];
+    const categoryLabel = categoryKey ? LL[categoryKey]() : activity.category;
 
     const handleReserve = async (payNow: boolean) => {
         setPhase('processing');
@@ -73,7 +72,7 @@ export function ReservationModal({ activity, open, onClose, onSuccess }: Reserva
             const data = await res.json();
             if (!res.ok || !data.success) {
                 setPhase('error');
-                setErrorMsg(data?.error ?? t('reservationFailed'));
+                setErrorMsg(data?.error ?? LL.reservationFailed());
                 return;
             }
             setTxnId(data.payment?.transactionId ?? '');
@@ -81,7 +80,7 @@ export function ReservationModal({ activity, open, onClose, onSuccess }: Reserva
             onSuccess?.();
         } catch {
             setPhase('error');
-            setErrorMsg(t('reservationFailed'));
+            setErrorMsg(LL.reservationFailed());
         }
     };
 
@@ -96,14 +95,14 @@ export function ReservationModal({ activity, open, onClose, onSuccess }: Reserva
             >
                 <div className="flex items-center justify-between px-6 sm:px-8 pt-6 pb-2">
                     <h2 className="text-xl sm:text-2xl font-black tracking-tighter text-gray-900">
-                        {t('reservationModalTitle')}
+                        {LL.reservationModalTitle()}
                     </h2>
                     <button
                         type="button"
                         onClick={onClose}
                         disabled={phase === 'processing'}
                         className="text-gray-400 hover:text-gray-900 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                        aria-label={t('reservationClose')}
+                        aria-label={LL.reservationClose()}
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -120,12 +119,12 @@ export function ReservationModal({ activity, open, onClose, onSuccess }: Reserva
 
                 <div className="px-6 sm:px-8 py-6">
                     {phase === 'idle' && (
-                        <p className="text-sm text-gray-500">{t('reservationModalDescription')}</p>
+                        <p className="text-sm text-gray-500">{LL.reservationModalDescription()}</p>
                     )}
                     {phase === 'processing' && (
                         <div className="flex flex-col items-center gap-3 py-4">
                             <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
-                            <p className="text-sm font-bold text-gray-600">{t('reservationProcessing')}</p>
+                            <p className="text-sm font-bold text-gray-600">{LL.reservationProcessing()}</p>
                         </div>
                     )}
                     {phase === 'success' && (
@@ -134,12 +133,12 @@ export function ReservationModal({ activity, open, onClose, onSuccess }: Reserva
                                 <Check className="w-6 h-6 text-emerald-600" />
                             </div>
                             <p className="text-base font-black tracking-tighter text-gray-900">
-                                {paid ? t('reservationCreatedPaid') : t('reservationCreatedPending')}
+                                {paid ? LL.reservationCreatedPaid() : LL.reservationCreatedPending()}
                             </p>
-                            <p className="text-xs text-gray-500">{t('reservationSuccessHint')}</p>
+                            <p className="text-xs text-gray-500">{LL.reservationSuccessHint()}</p>
                             {txnId && (
                                 <p className="text-[10px] uppercase tracking-widest text-gray-400 font-mono mt-2 break-all">
-                                    {t('transactionLabel')}: {txnId}
+                                    {LL.transactionLabel()}: {txnId}
                                 </p>
                             )}
                         </div>
@@ -149,7 +148,7 @@ export function ReservationModal({ activity, open, onClose, onSuccess }: Reserva
                             <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center">
                                 <AlertCircle className="w-6 h-6 text-red-600" />
                             </div>
-                            <p className="text-base font-black tracking-tighter text-gray-900">{t('reservationFailed')}</p>
+                            <p className="text-base font-black tracking-tighter text-gray-900">{LL.reservationFailed()}</p>
                             {errorMsg && <p className="text-xs text-gray-500 max-w-xs break-words">{errorMsg}</p>}
                         </div>
                     )}
@@ -163,21 +162,21 @@ export function ReservationModal({ activity, open, onClose, onSuccess }: Reserva
                                 onClick={() => handleReserve(false)}
                                 className="w-full bg-black text-white text-sm font-black py-3 sm:py-4 rounded-2xl hover:bg-zinc-800 active:scale-[0.98] transition-all uppercase tracking-widest shadow-lg shadow-black/10"
                             >
-                                {t('reserveOnlyCta')}
+                                {LL.reserveOnlyCta()}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => handleReserve(true)}
                                 className="w-full bg-emerald-600 text-white text-sm font-black py-3 sm:py-4 rounded-2xl hover:bg-emerald-700 active:scale-[0.98] transition-all uppercase tracking-widest shadow-lg shadow-emerald-600/10"
                             >
-                                {t('payNowCta')}
+                                {LL.payNowCta()}
                             </button>
                             <button
                                 type="button"
                                 onClick={onClose}
                                 className="w-full bg-gray-100 text-gray-600 text-xs font-bold py-3 px-4 rounded-2xl hover:bg-gray-200 transition-all uppercase tracking-widest"
                             >
-                                {t('reservationCancel')}
+                                {LL.reservationCancel()}
                             </button>
                         </>
                     )}
@@ -187,7 +186,7 @@ export function ReservationModal({ activity, open, onClose, onSuccess }: Reserva
                             onClick={onClose}
                             className="w-full bg-black text-white text-sm font-black py-3 sm:py-4 rounded-2xl hover:bg-zinc-800 active:scale-[0.98] transition-all uppercase tracking-widest"
                         >
-                            {t('reservationClose')}
+                            {LL.reservationClose()}
                         </button>
                     )}
                 </div>

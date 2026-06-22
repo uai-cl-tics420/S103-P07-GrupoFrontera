@@ -4,7 +4,9 @@ import { authClient } from '@/lib/auth-client';
 import { useT } from '@/i18n/context';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { PayModal } from '@/components/PayModal';
-import type { TranslationKey } from '@/i18n/translations';
+import type { TranslationFunctions } from '@/i18n/i18n-types';
+type CategoryKey = 'categoryCine' | 'categoryParque' | 'categoryTeatro' | 'categoryMuseo' | 'categoryRestaurante' | 'categoryMiradores';
+type StatusKey = 'reservationStatusPagado' | 'reservationStatusComprado' | 'reservationStatusCancelado' | 'reservationStatusPendiente';
 
 interface Reservation {
     id: string;
@@ -27,7 +29,7 @@ interface UserReservationsViewProps {
     onReservationChanged?: () => void;
 }
 
-const categoryKeyMap: Record<string, TranslationKey> = {
+const categoryKeyMap: Record<string, CategoryKey> = {
     'Cine': 'categoryCine',
     'Parque': 'categoryParque',
     'Teatro': 'categoryTeatro',
@@ -36,33 +38,33 @@ const categoryKeyMap: Record<string, TranslationKey> = {
     'Miradores': 'categoryMiradores',
 };
 
-const statusKeyMap: Record<string, TranslationKey> = {
+const statusKeyMap: Record<string, StatusKey> = {
     pagado: 'reservationStatusPagado',
     comprado: 'reservationStatusComprado',
     cancelado: 'reservationStatusCancelado',
     pendiente: 'reservationStatusPendiente',
 };
 
-function StatusBadge({ status, t }: { status: string; t: (k: TranslationKey) => string }) {
+function StatusBadge({ status, LL }: { status: string; LL: TranslationFunctions }) {
     const styles: Record<string, { bg: string; text: string; icon: any }> = {
         pagado: { bg: 'bg-emerald-50', text: 'text-emerald-700', icon: CheckCircle2 },
         comprado: { bg: 'bg-emerald-50', text: 'text-emerald-700', icon: CheckCircle2 },
         pendiente: { bg: 'bg-amber-50', text: 'text-amber-700', icon: Clock },
         cancelado: { bg: 'bg-gray-100', text: 'text-gray-500', icon: Ban },
     };
-    const style = styles[status] ?? styles.pendiente;
+    const style = styles[status] ?? styles.pendiente!;
     const Icon = style.icon;
-    const labelKey = statusKeyMap[status] ?? 'reservationStatusPendiente';
+    const labelKey: StatusKey = statusKeyMap[status] ?? 'reservationStatusPendiente';
     return (
         <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${style.bg} ${style.text}`}>
             <Icon className="w-3 h-3" />
-            {t(labelKey)}
+            {LL[labelKey]()}
         </span>
     );
 }
 
 export function UserReservationsView({ userId, userEmail, onBack, onReservationChanged }: UserReservationsViewProps) {
-    const { t } = useT();
+    const { LL } = useT();
     const [reservations, setReservations] = useState<Reservation[]>([]);
     const [loading, setLoading] = useState(true);
     const [busyId, setBusyId] = useState<string | null>(null);
@@ -90,7 +92,7 @@ export function UserReservationsView({ userId, userEmail, onBack, onReservationC
     }, [userId]);
 
     const handleCancel = async (id: string) => {
-        if (!confirm(t('reservationCancelConfirm'))) return;
+        if (!confirm(LL.reservationCancelConfirm())) return;
         setBusyId(id);
         try {
             const res = await fetch(`/api/reservations/${id}`, {
@@ -139,7 +141,7 @@ export function UserReservationsView({ userId, userEmail, onBack, onReservationC
                         className="flex items-center gap-2 text-[10px] font-bold text-gray-500 uppercase tracking-tighter hover:text-gray-900 transition-colors whitespace-nowrap"
                     >
                         <ArrowLeft className="w-3 h-3" />
-                        <span className="hidden sm:inline">{t('adminGoBack')}</span>
+                        <span className="hidden sm:inline">{LL.adminGoBack()}</span>
                     </button>
                     <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                         <LanguageToggle />
@@ -150,7 +152,7 @@ export function UserReservationsView({ userId, userEmail, onBack, onReservationC
                             onClick={() => authClient.signOut()}
                             className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-red-400 transition-colors whitespace-nowrap"
                         >
-                            {t('logout')}
+                            {LL.logout()}
                         </button>
                     </div>
                 </div>
@@ -159,11 +161,11 @@ export function UserReservationsView({ userId, userEmail, onBack, onReservationC
             <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
                 <header className="mb-8 sm:mb-10">
                     <h1 className="text-3xl sm:text-4xl font-black tracking-tighter text-gray-900 mb-1">
-                        {t('myReservationsTitle')}
+                        {LL.myReservationsTitle()}
                     </h1>
                     {!loading && (
                         <p className="text-gray-400 text-sm">
-                            {reservations.length} {reservations.length === 1 ? t('panoramaFound') : t('panoramasFound')}
+                            {reservations.length} {reservations.length === 1 ? LL.panoramaFound() : LL.panoramasFound()}
                         </p>
                     )}
                 </header>
@@ -171,19 +173,18 @@ export function UserReservationsView({ userId, userEmail, onBack, onReservationC
                 {loading ? (
                     <div className="flex items-center justify-center py-20 gap-3 text-gray-400">
                         <Loader2 className="w-5 h-5 animate-spin" />
-                        <p className="text-sm font-bold uppercase tracking-widest">{t('myReservationsLoading')}</p>
+                        <p className="text-sm font-bold uppercase tracking-widest">{LL.myReservationsLoading()}</p>
                     </div>
                 ) : reservations.length === 0 ? (
                     <div className="bg-white rounded-3xl border border-gray-100 p-10 text-center">
-                        <p className="text-gray-500 font-medium">{t('myReservationsEmpty')}</p>
+                        <p className="text-gray-500 font-medium">{LL.myReservationsEmpty()}</p>
                     </div>
                 ) : (
                     <ul className="flex flex-col gap-4">
                         {reservations.map(r => {
+                            const catKey = r.activity ? categoryKeyMap[r.activity.category] : undefined;
                             const catLabel = r.activity
-                                ? (categoryKeyMap[r.activity.category]
-                                    ? t(categoryKeyMap[r.activity.category])
-                                    : r.activity.category)
+                                ? (catKey ? LL[catKey]() : r.activity.category)
                                 : '—';
                             const isCancelled = r.status === 'cancelado';
                             const isPending = r.status === 'pendiente';
@@ -201,13 +202,13 @@ export function UserReservationsView({ userId, userEmail, onBack, onReservationC
                                                 <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-orange-500">
                                                     {catLabel}
                                                 </span>
-                                                <StatusBadge status={r.status} t={t} />
+                                                <StatusBadge status={r.status} LL={LL} />
                                             </div>
                                             <h3 className="text-lg sm:text-xl font-black text-gray-900 tracking-tighter leading-tight break-words">
                                                 {r.activity?.name ?? r.activityId}
                                             </h3>
                                             <p className="mt-1 text-xs text-gray-400 flex items-center gap-3 flex-wrap">
-                                                <span>{t('reservationDate')}: {formatDate(r.createdAt)}</span>
+                                                <span>{LL.reservationDate()}: {formatDate(r.createdAt)}</span>
                                                 {r.activity?.coordinates && (
                                                     <span className="hidden sm:inline-flex items-center gap-1">
                                                         <MapPin className="w-3 h-3" />
@@ -227,7 +228,7 @@ export function UserReservationsView({ userId, userEmail, onBack, onReservationC
                                                     className="flex items-center gap-1.5 text-[10px] font-bold text-white uppercase tracking-tighter whitespace-nowrap px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50"
                                                 >
                                                     <CreditCard className="w-3 h-3" />
-                                                    {t('payButton')}
+                                                    {LL.payButton()}
                                                 </button>
                                             )}
                                             {/* Pendiente o Pagado: Cancelar */}
@@ -239,7 +240,7 @@ export function UserReservationsView({ userId, userEmail, onBack, onReservationC
                                                     className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-red-500 whitespace-nowrap px-3 py-2 rounded-lg border border-gray-200 hover:border-red-200 disabled:opacity-50"
                                                 >
                                                     {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
-                                                    {t('reservationCancelAction')}
+                                                    {LL.reservationCancelAction()}
                                                 </button>
                                             )}
                                             {/* Cancelada: Reservar de nuevo */}
@@ -251,7 +252,7 @@ export function UserReservationsView({ userId, userEmail, onBack, onReservationC
                                                     className="flex items-center gap-1.5 text-[10px] font-bold text-white uppercase tracking-tighter whitespace-nowrap px-3 py-2 rounded-lg bg-black hover:bg-zinc-800 disabled:opacity-50"
                                                 >
                                                     {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
-                                                    {t('rebookCta')}
+                                                    {LL.rebookCta()}
                                                 </button>
                                             )}
                                         </div>
