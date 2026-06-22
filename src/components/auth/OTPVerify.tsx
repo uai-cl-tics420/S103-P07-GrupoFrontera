@@ -12,7 +12,7 @@ const OTPVerify = ({ userId, email, onVerified }: { userId: string, email: strin
     useEffect(() => {
         const requestCode = async () => {
             try {
-                await fetch("http://localhost:4000/api/otp/request", {
+                await fetch("/api/otp/request", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ userId, email }),
@@ -29,7 +29,7 @@ const OTPVerify = ({ userId, email, onVerified }: { userId: string, email: strin
         setError('');
 
         try {
-            const response = await fetch("http://localhost:4000/api/otp/verify", {
+            const response = await fetch("/api/otp/verify", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ userId, code }),
@@ -38,7 +38,7 @@ const OTPVerify = ({ userId, email, onVerified }: { userId: string, email: strin
             const data = await response.json();
 
             if (data.status === "success") {
-                const tokenRes = await fetch("http://localhost:4000/api/auth/token", {
+                const tokenRes = await fetch("/api/auth/token", {
                     credentials: "include",
                 });
                 const tokenData = await tokenRes.json();
