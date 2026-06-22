@@ -15,8 +15,8 @@ import { processPayment } from './services/paymentService';
 
 import nodemailer from 'nodemailer';
 
-// Transporter para desarrollo local (SMTP de Gmail). En Render (producción) se usa Resend.
-const transporter = (process.env.NODE_ENV !== "production" && process.env.GMAIL_USER) ? nodemailer.createTransport({
+// Transporter para envío de correos vía SMTP de Gmail (tanto local como en producción)
+const transporter = process.env.GMAIL_USER ? nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 587,
   secure: false,
@@ -27,48 +27,21 @@ const transporter = (process.env.NODE_ENV !== "production" && process.env.GMAIL_
   connectionTimeout: 10000,
 }) : null;
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-
-async function sendEmailViaResend(to: string | string[], subject: string, html: string) {
+async function sendEmail(to: string | string[], subject: string, html: string) {
   const toArray = Array.isArray(to) ? to : [to];
 
-  // Si estamos en local y tenemos nodemailer, lo usamos directamente para mandar mails reales a cualquier receptor
-  if (transporter && process.env.NODE_ENV !== "production") {
-    console.log(`✉️ [SMTP Local] Enviando correo real con Gmail a: ${toArray.join(", ")}`);
-    return await transporter.sendMail({
-      from: `"Panoramas App" <${process.env.GMAIL_USER}>`,
-      to: toArray.join(', '),
-      subject: subject,
-      html: html,
-    });
+  if (!transporter) {
+    console.warn("⚠️ Advertencia: El SMTP de Gmail (GMAIL_USER) no está configurado.");
+    return { success: false, error: "Missing SMTP configuration" };
   }
 
-  // De lo contrario (ej. en Render), usamos Resend
-  if (!RESEND_API_KEY) {
-    console.warn("⚠️ Advertencia: RESEND_API_KEY no está configurada.");
-    return { success: false, error: "Missing API Key" };
-  }
-
-  console.log(`✉️ [Resend API] Enviando correo con Resend a: ${toArray.join(", ")}`);
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${RESEND_API_KEY}`,
-    },
-    body: JSON.stringify({
-      from: "Panoramas App <onboarding@resend.dev>",
-      to: toArray,
-      subject: subject,
-      html: html,
-    }),
+  console.log(`✉️ [SMTP] Enviando correo con Gmail a: ${toArray.join(", ")}`);
+  return await transporter.sendMail({
+    from: `"Panoramas App" <${process.env.GMAIL_USER}>`,
+    to: toArray.join(', '),
+    subject: subject,
+    html: html,
   });
-
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(`Resend API respondió con error: ${res.status} - ${JSON.stringify(errData)}`);
-  }
-  return await res.json();
 }
 
 // Verificación de variables de entorno
@@ -519,7 +492,7 @@ app.group("/api/admin", (adminGroup) => adminGroup
               </div>
             `;
 
-            await sendEmailViaResend(recipientEmails, subject, htmlContent);
+            await sendEmail(recipientEmails, subject, htmlContent);
             console.log(`¡Notificaciones enviadas con éxito a ${recipientEmails.length} usuarios!`);
           } catch (err) {
             console.error("Error en el proceso de envío de correos:", err);
@@ -772,7 +745,7 @@ app.post("/api/request-admin-otp", async ({ request, set }) => {
   console.log(`🔑 [Admin OTP] Código generado para ${email}: ${code}`);
 
   try {
-    await sendEmailViaResend(session.user.email, "Código de activación Administrador - Panoramas", `
+    await sendEmail(session.user.email, "Código de activación Administrador - Panoramas", `
       <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:40px;background:#fff;border-radius:16px;">
         <h1 style="font-size:24px;font-weight:900;margin-bottom:8px;color:#d97706;">PANORAMAS</h1>
         <p style="color:#666;margin-bottom:32px;">Tu código de verificación para activar el rol de Administrador es:</p>
@@ -1203,7 +1176,7 @@ app.post("/api/otp/request", async ({ body }) => {
   console.log(`🔑 [OTP] Código generado para ${email}: ${code}`);
 
   try {
-    await sendEmailViaResend(email, "Tu código de verificación - Panoramas", `
+    await sendEmail(email, "Tu código de verificación - Panoramas", `
       <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:40px;background:#fff;border-radius:16px;">
         <h1 style="font-size:24px;font-weight:900;margin-bottom:8px;">PANORAMAS</h1>
         <p style="color:#666;margin-bottom:32px;">Tu código de verificación es:</p>
