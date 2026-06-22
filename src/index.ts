@@ -2,6 +2,7 @@ import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { auth } from './lib/auth';
 import { protectMiddleware } from 'src/middleware/protect';
+import speakeasy from 'speakeasy';
 import { db } from "./lib/db";
 import { user, activities, userFavorites, userReservations, activitySchedules, verification } from "./lib/schema";
 import { and, count, eq, gt, ne, sql } from "drizzle-orm";
@@ -730,6 +731,131 @@ app.get("/api/preferences/:userId", async ({ params }) => {
 
   return { role: u[0]?.role ?? 'user' };
 });
+
+// --- ACTIVACIÓN DE ADMINISTRADOR HÍBRIDA (OTP / TOTP) ---
+const getAuthorizedAdminEmails = () => {
+  const list = process.env.AUTHORIZED_ADMIN_EMAILS || "";
+  return list.split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
+};
+
+app.post("/api/request-admin-otp", async ({ request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id || !session.user.email) {
+    set.status = 401;
+    return { error: "No autorizado" };
+  }
+
+  const email = session.user.email.toLowerCase();
+  const authorizedEmails = getAuthorizedAdminEmails();
+  if (!authorizedEmails.includes(email)) {
+    set.status = 403;
+    return { error: "Tu correo no está en la lista de correos autorizados para activación automática. Solicita el código TOTP manual al administrador." };
+  }
+
+  const code = randomInt(100000, 999999).toString();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutos
+  const identifier = `admin-otp:${email}`;
+
+  // Eliminar OTPs anteriores para este identificador
+  await db.delete(verification).where(eq(verification.identifier, identifier));
+
+  // Guardar en la tabla de verificación
+  await db.insert(verification).values({
+    id: randomUUID(),
+    identifier,
+    value: code,
+    expiresAt,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  console.log(`🔑 [Admin OTP] Código generado para ${email}: ${code}`);
+
+  try {
+    await sendEmailViaResend(session.user.email, "Código de activación Administrador - Panoramas", `
+      <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:40px;background:#fff;border-radius:16px;">
+        <h1 style="font-size:24px;font-weight:900;margin-bottom:8px;color:#d97706;">PANORAMAS</h1>
+        <p style="color:#666;margin-bottom:32px;">Tu código de verificación para activar el rol de Administrador es:</p>
+        <div style="font-size:48px;font-weight:900;letter-spacing:0.5em;text-align:center;padding:24px;background:#fef3c7;color:#d97706;border-radius:12px;margin-bottom:24px;">
+          ${code}
+        </div>
+        <p style="color:#999;font-size:12px;">Este código expira en 10 minutos.</p>
+      </div>
+    `);
+  } catch (err) {
+    console.error("❌ Error enviando OTP de Administrador:", err);
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`💡 [Desarrollo] OTP de Administrador en consola: ${code}`);
+      return { success: true, message: `Código generado en desarrollo: ${code}` };
+    }
+    set.status = 500;
+    return { error: "No se pudo enviar el código por correo. Intenta de nuevo." };
+  }
+
+  return { success: true, message: "Código enviado a tu correo" };
+});
+
+app.post("/api/activate-admin", async ({ body, request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id || !session.user.email) {
+    set.status = 401;
+    return { error: "No autorizado" };
+  }
+
+  const { token } = body as { token: string };
+  if (!token) {
+    set.status = 400;
+    return { error: "Código de verificación requerido" };
+  }
+
+  const cleanToken = token.trim();
+
+  // 1. Intentar validar como TOTP manual (Administrador)
+  const totpSecret = process.env.ADMIN_TOTP_SECRET || "KVKFKRCSN5RHKYTVMVRXEYLTMV3GOLJS";
+  const isValidTotp = speakeasy.totp.verify({
+    secret: totpSecret,
+    encoding: 'base32',
+    token: cleanToken
+  });
+
+  let activationMethod = 'totp';
+
+  if (!isValidTotp) {
+    // 2. Si no es TOTP válido, intentar validar como OTP enviado por correo
+    const identifier = `admin-otp:${session.user.email.toLowerCase()}`;
+    const [record] = await db.select()
+      .from(verification)
+      .where(and(
+        eq(verification.identifier, identifier),
+        eq(verification.value, cleanToken)
+      ));
+
+    if (!record) {
+      set.status = 400;
+      return { error: "Código incorrecto o expirado" };
+    }
+
+    if (new Date() > record.expiresAt) {
+      // Eliminar el código expirado
+      await db.delete(verification).where(eq(verification.id, record.id));
+      set.status = 400;
+      return { error: "El código de verificación ha expirado" };
+    }
+
+    // Código válido, eliminarlo para prevenir reuso
+    await db.delete(verification).where(eq(verification.id, record.id));
+    activationMethod = 'email';
+  }
+
+  // Activar rol de administrador
+  await db.update(user)
+    .set({ role: 'admin' })
+    .where(eq(user.id, session.user.id));
+
+  console.log(`👑 Rol 'admin' activado mediante ${activationMethod.toUpperCase()} para: ${session.user.email}`);
+  return { success: true, method: activationMethod };
+});
+
 
 // --- RUTAS FAVORITOS ---
 app.post("/api/favorites", async ({ body, request, set }) => {

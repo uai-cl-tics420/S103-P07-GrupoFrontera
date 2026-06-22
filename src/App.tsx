@@ -522,6 +522,84 @@ export function App() {
     }
   };
 
+  const handleActivateAdmin = async () => {
+    const choice = prompt(
+      "Selecciona el método para activar Admin:\n" +
+      "1. Enviar código automáticamente a mi correo (solo si tu correo está autorizado)\n" +
+      "2. Ingresar código manual del Administrador (TOTP)\n\n" +
+      "Ingresa 1 o 2:"
+    );
+
+    if (!choice) return;
+
+    const trimmedChoice = choice.trim();
+    if (trimmedChoice !== '1' && trimmedChoice !== '2') {
+      showToast("Opción inválida. Debes ingresar 1 o 2.", "error");
+      return;
+    }
+
+    let codeToSend = "";
+
+    if (trimmedChoice === '1') {
+      // Método 1: OTP por Correo
+      try {
+        showToast("Solicitando envío de código a tu correo...", "info");
+        const reqResponse = await fetch('/api/request-admin-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        const reqData = await reqResponse.json();
+        if (!reqResponse.ok) {
+          showToast(reqData.error || "No se pudo solicitar el código por correo.", "error");
+          return;
+        }
+
+        showToast(reqData.message || "Código enviado con éxito.", "success");
+
+        const code = prompt("Ingresa el código de 6 dígitos que enviamos a tu correo:");
+        if (!code) return;
+        codeToSend = code.trim();
+      } catch (err) {
+        console.error("Error al solicitar OTP:", err);
+        showToast("Error de conexión al solicitar el código.", "error");
+        return;
+      }
+    } else {
+      // Método 2: TOTP Manual del Administrador
+      const code = prompt("Ingresa el código TOTP de 6 dígitos provisto por el Administrador:");
+      if (!code) return;
+      codeToSend = code.trim();
+    }
+
+    if (codeToSend.length !== 6 || Number.isNaN(Number(codeToSend))) {
+      showToast("Código inválido. Debe ser de 6 dígitos.", "error");
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/activate-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: codeToSend })
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        const methodMsg = data.method === 'email' ? "correo" : "TOTP manual";
+        showToast(`¡Rol de administrador activado con éxito vía ${methodMsg}!`, "success");
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        showToast(data.error || "Código incorrecto o expirado.", "error");
+      }
+    } catch (err) {
+      console.error("Error al activar administrador:", err);
+      showToast("Error de conexión al activar administrador.", "error");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#FAFAFA] font-sans pb-20">
       <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 sm:px-6 py-4 sm:py-5 mb-8 sm:mb-12">
@@ -570,6 +648,15 @@ export function App() {
                 className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-gray-900 transition-colors whitespace-nowrap px-2 py-1 border border-gray-200 rounded"
               >
                 {LL.adminAccessLink()}
+              </button>
+            )}
+
+            {role !== 'admin' && (
+              <button
+                onClick={handleActivateAdmin}
+                className="text-[10px] font-bold text-amber-600 uppercase tracking-tighter hover:text-amber-900 transition-colors whitespace-nowrap px-2 py-1 border border-amber-200 rounded"
+              >
+                Activar Admin
               </button>
             )}
             <LanguageToggle />
