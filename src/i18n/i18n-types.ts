@@ -79,6 +79,22 @@ type RootTranslation = {
 	 */
 	createAccountError: string
 	/**
+	 * E​r​r​o​r​ ​c​r​í​t​i​c​o​ ​e​n​ ​e​l​ ​s​e​r​v​i​d​o​r​ ​d​e​ ​r​e​g​i​s​t​r​o​.
+	 */
+	registerServerError: string
+	/**
+	 * R​e​d​i​r​i​g​i​e​n​d​o​ ​a​ ​G​o​o​g​l​e​.​.​.
+	 */
+	redirectingToGoogle: string
+	/**
+	 * ¡​S​e​s​i​ó​n​ ​i​n​i​c​i​a​d​a​ ​c​o​r​r​e​c​t​a​m​e​n​t​e​!
+	 */
+	loginSuccessToast: string
+	/**
+	 * ¡​C​u​e​n​t​a​ ​c​r​e​a​d​a​ ​c​o​n​ ​é​x​i​t​o​!​ ​B​i​e​n​v​e​n​i​d​o​ ​a​ ​P​a​n​o​r​a​m​a​s​.
+	 */
+	accountCreatedToast: string
+	/**
 	 * M​í​n​i​m​o​ ​8​ ​c​a​r​a​c​t​e​r​e​s
 	 */
 	pwdMin8: string
@@ -242,6 +258,10 @@ type RootTranslation = {
 	 * E​s​t​a​d​o
 	 */
 	tableStatus: string
+	/**
+	 * A​c​c​i​ó​n
+	 */
+	tableAction: string
 	/**
 	 * A​d​m​i​n
 	 */
@@ -559,7 +579,7 @@ type RootTranslation = {
 	 */
 	reservationErrorGeneric: string
 	/**
-	 * �​�​ ​¿​Q​u​i​e​r​e​s​ ​r​e​c​o​m​e​n​d​a​c​i​o​n​e​s​ ​p​e​r​s​o​n​a​l​i​z​a​d​a​s​ ​d​e​ ​p​a​n​o​r​a​m​a​s​?
+	 * �​�​ ​¿​N​o​ ​s​a​b​e​s​ ​q​u​e​ ​h​a​c​e​r​?​ ​N​o​s​o​t​r​o​s​ ​t​e​ ​R​e​c​o​m​e​n​d​a​m​o​s​ ​!​!​!
 	 */
 	recommendBannerTitle: string
 	/**
@@ -567,7 +587,7 @@ type RootTranslation = {
 	 */
 	recommendBannerText: string
 	/**
-	 * ✨​ ​R​e​c​o​m​e​n​d​a​r​ ​P​a​n​o​r​a​m​a​s
+	 * R​e​c​o​m​e​n​d​a​r​ ​P​a​n​o​r​a​m​a​s
 	 */
 	recommendBannerCta: string
 	/**
@@ -610,6 +630,10 @@ type RootTranslation = {
 	 * C​l​i​m​a​ ​e​s​t​i​m​a​d​o​ ​p​o​r​ ​A​P​I​:
 	 */
 	weatherEstimatedBy: string
+	/**
+	 * E​l​ ​c​l​i​m​a​ ​n​o​ ​s​e​ ​c​o​n​s​i​d​e​r​a​ ​p​a​r​a​ ​e​s​t​a​ ​f​e​c​h​a​ ​(​f​u​e​r​a​ ​d​e​l​ ​p​r​o​n​ó​s​t​i​c​o​ ​d​e​ ​5​ ​d​í​a​s​)​.
+	 */
+	weatherNotConsidered: string
 	/**
 	 * ☀​️​ ​D​e​s​p​e​j​a​d​o
 	 */
@@ -695,10 +719,10 @@ type RootTranslation = {
 	 */
 	toastFavAdded: string
 	/**
-	 * P​r​e​f​e​r​e​n​c​i​a​s​ ​g​u​a​r​d​a​d​a​s​:​ ​M​o​s​t​r​a​n​d​o​ ​{​c​a​t​e​g​o​r​y​}​.
+	 * M​o​s​t​r​a​n​d​o​ ​{​c​a​t​e​g​o​r​y​}​.
 	 * @param {unknown} category
 	 */
-	toastPrefsSaved: RequiredParams<'category'>
+	toastShowingCategory: RequiredParams<'category'>
 	/**
 	 * S​e​s​i​ó​n​ ​c​e​r​r​a​d​a​ ​c​o​r​r​e​c​t​a​m​e​n​t​e​.​ ​¡​V​u​e​l​v​e​ ​p​r​o​n​t​o​!
 	 */
@@ -728,7 +752,7 @@ type RootTranslation = {
 	 */
 	whenQuestion: string
 	/**
-	 * H​o​y​ ​☀​️
+	 * H​o​y
 	 */
 	todayOptionCta: string
 	/**
@@ -744,11 +768,11 @@ type RootTranslation = {
 	 */
 	whatTimeQuestion: string
 	/**
-	 * C​u​a​l​q​u​i​e​r​ ​h​o​r​a​ ​�​�
+	 * C​u​a​l​q​u​i​e​r​ ​h​o​r​a
 	 */
 	anyTimeOptionCta: string
 	/**
-	 * H​o​r​a​ ​e​s​p​e​c​í​f​i​c​a​ ​⚡
+	 * H​o​r​a​ ​e​s​p​e​c​í​f​i​c​a
 	 */
 	specificTimeOptionCta: string
 	/**
@@ -756,7 +780,7 @@ type RootTranslation = {
 	 */
 	specificTimeLabel: string
 	/**
-	 * O​b​t​e​n​e​r​ ​R​e​c​o​m​e​n​d​a​c​i​ó​n​ ​�​�
+	 * O​b​t​e​n​e​r​ ​R​e​c​o​m​e​n​d​a​c​i​ó​n
 	 */
 	getRecommendationCta: string
 	/**
@@ -1081,6 +1105,22 @@ export type TranslationFunctions = {
 	 */
 	createAccountError: () => LocalizedString
 	/**
+	 * Error crítico en el servidor de registro.
+	 */
+	registerServerError: () => LocalizedString
+	/**
+	 * Redirigiendo a Google...
+	 */
+	redirectingToGoogle: () => LocalizedString
+	/**
+	 * ¡Sesión iniciada correctamente!
+	 */
+	loginSuccessToast: () => LocalizedString
+	/**
+	 * ¡Cuenta creada con éxito! Bienvenido a Panoramas.
+	 */
+	accountCreatedToast: () => LocalizedString
+	/**
 	 * Mínimo 8 caracteres
 	 */
 	pwdMin8: () => LocalizedString
@@ -1244,6 +1284,10 @@ export type TranslationFunctions = {
 	 * Estado
 	 */
 	tableStatus: () => LocalizedString
+	/**
+	 * Acción
+	 */
+	tableAction: () => LocalizedString
 	/**
 	 * Admin
 	 */
@@ -1557,7 +1601,7 @@ export type TranslationFunctions = {
 	 */
 	reservationErrorGeneric: () => LocalizedString
 	/**
-	 * 🧠 ¿Quieres recomendaciones personalizadas de panoramas?
+	 * 🧠 ¿No sabes que hacer? Nosotros te Recomendamos !!!
 	 */
 	recommendBannerTitle: () => LocalizedString
 	/**
@@ -1565,7 +1609,7 @@ export type TranslationFunctions = {
 	 */
 	recommendBannerText: () => LocalizedString
 	/**
-	 * ✨ Recomendar Panoramas
+	 * Recomendar Panoramas
 	 */
 	recommendBannerCta: () => LocalizedString
 	/**
@@ -1608,6 +1652,10 @@ export type TranslationFunctions = {
 	 * Clima estimado por API:
 	 */
 	weatherEstimatedBy: () => LocalizedString
+	/**
+	 * El clima no se considera para esta fecha (fuera del pronóstico de 5 días).
+	 */
+	weatherNotConsidered: () => LocalizedString
 	/**
 	 * ☀️ Despejado
 	 */
@@ -1693,9 +1741,9 @@ export type TranslationFunctions = {
 	 */
 	toastFavAdded: () => LocalizedString
 	/**
-	 * Preferencias guardadas: Mostrando {category}.
+	 * Mostrando {category}.
 	 */
-	toastPrefsSaved: (arg: { category: unknown }) => LocalizedString
+	toastShowingCategory: (arg: { category: unknown }) => LocalizedString
 	/**
 	 * Sesión cerrada correctamente. ¡Vuelve pronto!
 	 */
@@ -1725,7 +1773,7 @@ export type TranslationFunctions = {
 	 */
 	whenQuestion: () => LocalizedString
 	/**
-	 * Hoy ☀️
+	 * Hoy
 	 */
 	todayOptionCta: () => LocalizedString
 	/**
@@ -1741,11 +1789,11 @@ export type TranslationFunctions = {
 	 */
 	whatTimeQuestion: () => LocalizedString
 	/**
-	 * Cualquier hora 🕒
+	 * Cualquier hora
 	 */
 	anyTimeOptionCta: () => LocalizedString
 	/**
-	 * Hora específica ⚡
+	 * Hora específica
 	 */
 	specificTimeOptionCta: () => LocalizedString
 	/**
@@ -1753,7 +1801,7 @@ export type TranslationFunctions = {
 	 */
 	specificTimeLabel: () => LocalizedString
 	/**
-	 * Obtener Recomendación 🚀
+	 * Obtener Recomendación
 	 */
 	getRecommendationCta: () => LocalizedString
 	/**

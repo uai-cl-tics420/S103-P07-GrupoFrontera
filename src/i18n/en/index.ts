@@ -24,6 +24,12 @@ const en = {
 	loginGoogleFailed: 'There was a problem connecting with Google.',
 	badCredentials: 'Invalid credentials',
 	createAccountError: 'Error creating account',
+	registerServerError: 'Critical error on the registration server.',
+
+	// Auth - toasts
+	redirectingToGoogle: 'Redirecting to Google...',
+	loginSuccessToast: 'Signed in successfully!',
+	accountCreatedToast: 'Account created successfully! Welcome to Panoramas.',
 
 	// Password requirements
 	pwdMin8: 'Minimum 8 characters',
@@ -77,6 +83,7 @@ const en = {
 	tableRole: 'Role',
 	tableJoined: 'Joined',
 	tableStatus: 'Status',
+	tableAction: 'Action',
 	roleAdmin: 'Admin',
 	roleUser: 'User',
 	statusActive: 'Verified',
@@ -182,6 +189,7 @@ const en = {
 	atTime: 'at',
 	anyTimeText: 'at any time',
 	weatherEstimatedBy: 'Weather estimated by API:',
+	weatherNotConsidered: 'Weather is not considered for this date (beyond the 5-day forecast).',
 	weatherClear: '☀️ Clear',
 	weatherCloudy: '☁️ Cloudy',
 	weatherRainy: '🌧️ Rainy',
@@ -207,7 +215,7 @@ const en = {
 	toastWeatherError: 'Could not connect to the weather service.',
 	toastFavRemoved: 'Removed from your favorites.',
 	toastFavAdded: 'Activity saved to your favorites!',
-	toastPrefsSaved: 'Preferences saved: Showing {category}.',
+	toastShowingCategory: 'Showing {category}.',
 	toastSignoutSuccess: 'Signed out successfully. See you soon!',
 	toastSignoutError: 'There was a problem signing you out.',
 	toastReservationSuccess: 'Booking completed successfully!',

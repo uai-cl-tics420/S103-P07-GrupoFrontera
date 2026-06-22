@@ -282,7 +282,7 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                                         <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2">{LL.tableRole()}</th>
                                         <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2 hidden sm:table-cell">{LL.tableJoined()}</th>
                                         <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2">{LL.tableStatus()}</th>
-                                        <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2">Acción</th>
+                                        <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2">{LL.tableAction()}</th>
                                     </tr>
                                 </thead>
                                 <tbody>

@@ -28,6 +28,19 @@ const inputCls = "w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.
 
 export function CreatePanoramaForm() {
     const { LL } = useT();
+    // Mismo mapeo que ActivityCard: traduce el valor fijo del enum (almacenado en BD) a la
+    // etiqueta visible en el idioma activo, sin alterar el value que se guarda.
+    const categoryLabel = (c: Category): string => {
+        switch (c) {
+            case Category.CINE: return LL.categoryCine();
+            case Category.TEATRO: return LL.categoryTeatro();
+            case Category.PARQUE: return LL.categoryParque();
+            case Category.MUSEO: return LL.categoryMuseo();
+            case Category.RESTAURANTE: return LL.categoryRestaurante();
+            case Category.MIRADORES: return LL.categoryMiradores();
+            default: return c;
+        }
+    };
     const [imageUrl, setImageUrl] = useState('');
     const [nombre, setNombre] = useState('');
     const [descripcion, setDescripcion] = useState('');
@@ -238,7 +251,7 @@ export function CreatePanoramaForm() {
                                 className={inputCls + ' cursor-pointer'}
                             >
                                 {Object.values(Category).map((c) => (
-                                    <option key={c} value={c}>{c}</option>
+                                    <option key={c} value={c}>{categoryLabel(c)}</option>
                                 ))}
                             </select>
                         </div>

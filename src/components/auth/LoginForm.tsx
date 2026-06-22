@@ -24,10 +24,10 @@ const LoginForm = () => {
                 provider: "google",
                 callbackURL: window.location.origin,
             });
-            showToast("Redirigiendo a Google...", "info");
+            showToast(LL.redirectingToGoogle(), "info");
         } catch {
             setError(LL.loginGoogleFailed());
-            showToast("Falló la autenticación con Google.", "error");
+            showToast(LL.loginGoogleFailed(), "error");
         }
     };
 
@@ -37,15 +37,15 @@ const LoginForm = () => {
         setError('');
         try {
             const { error } = await authClient.signIn.email({ email, password });
-            if (error) { 
-                setError(error.message ?? LL.badCredentials()); 
-                showToast(error.message ?? "Credenciales inválidas.", "error"); 
+            if (error) {
+                setError(error.message ?? LL.badCredentials());
+                showToast(error.message ?? LL.badCredentials(), "error");
             } else {
-                showToast("¡Sesión iniciada correctamente!", "success");
+                showToast(LL.loginSuccessToast(), "success");
             }
         } catch {
             setError(LL.serverError());
-            showToast("Error de conexión con el servidor.", "error");
+            showToast(LL.serverError(), "error");
         } finally {
             setLoading(false);
         }
@@ -63,14 +63,14 @@ const LoginForm = () => {
             });
             if (error) {
                 setError(error.message ?? LL.createAccountError());
-                showToast(error.message ?? "No se pudo crear la cuenta.", "error");
+                showToast(error.message ?? LL.createAccountError(), "error");
             } else {
-                showToast("¡Cuenta creada con éxito! Bienvenido a Panoramas.", "success");
+                showToast(LL.accountCreatedToast(), "success");
                 setMode('login');
             }
         } catch {
             setError(LL.serverError());
-            showToast("Error crítico en el servidor de registro.", "error");
+            showToast(LL.registerServerError(), "error");
         } finally {
             setLoading(false);
         }

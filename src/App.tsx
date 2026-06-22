@@ -378,7 +378,7 @@ export function App() {
     if (category !== null) {
       setPreferredCategory(category);
 
-      showToast(LL.toastPrefsSaved({ category: category as string }), "info");
+      showToast(LL.toastShowingCategory({ category: category as string }), "info");
 
     }
 
@@ -613,7 +613,7 @@ export function App() {
                     <>
                     {LL.planningFutureIntro()} <span className="font-bold underline">{planningState.date}</span> {planningState.time ? <>{LL.atTime()} <span className="font-bold underline">{planningState.time}</span></> : LL.anyTimeText()}.{' '}
                     {weatherInfo?.reliable === false ? (
-                      <span className="font-bold">{LL.weatherNotConsidered || "El clima no se considera para esta fecha (fuera del pronóstico de 5 días)."}</span>
+                      <span className="font-bold">{LL.weatherNotConsidered()}</span>
                     ) : (
                       <>{LL.weatherEstimatedBy()} <span className="font-bold underline">{weatherInfo?.condition === 'Clear' ? LL.weatherClear() : weatherInfo?.condition === 'Clouds' ? LL.weatherCloudy() : LL.weatherRainy()} ({weatherInfo?.temperature.toFixed(1)}°C)</span>.</>
                     )}
@@ -763,7 +763,6 @@ export function App() {
                 reservation={activeReservations[act.id] as any}
                 onToggleFavorite={handleToggleFavorite}
                 onSeeDetails={(activity) => setSelectedActivityForDetail(activity)}
-                onReservationChanged={handleReservationChanged}
                 userCoords={coords}
                 isRecommended={!!planningState}
                 rank={index + 1}
