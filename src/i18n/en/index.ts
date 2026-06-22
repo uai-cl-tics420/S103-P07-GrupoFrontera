@@ -169,7 +169,7 @@ const en = {
 	// App.tsx: banner de recomendacion asistida
 	recommendBannerTitle: '🧠 Want personalized activity recommendations?',
 	recommendBannerText: 'Find the best options based on the weather and schedule for today or any date you choose.',
-	recommendBannerCta: '✨ Recommend Activities',
+	recommendBannerCta: 'Recommend Activities',
 
 	// App.tsx: banner de planificacion activa
 	planningActiveTodayTitle: '📅 Recommendation for Today Active',
@@ -217,14 +217,14 @@ const en = {
 	planningModalTitle: 'Recommend Activities',
 	planningModalDescription: 'Tell us when you plan to do the activity so the system can calculate the best options automatically.',
 	whenQuestion: 'When do you want to do the activity?',
-	todayOptionCta: 'Today ☀️',
+	todayOptionCta: 'Today',
 	otherDayOptionCta: 'Other day 📅',
 	selectDateLabel: 'Select the date',
 	whatTimeQuestion: 'What time do you plan to go?',
-	anyTimeOptionCta: 'Any time 🕒',
-	specificTimeOptionCta: 'Specific time ⚡',
+	anyTimeOptionCta: 'Any time',
+	specificTimeOptionCta: 'Specific time',
 	specificTimeLabel: 'Set the specific time',
-	getRecommendationCta: 'Get Recommendation 🚀',
+	getRecommendationCta: 'Get Recommendation',
 
 	// Card: recommended ranking
 	rank1Label: '#1 Recommended',

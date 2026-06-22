@@ -775,64 +775,243 @@ type RootTranslation = {
 	 * R​e​c​o​m​e​n​d​a​d​o
 	 */
 	recommendedLabel: string
+	/**
+	 * D​a​t​o​s​ ​d​e​l​ ​p​a​n​o​r​a​m​a
+	 */
 	adminFormSectionPanoramaData: string
+	/**
+	 * I​m​a​g​e​n​ ​(​U​R​L​)
+	 */
 	adminFormImageLabel: string
+	/**
+	 * h​t​t​p​s​:​/​/​.​.​.​ ​ ​U​R​L​ ​d​i​r​e​c​t​a​ ​d​e​ ​i​m​a​g​e​n​ ​(​.​j​p​g​/​.​p​n​g​)​ ​o​ ​b​l​o​b​ ​d​e​ ​A​z​u​r​e
+	 */
 	adminFormImagePlaceholder: string
+	/**
+	 * S​e​ ​g​u​a​r​d​a​ ​c​o​m​o​ ​U​R​L​ ​p​a​r​a​ ​p​o​d​e​r​ ​c​a​m​b​i​a​r​ ​l​a​ ​i​m​a​g​e​n​ ​e​n​ ​A​z​u​r​e​ ​s​i​n​ ​t​o​c​a​r​ ​e​l​ ​c​ó​d​i​g​o​.
+	 */
 	adminFormImageHint: string
+	/**
+	 * N​o​m​b​r​e​ ​d​e​l​ ​p​a​n​o​r​a​m​a
+	 */
 	adminFormNameLabel: string
+	/**
+	 * E​j​.​ ​F​e​s​t​i​v​a​l​ ​d​e​ ​J​a​z​z​ ​e​n​ ​e​l​ ​P​a​r​q​u​e
+	 */
 	adminFormNamePlaceholder: string
+	/**
+	 * D​e​s​c​r​i​p​c​i​ó​n
+	 */
 	adminFormDescriptionLabel: string
+	/**
+	 * C​u​e​n​t​a​ ​d​e​ ​q​u​é​ ​s​e​ ​t​r​a​t​a​ ​e​l​ ​p​a​n​o​r​a​m​a​.​.​.
+	 */
 	adminFormDescriptionPlaceholder: string
+	/**
+	 * E​t​i​q​u​e​t​a​ ​d​e​ ​c​l​i​m​a
+	 */
 	adminFormWeatherTagLabel: string
+	/**
+	 * D​i​s​p​o​n​i​b​l​e​ ​p​a​r​a​ ​t​o​d​o​ ​c​l​i​m​a
+	 */
 	adminFormWeatherAllOption: string
+	/**
+	 * S​o​l​o​ ​d​í​a​s​ ​d​e​s​p​e​j​a​d​o​s
+	 */
 	adminFormWeatherSunnyOption: string
+	/**
+	 * D​i​r​e​c​c​i​ó​n​ ​o​ ​l​o​c​a​l​i​d​a​d​ ​r​e​a​l
+	 */
 	adminFormAddressLabel: string
+	/**
+	 * E​j​.​ ​A​v​.​ ​K​e​n​n​e​d​y​ ​5​4​1​3​,​ ​L​a​s​ ​C​o​n​d​e​s​,​ ​S​a​n​t​i​a​g​o
+	 */
 	adminFormAddressPlaceholder: string
+	/**
+	 * D​e​s​d​e​ ​e​s​t​a​ ​d​i​r​e​c​c​i​ó​n​,​ ​e​l​ ​b​a​c​k​e​n​d​ ​o​b​t​e​n​d​r​á​ ​l​a​s​ ​<​s​t​r​o​n​g​>​c​o​o​r​d​e​n​a​d​a​s​ ​(​l​a​t​/​l​n​g​)​<​/​s​t​r​o​n​g​>​ ​m​e​d​i​a​n​t​e​ ​g​e​o​c​o​d​i​f​i​c​a​c​i​ó​n​ ​c​o​n​ ​G​o​o​g​l​e​.​ ​C​o​n​ ​e​s​a​s​ ​c​o​o​r​d​e​n​a​d​a​s​ ​y​ ​l​a​ ​u​b​i​c​a​c​i​ó​n​ ​d​e​l​ ​u​s​u​a​r​i​o​,​ ​l​a​ ​a​p​p​ ​c​a​l​c​u​l​a​ ​l​a​ ​<​s​t​r​o​n​g​>​d​i​s​t​a​n​c​i​a​ ​a​p​r​o​x​i​m​a​d​a​<​/​s​t​r​o​n​g​>​,​ ​q​u​e​ ​s​e​ ​m​u​e​s​t​r​a​ ​e​n​ ​l​a​ ​t​a​r​j​e​t​a​ ​d​e​l​ ​p​a​n​o​r​a​m​a​ ​(​n​o​ ​s​e​ ​i​n​g​r​e​s​a​ ​a​q​u​í​)​.
+	 */
 	adminFormGeoInfoHtml: string
+	/**
+	 * →​ ​V​e​r​ ​d​ó​n​d​e​ ​a​p​a​r​e​c​e​ ​e​n​ ​l​a​ ​v​i​s​t​a​ ​p​r​e​v​i​a​ ​d​e​ ​l​a​ ​d​e​r​e​c​h​a​.
+	 */
 	adminFormGeoInfoHint: string
+	/**
+	 * H​o​r​a​r​i​o​s​ ​y​ ​f​e​c​h​a​s
+	 */
 	adminFormSchedulesSection: string
+	/**
+	 * A​g​r​e​g​a​r​ ​f​e​c​h​a
+	 */
 	adminFormAddDateCta: string
+	/**
+	 * F​e​c​h​a
+	 */
 	adminFormDateLabel: string
+	/**
+	 * Q​u​i​t​a​r​ ​f​e​c​h​a
+	 */
 	adminFormRemoveDateTitle: string
+	/**
+	 * I​n​i​c​i​o
+	 */
 	adminFormStartLabel: string
+	/**
+	 * F​i​n
+	 */
 	adminFormEndLabel: string
+	/**
+	 * Q​u​i​t​a​r​ ​h​o​r​a​r​i​o
+	 */
 	adminFormRemoveSlotTitle: string
+	/**
+	 * A​g​r​e​g​a​r​ ​h​o​r​a​r​i​o​ ​a​ ​e​s​t​a​ ​f​e​c​h​a
+	 */
 	adminFormAddSlotCta: string
+	/**
+	 * P​r​e​c​i​o​ ​y​ ​d​i​s​p​o​n​i​b​i​l​i​d​a​d
+	 */
 	adminFormPriceSection: string
+	/**
+	 * P​r​e​c​i​o​ ​(​C​L​P​)
+	 */
 	adminFormPriceLabel: string
+	/**
+	 * 0​ ​=​ ​g​r​a​t​i​s
+	 */
 	adminFormPricePlaceholder: string
+	/**
+	 * C​u​p​o​s​ ​p​o​r​ ​d​í​a
+	 */
 	adminFormSlotsLabel: string
+	/**
+	 * E​j​.​ ​5​0
+	 */
 	adminFormSlotsPlaceholder: string
+	/**
+	 * C​u​p​o​s​ ​q​u​e​ ​e​n​t​r​e​g​a​ ​e​l​ ​c​o​n​v​e​n​i​o​ ​c​a​d​a​ ​d​í​a​.​ ​S​e​ ​d​e​s​c​u​e​n​t​a​n​ ​c​o​n​ ​c​a​d​a​ ​r​e​s​e​r​v​a​/​c​o​m​p​r​a​ ​y​ ​s​e​ ​r​e​i​n​i​c​i​a​n​ ​a​l​ ​d​í​a​ ​s​i​g​u​i​e​n​t​e​.
+	 */
 	adminFormSlotsHint: string
+	/**
+	 * G​u​a​r​d​a​n​d​o​.​.​.
+	 */
 	adminFormSavingCta: string
+	/**
+	 * C​r​e​a​r​ ​p​a​n​o​r​a​m​a
+	 */
 	adminFormSubmitCta: string
+	/**
+	 * D​a​t​o​s​ ​q​u​e​ ​s​e​ ​e​n​v​i​a​r​á​n​ ​a​l​ ​b​a​c​k​e​n​d​ ​(​p​r​ó​x​i​m​a​ ​e​t​a​p​a​)
+	 */
 	adminFormPreviewPayloadTitle: string
+	/**
+	 * V​i​s​t​a​ ​p​r​e​v​i​a
+	 */
 	adminFormPreviewLabel: string
+	/**
+	 * D​e​s​p​e​j​a​d​o
+	 */
 	adminWeatherSunnyShort: string
+	/**
+	 * T​o​d​o​ ​c​l​i​m​a
+	 */
 	adminWeatherAllShort: string
+	/**
+	 * p​o​r​ ​d​e​f​i​n​i​r
+	 */
 	adminFormScheduleTBD: string
+	/**
+	 * D​e​t​a​l​l​e​ ​(​a​l​ ​t​o​c​a​r​ ​"​V​e​r​ ​e​v​e​n​t​o​"​)
+	 */
 	adminFormDetailPreviewLabel: string
+	/**
+	 * A​q​u​í​ ​a​p​a​r​e​c​e​r​á​ ​l​a​ ​d​e​s​c​r​i​p​c​i​ó​n​ ​q​u​e​ ​e​s​c​r​i​b​a​s​.
+	 */
 	adminFormDescriptionFallback: string
+	/**
+	 * S​i​n​ ​d​i​r​e​c​c​i​ó​n
+	 */
 	adminFormNoAddressValue: string
+	/**
+	 * A​q​u​í​ ​s​e​ ​m​o​s​t​r​a​r​á​ ​e​l​ ​m​a​p​a​ ​d​e​ ​G​o​o​g​l​e​ ​d​e​l​ ​l​u​g​a​r
+	 */
 	adminFormMapPlaceholderText: string
+	/**
+	 * E​l​ ​b​a​d​g​e​ ​~​2​,​4​ ​k​m​ ​e​s​ ​d​o​n​d​e​ ​s​e​ ​m​o​s​t​r​a​r​á​ ​l​a​ ​d​i​s​t​a​n​c​i​a​ ​r​e​a​l​ ​a​l​ ​u​s​u​a​r​i​o​ ​(​c​a​l​c​u​l​a​d​a​ ​d​e​s​d​e​ ​l​a​ ​d​i​r​e​c​c​i​ó​n​ ​g​e​o​c​o​d​i​f​i​c​a​d​a​)​.​ ​E​l​ ​n​ú​m​e​r​o​ ​e​s​ ​d​e​ ​e​j​e​m​p​l​o​ ​h​a​s​t​a​ ​c​o​n​e​c​t​a​r​ ​l​a​ ​g​e​o​c​o​d​i​f​i​c​a​c​i​ó​n​.
+	 */
 	adminFormDistanceNote: string
+	/**
+	 * E​r​r​o​r​ ​a​l​ ​c​r​e​a​r​ ​e​l​ ​p​a​n​o​r​a​m​a
+	 */
 	adminFormErrorCreating: string
+	/**
+	 * P​a​n​o​r​a​m​a​ ​c​r​e​a​d​o​ ​y​ ​g​u​a​r​d​a​d​o​.​ ​D​i​r​e​c​c​i​ó​n​ ​g​e​o​c​o​d​i​f​i​c​a​d​a​.
+	 */
 	adminFormSuccessGeocoded: string
+	/**
+	 * P​a​n​o​r​a​m​a​ ​c​r​e​a​d​o​ ​y​ ​g​u​a​r​d​a​d​o​ ​(​l​a​ ​d​i​r​e​c​c​i​ó​n​ ​n​o​ ​s​e​ ​p​u​d​o​ ​g​e​o​c​o​d​i​f​i​c​a​r​;​ ​s​i​n​ ​d​i​s​t​a​n​c​i​a​ ​p​o​r​ ​a​h​o​r​a​)​.
+	 */
 	adminFormSuccessNotGeocoded: string
+	/**
+	 * N​o​ ​s​e​ ​p​u​d​o​ ​g​u​a​r​d​a​r​ ​e​l​ ​p​a​n​o​r​a​m​a​.
+	 */
 	adminFormSaveErrorGeneric: string
+	/**
+	 * N​o​ ​s​e​ ​p​u​d​i​e​r​o​n​ ​c​a​r​g​a​r​ ​l​o​s​ ​p​a​n​o​r​a​m​a​s
+	 */
 	adminManageLoadError: string
+	/**
+	 * E​r​r​o​r​ ​a​l​ ​c​a​r​g​a​r
+	 */
 	adminManageLoadErrorGeneric: string
+	/**
+	 * ¿​E​l​i​m​i​n​a​r​ ​"​{​n​a​m​e​}​"​?​ ​E​s​t​a​ ​a​c​c​i​ó​n​ ​n​o​ ​s​e​ ​p​u​e​d​e​ ​d​e​s​h​a​c​e​r​.
+	 * @param {unknown} name
+	 */
 	adminManageDeleteConfirm: RequiredParams<'name'>
+	/**
+	 * {​n​}​ ​p​a​n​o​r​a​m​a​(​s​)​ ​a​c​t​u​a​l​i​z​a​d​o​s​ ​c​o​n​ ​c​o​o​r​d​e​n​a​d​a​s​.
+	 * @param {unknown} n
+	 */
 	adminManageRegeoSuccess: RequiredParams<'n'>
+	/**
+	 * N​o​ ​s​e​ ​p​u​d​o​ ​r​e​-​g​e​o​c​o​d​i​f​i​c​a​r
+	 */
 	adminManageRegeoError: string
+	/**
+	 * G​e​o​c​o​d​i​f​i​c​a​n​d​o​.​.​.
+	 */
 	adminManageGeocodingCta: string
+	/**
+	 * R​e​-​g​e​o​c​o​d​i​f​i​c​a​r
+	 */
 	adminManageRegeocodeCta: string
+	/**
+	 * R​e​c​a​r​g​a​r
+	 */
 	adminManageReloadCta: string
+	/**
+	 * N​o​ ​h​a​y​ ​p​a​n​o​r​a​m​a​s​ ​e​n​ ​e​s​t​a​ ​c​a​t​e​g​o​r​í​a​.
+	 */
 	adminManageEmptyCategory: string
+	/**
+	 * S​i​n​ ​p​r​e​c​i​o
+	 */
 	adminManageNoPrice: string
+	/**
+	 * D​i​s​p​o​n​i​b​i​l​i​d​a​d
+	 */
 	adminManageAvailabilityTitle: string
+	/**
+	 * D​i​s​p​o​n​i​b​l​e
+	 */
 	adminManageAvailableLabel: string
+	/**
+	 * N​o​ ​d​i​s​p​.
+	 */
 	adminManageUnavailableLabel: string
+	/**
+	 * E​l​i​m​i​n​a​r
+	 */
 	adminManageDeleteTitle: string
 }
 
@@ -1593,64 +1772,241 @@ export type TranslationFunctions = {
 	 * Recomendado
 	 */
 	recommendedLabel: () => LocalizedString
+	/**
+	 * Datos del panorama
+	 */
 	adminFormSectionPanoramaData: () => LocalizedString
+	/**
+	 * Imagen (URL)
+	 */
 	adminFormImageLabel: () => LocalizedString
+	/**
+	 * https://...  URL directa de imagen (.jpg/.png) o blob de Azure
+	 */
 	adminFormImagePlaceholder: () => LocalizedString
+	/**
+	 * Se guarda como URL para poder cambiar la imagen en Azure sin tocar el código.
+	 */
 	adminFormImageHint: () => LocalizedString
+	/**
+	 * Nombre del panorama
+	 */
 	adminFormNameLabel: () => LocalizedString
+	/**
+	 * Ej. Festival de Jazz en el Parque
+	 */
 	adminFormNamePlaceholder: () => LocalizedString
+	/**
+	 * Descripción
+	 */
 	adminFormDescriptionLabel: () => LocalizedString
+	/**
+	 * Cuenta de qué se trata el panorama...
+	 */
 	adminFormDescriptionPlaceholder: () => LocalizedString
+	/**
+	 * Etiqueta de clima
+	 */
 	adminFormWeatherTagLabel: () => LocalizedString
+	/**
+	 * Disponible para todo clima
+	 */
 	adminFormWeatherAllOption: () => LocalizedString
+	/**
+	 * Solo días despejados
+	 */
 	adminFormWeatherSunnyOption: () => LocalizedString
+	/**
+	 * Dirección o localidad real
+	 */
 	adminFormAddressLabel: () => LocalizedString
+	/**
+	 * Ej. Av. Kennedy 5413, Las Condes, Santiago
+	 */
 	adminFormAddressPlaceholder: () => LocalizedString
+	/**
+	 * Desde esta dirección, el backend obtendrá las <strong>coordenadas (lat/lng)</strong> mediante geocodificación con Google. Con esas coordenadas y la ubicación del usuario, la app calcula la <strong>distancia aproximada</strong>, que se muestra en la tarjeta del panorama (no se ingresa aquí).
+	 */
 	adminFormGeoInfoHtml: () => LocalizedString
+	/**
+	 * → Ver dónde aparece en la vista previa de la derecha.
+	 */
 	adminFormGeoInfoHint: () => LocalizedString
+	/**
+	 * Horarios y fechas
+	 */
 	adminFormSchedulesSection: () => LocalizedString
+	/**
+	 * Agregar fecha
+	 */
 	adminFormAddDateCta: () => LocalizedString
+	/**
+	 * Fecha
+	 */
 	adminFormDateLabel: () => LocalizedString
+	/**
+	 * Quitar fecha
+	 */
 	adminFormRemoveDateTitle: () => LocalizedString
+	/**
+	 * Inicio
+	 */
 	adminFormStartLabel: () => LocalizedString
+	/**
+	 * Fin
+	 */
 	adminFormEndLabel: () => LocalizedString
+	/**
+	 * Quitar horario
+	 */
 	adminFormRemoveSlotTitle: () => LocalizedString
+	/**
+	 * Agregar horario a esta fecha
+	 */
 	adminFormAddSlotCta: () => LocalizedString
+	/**
+	 * Precio y disponibilidad
+	 */
 	adminFormPriceSection: () => LocalizedString
+	/**
+	 * Precio (CLP)
+	 */
 	adminFormPriceLabel: () => LocalizedString
+	/**
+	 * 0 = gratis
+	 */
 	adminFormPricePlaceholder: () => LocalizedString
+	/**
+	 * Cupos por día
+	 */
 	adminFormSlotsLabel: () => LocalizedString
+	/**
+	 * Ej. 50
+	 */
 	adminFormSlotsPlaceholder: () => LocalizedString
+	/**
+	 * Cupos que entrega el convenio cada día. Se descuentan con cada reserva/compra y se reinician al día siguiente.
+	 */
 	adminFormSlotsHint: () => LocalizedString
+	/**
+	 * Guardando...
+	 */
 	adminFormSavingCta: () => LocalizedString
+	/**
+	 * Crear panorama
+	 */
 	adminFormSubmitCta: () => LocalizedString
+	/**
+	 * Datos que se enviarán al backend (próxima etapa)
+	 */
 	adminFormPreviewPayloadTitle: () => LocalizedString
+	/**
+	 * Vista previa
+	 */
 	adminFormPreviewLabel: () => LocalizedString
+	/**
+	 * Despejado
+	 */
 	adminWeatherSunnyShort: () => LocalizedString
+	/**
+	 * Todo clima
+	 */
 	adminWeatherAllShort: () => LocalizedString
+	/**
+	 * por definir
+	 */
 	adminFormScheduleTBD: () => LocalizedString
+	/**
+	 * Detalle (al tocar "Ver evento")
+	 */
 	adminFormDetailPreviewLabel: () => LocalizedString
+	/**
+	 * Aquí aparecerá la descripción que escribas.
+	 */
 	adminFormDescriptionFallback: () => LocalizedString
+	/**
+	 * Sin dirección
+	 */
 	adminFormNoAddressValue: () => LocalizedString
+	/**
+	 * Aquí se mostrará el mapa de Google del lugar
+	 */
 	adminFormMapPlaceholderText: () => LocalizedString
+	/**
+	 * El badge ~2,4 km es donde se mostrará la distancia real al usuario (calculada desde la dirección geocodificada). El número es de ejemplo hasta conectar la geocodificación.
+	 */
 	adminFormDistanceNote: () => LocalizedString
+	/**
+	 * Error al crear el panorama
+	 */
 	adminFormErrorCreating: () => LocalizedString
+	/**
+	 * Panorama creado y guardado. Dirección geocodificada.
+	 */
 	adminFormSuccessGeocoded: () => LocalizedString
+	/**
+	 * Panorama creado y guardado (la dirección no se pudo geocodificar; sin distancia por ahora).
+	 */
 	adminFormSuccessNotGeocoded: () => LocalizedString
+	/**
+	 * No se pudo guardar el panorama.
+	 */
 	adminFormSaveErrorGeneric: () => LocalizedString
+	/**
+	 * No se pudieron cargar los panoramas
+	 */
 	adminManageLoadError: () => LocalizedString
+	/**
+	 * Error al cargar
+	 */
 	adminManageLoadErrorGeneric: () => LocalizedString
+	/**
+	 * ¿Eliminar "{name}"? Esta acción no se puede deshacer.
+	 */
 	adminManageDeleteConfirm: (arg: { name: unknown }) => LocalizedString
+	/**
+	 * {n} panorama(s) actualizados con coordenadas.
+	 */
 	adminManageRegeoSuccess: (arg: { n: unknown }) => LocalizedString
+	/**
+	 * No se pudo re-geocodificar
+	 */
 	adminManageRegeoError: () => LocalizedString
+	/**
+	 * Geocodificando...
+	 */
 	adminManageGeocodingCta: () => LocalizedString
+	/**
+	 * Re-geocodificar
+	 */
 	adminManageRegeocodeCta: () => LocalizedString
+	/**
+	 * Recargar
+	 */
 	adminManageReloadCta: () => LocalizedString
+	/**
+	 * No hay panoramas en esta categoría.
+	 */
 	adminManageEmptyCategory: () => LocalizedString
+	/**
+	 * Sin precio
+	 */
 	adminManageNoPrice: () => LocalizedString
+	/**
+	 * Disponibilidad
+	 */
 	adminManageAvailabilityTitle: () => LocalizedString
+	/**
+	 * Disponible
+	 */
 	adminManageAvailableLabel: () => LocalizedString
+	/**
+	 * No disp.
+	 */
 	adminManageUnavailableLabel: () => LocalizedString
+	/**
+	 * Eliminar
+	 */
 	adminManageDeleteTitle: () => LocalizedString
 }
 

@@ -12,17 +12,43 @@ import { getSimulatedOccupancy } from './services/placesService';
 import { processPayment } from './services/paymentService';
 
 
-// Servicio de envío de correo por API HTTP (Resend) para evadir bloqueos de puerto SMTP en Render
+import nodemailer from 'nodemailer';
+
+// Transporter para desarrollo local (SMTP de Gmail). En Render (producción) se usa Resend.
+const transporter = (process.env.NODE_ENV !== "production" && process.env.GMAIL_USER) ? nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD,
+  },
+  connectionTimeout: 10000,
+}) : null;
+
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
 async function sendEmailViaResend(to: string | string[], subject: string, html: string) {
+  const toArray = Array.isArray(to) ? to : [to];
+
+  // Si estamos en local y tenemos nodemailer, lo usamos directamente para mandar mails reales a cualquier receptor
+  if (transporter && process.env.NODE_ENV !== "production") {
+    console.log(`✉️ [SMTP Local] Enviando correo real con Gmail a: ${toArray.join(", ")}`);
+    return await transporter.sendMail({
+      from: `"Panoramas App" <${process.env.GMAIL_USER}>`,
+      to: toArray.join(', '),
+      subject: subject,
+      html: html,
+    });
+  }
+
+  // De lo contrario (ej. en Render), usamos Resend
   if (!RESEND_API_KEY) {
     console.warn("⚠️ Advertencia: RESEND_API_KEY no está configurada.");
     return { success: false, error: "Missing API Key" };
   }
 
-  const toArray = Array.isArray(to) ? to : [to];
-
+  console.log(`✉️ [Resend API] Enviando correo con Resend a: ${toArray.join(", ")}`);
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -30,7 +56,7 @@ async function sendEmailViaResend(to: string | string[], subject: string, html: 
       "Authorization": `Bearer ${RESEND_API_KEY}`,
     },
     body: JSON.stringify({
-      from: "Panoramas App <onboarding@resend.dev>", // O tu remitente configurado en Resend
+      from: "Panoramas App <onboarding@resend.dev>",
       to: toArray,
       subject: subject,
       html: html,
@@ -965,6 +991,8 @@ app.post("/api/otp/request", async ({ body }) => {
     updatedAt: new Date(),
   });
 
+  console.log(`🔑 [OTP] Código generado para ${email}: ${code}`);
+
   try {
     await sendEmailViaResend(email, "Tu código de verificación - Panoramas", `
       <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:40px;background:#fff;border-radius:16px;">
@@ -978,6 +1006,10 @@ app.post("/api/otp/request", async ({ body }) => {
     `);
   } catch (err) {
     console.error("❌ Error enviando OTP por Resend:", err);
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`💡 [Desarrollo] Usando código fallback: ${code}`);
+      return { message: "Código enviado" };
+    }
     return { message: "No se pudo enviar el código por correo. Intenta de nuevo en unos segundos.", error: true };
   }
 

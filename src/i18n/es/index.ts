@@ -167,9 +167,9 @@ const es = {
 	reservationErrorGeneric: 'Error al reservar',
 
 	// App.tsx: banner de recomendacion asistida
-	recommendBannerTitle: '🧠 ¿Quieres recomendaciones personalizadas de panoramas?',
+	recommendBannerTitle: '🧠 ¿No sabes que hacer? Nosotros te Recomendamos !!!',
 	recommendBannerText: 'Encuentra las mejores opciones según el clima y horarios de hoy o de cualquier fecha que elijas.',
-	recommendBannerCta: '✨ Recomendar Panoramas',
+	recommendBannerCta: 'Recomendar Panoramas',
 
 	// App.tsx: banner de planificacion activa
 	planningActiveTodayTitle: '📅 Recomendación para Hoy Activa',
@@ -217,14 +217,14 @@ const es = {
 	planningModalTitle: 'Recomendar Panoramas',
 	planningModalDescription: 'Indica cuándo realizarás la actividad para que el sistema calcule las mejores opciones de forma automática.',
 	whenQuestion: '¿Cuándo quieres realizar la actividad?',
-	todayOptionCta: 'Hoy ☀️',
+	todayOptionCta: 'Hoy',
 	otherDayOptionCta: 'Otro día 📅',
 	selectDateLabel: 'Selecciona la fecha',
 	whatTimeQuestion: '¿A qué hora estimas ir?',
-	anyTimeOptionCta: 'Cualquier hora 🕒',
-	specificTimeOptionCta: 'Hora específica ⚡',
+	anyTimeOptionCta: 'Cualquier hora',
+	specificTimeOptionCta: 'Hora específica',
 	specificTimeLabel: 'Define la hora específica',
-	getRecommendationCta: 'Obtener Recomendación 🚀',
+	getRecommendationCta: 'Obtener Recomendación',
 
 	// Card: ranking de recomendados
 	rank1Label: '#1 Recomendado',
