@@ -389,218 +389,301 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
   }
 }
 
-// --- Crear panorama (SOLO ADMIN) - nueva logica de panoramas ---
-app.post("/api/admin/activities", async ({ body, request, set }) => {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user?.id) {
-    set.status = 401;
-    return { error: "No autorizado" };
-  }
-  const caller = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
-  if ((caller[0]?.role ?? 'user') !== 'admin') {
-    set.status = 403;
-    return { error: "Acceso denegado: se requieren permisos de administrador" };
-  }
-
-  const b = body as any;
-  if (!b?.name || !b?.category) {
-    set.status = 400;
-    return { error: "Faltan campos obligatorios: name y category" };
-  }
-
-  const coords = (typeof b.coordinates?.lat === 'number' && typeof b.coordinates?.lng === 'number')
-    ? { lat: b.coordinates.lat, lng: b.coordinates.lng }
-    : (b.address ? await geocodeAddress(b.address) : null);
-
-  const id = randomUUID();
-  const schedules = Array.isArray(b.schedules) ? b.schedules : [];
-
-  // Transaccion: el panorama y todos sus horarios se guardan atomicamente.
-  try {
-    await db.transaction(async (tx) => {
-      await tx.insert(activities).values({
-        id,
-        name: b.name,
-        category: b.category,
-        tag_clima: b.tag_clima ?? 'All',
-        lat: coords?.lat ?? 0,
-        lng: coords?.lng ?? 0,
-        imageUrl: b.image_url ?? null,
-        description: b.description ?? null,
-        address: b.address ?? null,
-        placeId: b.place_id ?? null,
-        price: typeof b.price === 'number' ? b.price : null,
-        cuposPorDia: typeof b.cupos_por_dia === 'number' ? b.cupos_por_dia : null,
-      });
-
-      for (const dia of schedules) {
-        if (!dia?.fecha) continue;
-        const franjas = Array.isArray(dia.franjas) ? dia.franjas : [];
-        for (const f of franjas) {
-          await tx.insert(activitySchedules).values({
-            activityId: id,
-            fecha: dia.fecha,
-            horaInicio: f?.horaInicio || null,
-            horaFin: f?.horaFin || null,
-          });
-        }
+// --- Grupo de rutas administrativas (SOLO ADMIN) ---
+app.group("/api/admin", (adminGroup) => adminGroup
+  .guard({
+    beforeHandle: protectMiddleware('admin')
+  }, (adminApp) => adminApp
+    .post("/activities", async ({ body, set }) => {
+      const b = body as any;
+      if (!b?.name || !b?.category) {
+        set.status = 400;
+        return { error: "Faltan campos obligatorios: name y category" };
       }
-    });
-  } catch (e) {
-    console.error('[crear panorama] transaccion revertida:', e);
-    set.status = 500;
-    return { error: "No se pudo guardar el panorama (cambios revertidos)" };
-  }
 
-  return { success: true, id, geocoded: coords !== null, coordinates: coords };
-});
+      const coords = (typeof b.coordinates?.lat === 'number' && typeof b.coordinates?.lng === 'number')
+        ? { lat: b.coordinates.lat, lng: b.coordinates.lng }
+        : (b.address ? await geocodeAddress(b.address) : null);
 
-// --- Listar panoramas para administracion (SOLO ADMIN) ---
-app.get("/api/admin/activities", async ({ request, set }) => {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user?.id) { set.status = 401; return { error: "No autorizado" }; }
-  const caller = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
-  if ((caller[0]?.role ?? 'user') !== 'admin') { set.status = 403; return { error: "Acceso denegado" }; }
-  const rows = await db.select().from(activities);
-  return rows.map(r => ({
-    id: r.id,
-    name: r.name,
-    category: r.category,
-    imageUrl: (r as any).imageUrl ?? null,
-    price: (r as any).price ?? null,
-    address: (r as any).address ?? null,
-    isTendencia: (r as any).isTendencia ?? false,
-    isPopular: (r as any).isPopular ?? false,
-    disponible: (r as any).disponible ?? true,
-  }));
-});
+      const id = randomUUID();
+      const schedules = Array.isArray(b.schedules) ? b.schedules : [];
 
-// --- Eliminar panorama (SOLO ADMIN) ---
-app.delete("/api/admin/activities/:id", async ({ params, request, set }) => {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user?.id) { set.status = 401; return { error: "No autorizado" }; }
-  const caller = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
-  if ((caller[0]?.role ?? 'user') !== 'admin') { set.status = 403; return { error: "Acceso denegado" }; }
-  await db.delete(activities).where(eq(activities.id, params.id));
-  return { success: true, id: params.id };
-});
-
-// --- Actualizar flags: tendencia / popular / disponible (SOLO ADMIN) ---
-app.patch("/api/admin/activities/:id", async ({ params, body, request, set }) => {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user?.id) { set.status = 401; return { error: "No autorizado" }; }
-  const caller = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
-  if ((caller[0]?.role ?? 'user') !== 'admin') { set.status = 403; return { error: "Acceso denegado" }; }
-  const b = body as any;
-  const updates: any = {};
-  if (typeof b.isTendencia === 'boolean') updates.isTendencia = b.isTendencia;
-  if (typeof b.isPopular === 'boolean') updates.isPopular = b.isPopular;
-  if (typeof b.disponible === 'boolean') updates.disponible = b.disponible;
-  if (Object.keys(updates).length === 0) { set.status = 400; return { error: "Nada que actualizar" }; }
-
-  //Buscamos los datos actuales de la actividad antes de actualizar para saber si el flag cambió
-  const [currentActivity] = await db.select().from(activities).where(eq(activities.id, params.id));
-  if (!currentActivity) { set.status = 404; return { error: "Actividad no encontrada" }; }
-
-  //Actualizamos la bbdd
-  await db.update(activities).set(updates).where(eq(activities.id, params.id));
-
-  //Motor de notificaciones en segundo plano
-  //evaluamos si se activó un flag que antes estaba apagado
-  const seVolvioTendencia = updates.isTendencia === true && !(currentActivity as any).isTendencia;
-  const seVolvioPopular = updates.isPopular === true && !(currentActivity as any).isPopular;
-
-  if (seVolvioTendencia || seVolvioPopular) {
-    //función asíncrona que se dispara
-    (async () => {
       try {
-        console.log(`Iniciando campaña de correos masivos para: "${currentActivity.name}"`);
+        await db.transaction(async (tx) => {
+          await tx.insert(activities).values({
+            id,
+            name: b.name,
+            category: b.category,
+            tag_clima: b.tag_clima ?? 'All',
+            lat: coords?.lat ?? 0,
+            lng: coords?.lng ?? 0,
+            imageUrl: b.image_url ?? null,
+            description: b.description ?? null,
+            address: b.address ?? null,
+            placeId: b.place_id ?? null,
+            price: typeof b.price === 'number' ? b.price : null,
+            cuposPorDia: typeof b.cupos_por_dia === 'number' ? b.cupos_por_dia : null,
+          });
 
-        //buscamos a los usuarios reales registrados en el sistema
-        const allUsers = await db.select({ email: user.email }).from(user);
-        const recipientEmails = allUsers.map(u => u.email).filter(Boolean);
+          for (const dia of schedules) {
+            if (!dia?.fecha) continue;
+            const franjas = Array.isArray(dia.franjas) ? dia.franjas : [];
+            for (const f of franjas) {
+              await tx.insert(activitySchedules).values({
+                activityId: id,
+                fecha: dia.fecha,
+                horaInicio: f?.horaInicio || null,
+                horaFin: f?.horaFin || null,
+              });
+            }
+          }
+        });
+      } catch (e) {
+        console.error('[crear panorama] transaccion revertida:', e);
+        set.status = 500;
+        return { error: "No se pudo guardar el panorama (cambios revertidos)" };
+      }
 
-        if (recipientEmails.length === 0) return;
+      return { success: true, id, geocoded: coords !== null, coordinates: coords };
+    })
+    .get("/activities", async () => {
+      const rows = await db.select().from(activities);
+      return rows.map(r => ({
+        id: r.id,
+        name: r.name,
+        category: r.category,
+        imageUrl: (r as any).imageUrl ?? null,
+        price: (r as any).price ?? null,
+        address: (r as any).address ?? null,
+        isTendencia: (r as any).isTendencia ?? false,
+        isPopular: (r as any).isPopular ?? false,
+        disponible: (r as any).disponible ?? true,
+      }));
+    })
+    .delete("/activities/:id", async ({ params }) => {
+      await db.delete(activities).where(eq(activities.id, params.id));
+      return { success: true, id: params.id };
+    })
+    .patch("/activities/:id", async ({ params, body, set }) => {
+      const b = body as any;
+      const updates: any = {};
+      if (typeof b.isTendencia === 'boolean') updates.isTendencia = b.isTendencia;
+      if (typeof b.isPopular === 'boolean') updates.isPopular = b.isPopular;
+      if (typeof b.disponible === 'boolean') updates.disponible = b.disponible;
+      if (Object.keys(updates).length === 0) { set.status = 400; return { error: "Nada que actualizar" }; }
 
-        //definimos el asunto y diseño visual adaptativo según el tipo de logo del panorama
-        let subject = "";
-        let badgeColor = "";
-        let badgeText = "";
-        let messageText = "";
+      const [currentActivity] = await db.select().from(activities).where(eq(activities.id, params.id));
+      if (!currentActivity) { set.status = 404; return { error: "Actividad no encontrada" }; }
 
-        if (seVolvioTendencia) {
-          subject = `📈 ¡ALERTA DE TENDENCIA! ${currentActivity.name} está arrasando`
-          badgeColor = "#f97316";
-          badgeText = "⚡️ TENDENCIA DEL MOMENTO";
-          messageText = "Este panorama está siendo el más reservado por la comunidad en los últimos días y los cupos vuelan. ¡No te quedes fuera!";
-        } else {
-          subject = `❤️ ¡A todos les encanta! ${currentActivity.name} es el nuevo favorito`
-          badgeColor = "#ec4899";
-          badgeText = "❤️ EL FAVORITO DE TODOS";
-          messageText = "¡Este panorama se ha convertido en el favorito de todos! La comunidad lo ha elegido como uno de los lugares más top e imperdibles.";
+      await db.update(activities).set(updates).where(eq(activities.id, params.id));
+
+      const seVolvioTendencia = updates.isTendencia === true && !(currentActivity as any).isTendencia;
+      const seVolvioPopular = updates.isPopular === true && !(currentActivity as any).isPopular;
+
+      if (seVolvioTendencia || seVolvioPopular) {
+        (async () => {
+          try {
+            console.log(`Iniciando campaña de correos masivos para: "${currentActivity.name}"`);
+
+            const allUsers = await db.select({ email: user.email }).from(user);
+            const recipientEmails = allUsers.map(u => u.email).filter(Boolean) as string[];
+
+            if (recipientEmails.length === 0) {
+              console.log("No hay destinatarios registrados para enviar la campaña.");
+              return;
+            }
+
+            const subject = seVolvioTendencia
+              ? `🔥 ¡Panorama en Tendencia: "${currentActivity.name}"!`
+              : `⭐ ¡Panorama Popular: "${currentActivity.name}"!`;
+
+            const headingText = seVolvioTendencia
+              ? "¡Este panorama está causando furor!"
+              : "¡Este panorama es uno de los favoritos de la comunidad!";
+
+            const htmlContent = `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px;">
+                <h2 style="color: #4f46e5; text-align: center;">${headingText}</h2>
+                <p>Hola,</p>
+                <p>Queremos contarte que el panorama <strong>"${currentActivity.name}"</strong> ahora es considerado uno de los más destacados de nuestra plataforma.</p>
+                <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                  <h3 style="margin-top: 0; color: #1f2937;">${currentActivity.name}</h3>
+                  <p style="color: #4b5563; margin-bottom: 0;">${(currentActivity as any).description || "Sin descripción disponible."}</p>
+                </div>
+                <p style="text-align: center; margin-top: 30px;">
+                  <a href="https://panoramapp.onrender.com" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Ver Detalles</a>
+                </p>
+                <hr style="border: 0; border-top: 1px solid #e0e0e0; margin-top: 40px;" />
+                <p style="font-size: 12px; color: #9ca3af; text-align: center;">Recibiste este correo porque estás registrado en Panoramas App.</p>
+              </div>
+            `;
+
+            await sendEmailViaResend(recipientEmails, subject, htmlContent);
+            console.log(`¡Notificaciones enviadas con éxito a ${recipientEmails.length} usuarios!`);
+          } catch (err) {
+            console.error("Error en el proceso de envío de correos:", err);
+          }
+        })();
+      }
+      return { success: true, id: params.id, updated: updates };
+    })
+    .post("/activities/regeocode", async ({ set }) => {
+      const rows = await db.select().from(activities);
+      let actualizados = 0;
+      for (const r of rows) {
+        const addr = (r as any).address;
+        const sinCoords = (r.lat === 0 || r.lat == null) && (r.lng === 0 || r.lng == null);
+        if (addr && sinCoords) {
+          const coords = await geocodeAddress(addr);
+          if (coords) {
+            await db.update(activities).set({ lat: coords.lat, lng: coords.lng }).where(eq(activities.id, r.id));
+            actualizados++;
+          }
         }
-
-        const htmlContent = `
-          <div style="font-family:sans-serif; max-width:500px; margin:0 auto; padding:30px; background:#fafafa; border-radius:20px; border: 1px solid #eee;">
-            <h1 style="font-size:26px; font-weight:900; margin-bottom:16px; color:#111; letter-spacing:-0.03em;">PANORAMAS</h1>
-            
-            <div style="display:inline-block; background:${badgeColor}; color:#fff; padding:6px 14px; border-radius:50px; font-size:11px; font-weight:bold; letter-spacing:0.05em; margin-bottom:20px;">
-              ${badgeText}
-            </div>
-
-            <h2 style="font-size:20px; font-weight:700; margin-top:0; color:#222;">${currentActivity.name}</h2>
-            <p style="color:#555; font-size:14px; line-height:1.6; margin-bottom:24px;">${messageText}</p>
-            
-            <div style="background:#fff; padding:20px; border-radius:12px; border:1px solid #eaeaea; margin-bottom:24px;">
-              <p style="margin:0 0 8px 0; font-size:13px; color:#888;"><strong>Categoría:</strong> ${currentActivity.category}</p>
-              ${(currentActivity as any).address ? `<p style="margin:0; font-size:13px; color:#888;"><strong>Ubicación:</strong> ${(currentActivity as any).address}</p>` : ''}
-            </div>
-
-            <div style="text-align:center; margin-top:30px;">
-              <a href="${process.env.BETTER_AUTH_URL || 'http://localhost:5173'}" style="background:#111; color:#fff; text-decoration:none; padding:12px 24px; font-size:14px; font-weight:600; border-radius:10px; display:inline-block;">
-                Ver detalles en la App
-              </a>
-            </div>
-            
-            <p style="font-size:12px; color:#aaa; margin-top:30px; text-align:center;">
-              Recibiste esta notificación automática porque formas parte de la comunidad Panoramas.
-            </p>
-          </div>
-        `;
-
-        //Enviamos el correo a la lista de distribución
-        await sendEmailViaResend(recipientEmails, subject, htmlContent);
-
-        console.log(`¡Notificaciones enviadas con éxito a ${recipientEmails.length} usuarios!`);
-      } catch (err) {
-        console.error("Error en el proceso de envío de correos:", err);
       }
-    })();
-  }
-  return { success: true, id: params.id, updated: updates };
-});
+      return { success: true, actualizados };
+    })
+    .get("/metrics", async ({ set }) => {
+      try {
+        const popularResult = await db
+          .select({
+            activityId: userFavorites.activityId,
+            activityName: activities.name,
+            totalLikes: count(userFavorites.id),
+          })
+          .from(userFavorites)
+          .innerJoin(activities, eq(userFavorites.activityId, activities.id))
+          .groupBy(userFavorites.activityId, activities.name)
+          .orderBy((fields) => [sql`count(${userFavorites.id}) desc`])
+          .limit(1);
 
-// --- Re-geocodificar panoramas sin coordenadas (SOLO ADMIN) ---
-app.post("/api/admin/activities/regeocode", async ({ request, set }) => {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user?.id) { set.status = 401; return { error: "No autorizado" }; }
-  const caller = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
-  if ((caller[0]?.role ?? 'user') !== 'admin') { set.status = 403; return { error: "Acceso denegado" }; }
-  const rows = await db.select().from(activities);
-  let actualizados = 0;
-  for (const r of rows) {
-    const addr = (r as any).address;
-    const sinCoords = (r.lat === 0 || r.lat == null) && (r.lng === 0 || r.lng == null);
-    if (addr && sinCoords) {
-      const coords = await geocodeAddress(addr);
-      if (coords) {
-        await db.update(activities).set({ lat: coords.lat, lng: coords.lng }).where(eq(activities.id, r.id));
-        actualizados++;
+        const tendenciaResult = await db
+          .select({
+            activityId: userReservations.activityId,
+            activityName: activities.name,
+            totalReservas: count(userReservations.id),
+          })
+          .from(userReservations)
+          .innerJoin(activities, eq(userReservations.activityId, activities.id))
+          .where(ne(userReservations.status, 'cancelado'))
+          .groupBy(userReservations.activityId, activities.name)
+          .orderBy((fields) => [sql`count(${userReservations.id}) desc`])
+          .limit(1);
+
+        const masPopular = popularResult[0] || { activityName: "Sin likes registrados aún", totalLikes: 0 };
+        const enTendencia = tendenciaResult[0] || { activityName: "Sin reservas activas aún", totalReservas: 0 };
+
+        return {
+          success: true,
+          data: {
+            popular: {
+              name: masPopular.activityName,
+              count: masPopular.totalLikes
+            },
+            tendencia: {
+              name: enTendencia.activityName,
+              count: enTendencia.totalReservas
+            }
+          }
+        };
+      } catch (error) {
+        console.error("Error al calcular métricas:", error);
+        set.status = 500;
+        return { error: "Error interno al procesar métricas analíticas" };
       }
-    }
-  }
-  return { success: true, actualizados };
-});
+    })
+    .get("/stats", async ({ set }) => {
+      const totalUsersResult = await db.select({ value: count() }).from(user);
+      const totalUsers = totalUsersResult[0]?.value ?? 0;
+
+      const totalActivitiesResult = await db.select({ value: count() }).from(activities);
+      const totalActivities = totalActivitiesResult[0]?.value ?? 0;
+
+      const todayStart = new Date();
+      todayStart.setHours(0,0,0,0);
+      const otpsSentTodayResult = await db.select({ value: count() }).from(verification)
+        .where(gt(verification.createdAt, todayStart));
+      const otpsSentToday = otpsSentTodayResult[0]?.value ?? 0;
+
+      const categoryCounts = await db.select({
+        category: activities.category,
+        count: count()
+      }).from(activities).groupBy(activities.category);
+
+      let topCategory = "Parque";
+      let maxCount = 0;
+      for (const c of categoryCounts) {
+        if (c.count > maxCount) {
+          maxCount = c.count;
+          topCategory = c.category;
+        }
+      }
+
+      const usersList = await db.select({
+        id: user.id,
+        email: user.email,
+        otpVerified: user.otpVerified,
+        createdAt: user.createdAt,
+        role: user.role
+      })
+      .from(user)
+      .orderBy(user.createdAt);
+
+      const recentUsers = usersList.map(u => ({
+        id: u.id,
+        email: u.email,
+        role: u.role ?? 'user',
+        status: u.otpVerified ? 'active' : 'pending',
+        joinedAt: u.createdAt ? new Date(u.createdAt).toISOString().split('T')[0] : '2026-05-26'
+      }));
+
+      return {
+        stats: {
+          totalUsers,
+          totalActivities,
+          otpsSentToday,
+          topCategory,
+        },
+        recentUsers,
+        activitiesByCategory: categoryCounts.map(c => ({
+          category: c.category,
+          count: c.count
+        }))
+      };
+    })
+    .patch("/users/:targetUserId/role", async ({ params, body, request, set }) => {
+      const session = await auth.api.getSession({ headers: request.headers });
+      if (session?.user?.id === params.targetUserId) {
+        set.status = 400;
+        return { error: "No puedes cambiar tu propio rol" };
+      }
+
+      const { role } = body as { role: 'user' | 'admin' };
+      if (role !== 'user' && role !== 'admin') {
+        set.status = 400;
+        return { error: "Rol inválido" };
+      }
+
+      const SUPER_ADMIN_EMAIL = "danielmpizarro@alumnos.uai.cl";
+      const [targetUser] = await db.select().from(user).where(eq(user.id, params.targetUserId)).limit(1);
+      if (!targetUser) {
+        set.status = 404;
+        return { error: "Usuario no encontrado" };
+      }
+
+      if (targetUser.email === SUPER_ADMIN_EMAIL) {
+        set.status = 403;
+        return { error: "No está permitido modificar el rol del superadministrador principal" };
+      }
+
+      await db.update(user)
+        .set({ role: role })
+        .where(eq(user.id, params.targetUserId));
+
+      return { success: true, userId: params.targetUserId, newRole: role };
+    })
+  )
+);
 
 // --- Distancia en auto (por carretera) via Routes API ---
 app.get("/api/distance", async ({ query }) => {
@@ -1038,206 +1121,9 @@ app.post("/api/otp/verify", async ({ body }) => {
   return { status: "success" };
 });
 
-//ENDPOINT DE INSIGHTS PARA PANORAMA POPULAR Y TENDENCIA
-app.get("/api/admin/metrics", async ({ request, set }) => {
-  const session = await auth.api.getSession({
-    headers: request.headers
-  });
 
-  if (!session) {
-    set.status = 401;
-    return { error: "No autorizado" };
-  }
 
-  //Validamos que el solicitante sea un administrador real
-  const caller = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
 
-  const callerRole = caller[0]?.role ?? 'user';
-  if (callerRole !== 'admin') {
-    set.status = 403;
-    return { error: "Acceso denegado: se requieren privilegios de admin." };
-  }
-
-  try {
-    //1. Encontrar el panorama más popular (mayor sumatoria en user_favorites)
-    const popularResult = await db
-      .select({
-        activityId: userFavorites.activityId,
-        activityName: activities.name,
-        totalLikes: count(userFavorites.id),
-      })
-      .from(userFavorites)
-      .innerJoin(activities, eq(userFavorites.activityId, activities.id)) //inner join para heredar el nombre del panorama
-      .groupBy(userFavorites.activityId, activities.name)
-      .orderBy((fields) => [sql`count(${userFavorites.id}) desc`])
-      .limit(1);
-    
-    //2. Encontrar el panorama en tendencia (mayor sumatoria en user_reservations)
-    //Excluimos las reservas canceladas para que la métrica sea real
-    const tendenciaResult = await db
-      .select({
-        activityId: userReservations.activityId,
-        activityName: activities.name,
-        totalReservas: count(userReservations.id),
-      })
-      .from(userReservations)
-      .innerJoin(activities, eq(userReservations.activityId, activities.id))
-      .where(ne(userReservations.status, 'cancelado'))
-      .groupBy(userReservations.activityId, activities.name)
-      .orderBy((fields) => [sql`count(${userReservations.id}) desc`])
-      .limit(1);
-    
-    //Mapeo seguro por si la bbdd está vacía en las primeras pruebas
-    const masPopular = popularResult[0] || { activityName: "Sin likes registrados aún", totalLikes: 0 };
-    const enTendencia = tendenciaResult[0] || { activityName: "Sin reservas activas aún", totalReservas: 0 };
-
-    return {
-      success: true,
-      data: {
-        popular: {
-          name: masPopular.activityName,
-          count: masPopular.totalLikes
-        },
-        tendencia: {
-          name: enTendencia.activityName,
-          count: enTendencia.totalReservas
-        }
-      }
-    };   
-  } catch (error) {
-    console.error("Error al calcular métricas:", error);
-    set.status = 500;
-    return { error: "Error interno al procesar métricas analíticas" };
-  }
-});
-
-// --- ENDPOINT DE ESTADÍSTICAS REALES PARA ADMINISTRADOR ---
-app.get("/api/admin/stats", async ({ request, set }) => {
-  const session = await auth.api.getSession({
-    headers: request.headers
-  });
-  if (!session) {
-    set.status = 401;
-    return { error: "No autorizado" };
-  }
-  const caller = await db.select().from(user)
-    .where(eq(user.id, session.user.id))
-    .limit(1);
-  const role = caller[0]?.role ?? 'user';
-  if (role !== 'admin') {
-    set.status = 403;
-    return { error: "Acceso denegado: se requieren permisos de administrador" };
-  }
-
-  // 1. Total de usuarios reales
-  const totalUsersResult = await db.select({ value: count() }).from(user);
-  const totalUsers = totalUsersResult[0]?.value ?? 0;
-
-  // 2. Total de actividades reales
-  const totalActivitiesResult = await db.select({ value: count() }).from(activities);
-  const totalActivities = totalActivitiesResult[0]?.value ?? 0;
-
-  // 3. Total de OTPs enviadas hoy
-  const todayStart = new Date();
-  todayStart.setHours(0,0,0,0);
-  const otpsSentTodayResult = await db.select({ value: count() }).from(verification)
-    .where(gt(verification.createdAt, todayStart));
-  const otpsSentToday = otpsSentTodayResult[0]?.value ?? 0;
-
-  // 4. Actividades por categoría reales
-  const categoryCounts = await db.select({ 
-    category: activities.category, 
-    count: count() 
-  }).from(activities).groupBy(activities.category);
-
-  // Determinar la categoría con más actividades
-  let topCategory = "Parque";
-  let maxCount = 0;
-  for (const c of categoryCounts) {
-    if (c.count > maxCount) {
-      maxCount = c.count;
-      topCategory = c.category;
-    }
-  }
-
-  // 5. Lista de usuarios reales con sus roles y estados (consulta directa)
-  const usersList = await db.select({
-    id: user.id,
-    email: user.email,
-    otpVerified: user.otpVerified,
-    createdAt: user.createdAt,
-    role: user.role
-  })
-  .from(user)
-  .orderBy(user.createdAt);
-
-  const recentUsers = usersList.map(u => ({
-    id: u.id,
-    email: u.email,
-    role: u.role ?? 'user',
-    status: u.otpVerified ? 'active' : 'pending',
-    joinedAt: u.createdAt ? new Date(u.createdAt).toISOString().split('T')[0] : '2026-05-26'
-  }));
-
-  return {
-    stats: {
-      totalUsers,
-      totalActivities,
-      otpsSentToday,
-      topCategory,
-    },
-    recentUsers,
-    activitiesByCategory: categoryCounts.map(c => ({
-      category: c.category,
-      count: c.count
-    }))
-  };
-});
-
-// --- ENDPOINT PARA PROMOVER O DEGRADAR ROLES DE USUARIO (SOLO ADMINS) ---
-app.patch("/api/admin/users/:targetUserId/role", async ({ params, body, request, set }) => {
-  const session = await auth.api.getSession({
-    headers: request.headers
-  });
-  if (!session) {
-    set.status = 401;
-    return { error: "No autorizado" };
-  }
-
-  // Validamos que el solicitante sea un administrador real
-  const caller = await db.select().from(user)
-    .where(eq(user.id, session.user.id))
-    .limit(1);
-  
-  const callerRole = caller[0]?.role ?? 'user';
-  if (callerRole !== 'admin') {
-    set.status = 403;
-    return { error: "Acceso denegado: se requieren privilegios de administrador" };
-  }
-
-  const { role } = body as { role: 'user' | 'admin' };
-  if (role !== 'user' && role !== 'admin') {
-    set.status = 400;
-    return { error: "Rol inválido" };
-  }
-
-  // Realizamos la promoción en la tabla 'user'
-  await db.update(user)
-    .set({ role: role })
-    .where(eq(user.id, params.targetUserId));
-
-  return { success: true, userId: params.targetUserId, newRole: role };
-});
-
-// --- PROTECCIÓN POR ROLES ---
-
-app.guard({ beforeHandle: protectMiddleware('admin') }, (subApp) => subApp
-  .get('/admin-dashboard', () => ({ status: "success", data: "Panel de control (solo Admin)" }))
-);
-
-app.guard({ beforeHandle: protectMiddleware() }, (subApp) => subApp
-  .get('/my-panoramas', () => ({ status: "success", data: "Tus reservas y recomendaciones" }))
-);
 
 app.get('/main.js', () => new Response(Bun.file("./public/main.js"), {
   headers: { 'Content-Type': 'application/javascript' }

@@ -87,7 +87,10 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ role: newRole })
             });
-            if (!res.ok) throw new Error('Falló al cambiar el rol');
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || 'Falló al cambiar el rol');
+            }
             
             // Recargar silenciosamente los datos reales del backend
             const statsRes = await fetch('/api/admin/stats');
@@ -95,9 +98,9 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                 const data = await statsRes.json();
                 setRealData(data);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error("Error al actualizar rol del usuario:", err);
-            alert(LL.roleUpdateError());
+            alert(err.message || LL.roleUpdateError());
         }
     };
 

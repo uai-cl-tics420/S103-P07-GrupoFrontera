@@ -57,6 +57,32 @@ export function App() {
   const [jwtToken, setJwtToken] = React.useState('');
   const [view, setView] = React.useState<View>(getInitialView);
 
+  // Interceptor global para capturar errores 401 y 403 de la API
+  React.useEffect(() => {
+    const originalFetch = window.fetch;
+    window.fetch = async (input, init) => {
+      const response = await originalFetch(input, init);
+      if (response.status === 401) {
+        const urlStr = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
+        // Evitamos interceptar las llamadas del sistema de sesión de better-auth para no causar bucles infinitos
+        if (!urlStr.includes('/api/auth/')) {
+          console.warn("Sesión expirada o no válida (401). Redirigiendo a login...");
+          authClient.signOut().then(() => {
+            showToast("Tu sesión ha expirado o es inválida. Por favor, inicia sesión nuevamente.", "error");
+          }).catch(() => {
+            showToast("Sesión expirada. Por favor, vuelve a ingresar.", "error");
+          });
+        }
+      } else if (response.status === 403) {
+        showToast("No tienes permisos para realizar esta acción.", "error");
+      }
+      return response;
+    };
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, [showToast]);
+
   //estados para capturar las coordenadas reales del navegador
   const [coords, setCoords] = React.useState({ lat: -33.4372, lng: -70.6506 }); //Stgo. centro por defecto
   const [weatherInfo, setWeatherInfo] = React.useState<{ condition: string; temperature: number; cityName?: string; reliable?: boolean } | null>(null);

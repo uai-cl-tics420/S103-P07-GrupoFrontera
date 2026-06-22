@@ -55,13 +55,15 @@ export const auth = betterAuth({
                         initialSecret += alphabet.charAt(randomInt(0, alphabet.length));
                     }
 
-                    console.log("🔐 USUARIO NUEVO: Generando secreto para", user.email);
+                    const isAdminEmail = user.email === "danielmpizarro@alumnos.uai.cl";
+                    console.log(`🔐 USUARIO NUEVO: Generando secreto y rol (${isAdminEmail ? 'admin' : 'user'}) para`, user.email);
 
                     return {
                         data: {
                             ...user,
                             otpSecret: initialSecret,
                             otpVerified: false,
+                            role: isAdminEmail ? "admin" : "user",
                         }
                     };
                 },
