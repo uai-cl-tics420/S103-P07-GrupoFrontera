@@ -3,9 +3,6 @@ import { useState, useEffect } from 'react';
 import { type Activity } from '../types/index';
 import { useT } from "@/i18n/context";
 import { Heart, Eye, CheckCircle2, Clock, Calendar, MapPin } from "lucide-react";
-import { ReservationModal } from "@/components/ReservationModal";
-import { DetailsModal } from "@/components/DetailsModal";
-import { PayModal } from "@/components/PayModal";
 
 export type ReservationStatus = 'pendiente' | 'pagado' | 'comprado' | 'cancelado';
 
@@ -16,14 +13,10 @@ interface ActivityCardProps {
     isTendencia?: boolean;
   };
   isFavorite?: boolean;
-  isReserved?: boolean;
   /** Reserva activa de esta actividad (no cancelada), si existe. */
   reservation?: { id: string; status: ReservationStatus } | null;
   onToggleFavorite?: (id: string) => void;
-  onReserve?: (id: string) => void;
   onSeeDetails?: (activity: Activity) => void;
-  /** Callback que dispara el padre cuando se confirmo una reserva o un pago. */
-  onReservationChanged?: () => void;
   /** Coordenadas del usuario, para calcular distancia. */
   userCoords?: { lat: number; lng: number };
   /** Marca si esta actividad esta dentro de las recomendadas. */
@@ -48,21 +41,15 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): nu
 const ActivityCard = ({ 
   activity, 
   isFavorite = false, 
-  isReserved = false, // Tu bandera de control visual
   reservation = null, // El objeto de reserva detallado de Barros
-  onToggleFavorite, 
-  onReserve, 
+  onToggleFavorite,
   onSeeDetails,       // Tu prop para levantar el modal premium
-  onReservationChanged, // El callback de refresco de Barros
-  userCoords,   
+  userCoords,
   isRecommended = false,
   rank
 }: ActivityCardProps) => {
 
   const { LL } = useT();
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [reserveOpen, setReserveOpen] = useState(false);
-  const [payOpen, setPayOpen] = useState(false);
   const [drivingKm, setDrivingKm] = useState<number | null>(null);
 
   if (!activity) return null;
@@ -243,44 +230,6 @@ const ActivityCard = ({
           </div>
         </div>
       </div>
-
-      {/* 📥 Renderizado síncrono de los Modales del sistema de Barros */}
-      <DetailsModal
-        activity={{
-          id: activity.id,
-          name: activity.name,
-          category: activity.category,
-          tagClima: activity.tagClima,
-          openingHour: activity.openingHour,
-          closingHour: activity.closingHour,
-          coordinates: activity.coordinates,
-        }}
-        open={detailsOpen}
-        onClose={() => setDetailsOpen(false)}
-        onReserve={!isPaid && !isPending ? () => setReserveOpen(true) : undefined}
-      />
-
-      <ReservationModal
-        activity={{
-          id: activity.id,
-          name: activity.name,
-          category: activity.category,
-          tagClima: activity.tagClima,
-        }}
-        open={reserveOpen}
-        onClose={() => setReserveOpen(false)}
-        onSuccess={() => onReservationChanged?.()}
-      />
-
-      {reservation && (
-        <PayModal
-          reservationId={reservation.id}
-          activityName={activity.name}
-          open={payOpen}
-          onClose={() => setPayOpen(false)}
-          onSuccess={() => onReservationChanged?.()}
-        />
-      )}
     </>
   );
 };
