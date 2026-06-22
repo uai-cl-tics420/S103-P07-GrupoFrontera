@@ -13,35 +13,40 @@ import { getSimulatedOccupancy } from './services/placesService';
 import { processPayment } from './services/paymentService';
 
 
-import nodemailer from 'nodemailer';
-
-// Transporter para envío de correos vía SMTP de Gmail (tanto local como en producción)
-const transporter = process.env.GMAIL_USER ? nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-  connectionTimeout: 10000,
-}) : null;
-
 async function sendEmail(to: string | string[], subject: string, html: string) {
   const toArray = Array.isArray(to) ? to : [to];
+  const apiKey = process.env.BREVO_API_KEY;
+  const senderEmail = process.env.BREVO_SENDER_EMAIL;
 
-  if (!transporter) {
-    console.warn("⚠️ Advertencia: El SMTP de Gmail (GMAIL_USER) no está configurado.");
-    return { success: false, error: "Missing SMTP configuration" };
+  if (!apiKey || !senderEmail) {
+    console.warn("⚠️ Advertencia: BREVO_API_KEY o BREVO_SENDER_EMAIL no están configuradas.");
+    return { success: false, error: "Missing Brevo Configuration" };
   }
 
-  console.log(`✉️ [SMTP] Enviando correo con Gmail a: ${toArray.join(", ")}`);
-  return await transporter.sendMail({
-    from: `"Panoramas App" <${process.env.GMAIL_USER}>`,
-    to: toArray.join(', '),
-    subject: subject,
-    html: html,
+  console.log(`✉️ [Brevo API] Enviando correo a: ${toArray.join(", ")} desde ${senderEmail}`);
+  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "accept": "application/json",
+      "api-key": apiKey,
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      sender: {
+        name: "Panoramas App",
+        email: senderEmail
+      },
+      to: toArray.map(email => ({ email })),
+      subject: subject,
+      htmlContent: html
+    })
   });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(`Brevo API respondió con error: ${res.status} - ${JSON.stringify(errData)}`);
+  }
+  return await res.json();
 }
 
 // Verificación de variables de entorno
@@ -1187,7 +1192,7 @@ app.post("/api/otp/request", async ({ body }) => {
       </div>
     `);
   } catch (err) {
-    console.error("❌ Error enviando OTP por Resend:", err);
+    console.error("❌ Error enviando OTP por Brevo:", err);
     if (process.env.NODE_ENV !== "production") {
       console.log(`💡 [Desarrollo] Usando código fallback: ${code}`);
       return { message: "Código enviado" };
