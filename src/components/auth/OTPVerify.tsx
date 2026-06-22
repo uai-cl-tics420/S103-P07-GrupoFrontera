@@ -8,21 +8,34 @@ const OTPVerify = ({ userId, email, onVerified }: { userId: string, email: strin
     const [code, setCode] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [sending, setSending] = useState(false);
+
+    const requestCode = React.useCallback(async () => {
+        setSending(true);
+        setError('');
+        try {
+            const res = await fetch("/api/otp/request", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userId, email }),
+            });
+            const data = await res.json().catch(() => null);
+            // El backend devuelve 200 con { error: true } cuando el correo no logró enviarse
+            // (ej. timeout del SMTP), en vez de un 500, para poder mostrar el mensaje al usuario.
+            if (!res.ok || data?.error) {
+                setError(data?.message || LL.serverError());
+            }
+        } catch (err) {
+            setError(LL.serverError());
+        } finally {
+            setSending(false);
+        }
+    }, [userId, email]);
 
     useEffect(() => {
-        const requestCode = async () => {
-            try {
-                await fetch("/api/otp/request", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ userId, email }),
-                });
-            } catch (err) {
-                console.error("Error al solicitar el código OTP:", err);
-            }
-        };
         requestCode();
-    }, [userId, email]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleVerify = async () => {
         setLoading(true);
@@ -73,7 +86,19 @@ const OTPVerify = ({ userId, email, onVerified }: { userId: string, email: strin
                     className="w-full text-center text-3xl sm:text-4xl font-mono tracking-[0.5em] p-4 sm:p-5 bg-gray-50 rounded-2xl mb-6 focus:ring-2 focus:ring-black outline-none transition-all"
                 />
 
-                {error && <p className="text-red-500 text-xs mb-4">{error}</p>}
+                {error && (
+                    <div className="mb-4">
+                        <p className="text-red-500 text-xs">{error}</p>
+                        <button
+                            type="button"
+                            onClick={requestCode}
+                            disabled={sending}
+                            className="text-xs font-bold text-gray-600 underline mt-1 disabled:opacity-50"
+                        >
+                            {sending ? LL.otpVerifying() : "Reenviar código"}
+                        </button>
+                    </div>
+                )}
 
                 <button
                     onClick={handleVerify}

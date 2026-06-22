@@ -14,12 +14,17 @@ import { getSimulatedOccupancy } from './services/placesService';
 import { processPayment } from './services/paymentService';
 
 
+// Puerto 587 con STARTTLS en vez del shorthand "service: 'gmail'" (que usa 465/SSL implícito):
+// algunos hosts bloquean o filtran 465, dando "Connection timeout" sin ningún error de auth.
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
   auth: {
     user: process.env.GMAIL_USER,
     pass: process.env.GMAIL_APP_PASSWORD,
   },
+  connectionTimeout: 10000,
 });
 
 // Verificación de variables de entorno
@@ -948,21 +953,26 @@ app.post("/api/otp/request", async ({ body }) => {
     updatedAt: new Date(),
   });
 
-  await transporter.sendMail({
-    from: `"Panoramas App" <${process.env.GMAIL_USER}>`,
-    to: email,
-    subject: "Tu código de verificación - Panoramas",
-    html: `
-      <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:40px;background:#fff;border-radius:16px;">
-        <h1 style="font-size:24px;font-weight:900;margin-bottom:8px;">PANORAMAS</h1>
-        <p style="color:#666;margin-bottom:32px;">Tu código de verificación es:</p>
-        <div style="font-size:48px;font-weight:900;letter-spacing:0.5em;text-align:center;padding:24px;background:#f5f5f5;border-radius:12px;margin-bottom:24px;">
-          ${code}
+  try {
+    await transporter.sendMail({
+      from: `"Panoramas App" <${process.env.GMAIL_USER}>`,
+      to: email,
+      subject: "Tu código de verificación - Panoramas",
+      html: `
+        <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:40px;background:#fff;border-radius:16px;">
+          <h1 style="font-size:24px;font-weight:900;margin-bottom:8px;">PANORAMAS</h1>
+          <p style="color:#666;margin-bottom:32px;">Tu código de verificación es:</p>
+          <div style="font-size:48px;font-weight:900;letter-spacing:0.5em;text-align:center;padding:24px;background:#f5f5f5;border-radius:12px;margin-bottom:24px;">
+            ${code}
+          </div>
+          <p style="color:#999;font-size:12px;">Este código expira en 10 minutos.</p>
         </div>
-        <p style="color:#999;font-size:12px;">Este código expira en 10 minutos.</p>
-      </div>
-    `,
-  });
+      `,
+    });
+  } catch (err) {
+    console.error("❌ Error enviando OTP por correo:", err);
+    return { message: "No se pudo enviar el código por correo. Intenta de nuevo en unos segundos.", error: true };
+  }
 
   return { message: "Código enviado" };
 });
