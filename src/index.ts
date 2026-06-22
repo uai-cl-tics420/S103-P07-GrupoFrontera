@@ -64,7 +64,7 @@ app.get("/api/activities", async ({ query, request }) => {
   
   // Extraemos parámetros dinámicos de filtrado
   const filterCategory = query.category as string | undefined;
-  const radius = query.radius ? parseInt(query.radius as string) : 50000;
+  const radius = query.radius ? parseInt(query.radius as string) : 30000;
   const priceSort = (query.priceSort === 'asc' || query.priceSort === 'desc') ? query.priceSort : undefined;
   const priceMin = query.priceMin !== undefined && query.priceMin !== '' ? parseInt(query.priceMin as string) : undefined;
   const priceMax = query.priceMax !== undefined && query.priceMax !== '' ? parseInt(query.priceMax as string) : undefined;
@@ -209,14 +209,14 @@ app.get("/api/activities", async ({ query, request }) => {
   }
 
   // Orden explícito del usuario: precio tiene prioridad si se eligió; si no, y el radio se
-  // acotó (distinto del default "Toda la región"), ordenamos por cercanía. Al ser sorts
-  // estables, dentro de cada grupo de clima (más abajo) se preserva este orden.
+  // acotó (distinto del default de 30km, el más amplio del dropdown), ordenamos por cercanía.
+  // Al ser sorts estables, dentro de cada grupo de clima (más abajo) se preserva este orden.
   if (priceSort) {
     baseList = [...baseList].sort((a, b) => {
       const pa = a.price ?? 0, pb = b.price ?? 0;
       return priceSort === 'asc' ? pa - pb : pb - pa;
     });
-  } else if (radius !== 50000) {
+  } else if (radius !== 30000) {
     baseList = [...baseList].sort((a, b) =>
       getDistanceInMeters(lat, lng, a.coordinates.lat, a.coordinates.lng) -
       getDistanceInMeters(lat, lng, b.coordinates.lat, b.coordinates.lng)

@@ -29,6 +29,18 @@ const weatherIconMap: Record<string, React.ComponentType<{ className?: string }>
   'Snow': Snowflake,
 };
 
+// Valor por defecto de los filtros del toolbar de navegación. 30km es el radio más amplio
+// disponible (antes decía "Toda la región" con un valor de 50km que no era coherente con
+// las demás opciones del propio dropdown).
+const DEFAULT_API_FILTERS = {
+  radius: 30000,
+  priceSort: '' as '' | 'asc' | 'desc' | 'range', // 'range' = solo activa Mín/Máx, sin ordenar
+  priceMin: '',
+  priceMax: '',
+  filterDate: '',
+  filterTime: '',
+};
+
 type View = 'home' | 'admin' | 'reservations';
 
 function getInitialView(): View {
@@ -72,14 +84,7 @@ export function App() {
   const [timeValue, setTimeValue] = React.useState("20:00");
 
   //estado local para los filtros de búsqueda en servidor
-  const [apiFilters, setApiFilters] = React.useState({
-    radius: 50000,
-    priceSort: '' as '' | 'asc' | 'desc',
-    priceMin: '',
-    priceMax: '',
-    filterDate: '',   // 'YYYY-MM-DD', filtro de navegación (independiente de "Recomendar Panoramas")
-    filterTime: '',   // 'HH:MM', solo aplica si filterDate está seteado
-  });
+  const [apiFilters, setApiFilters] = React.useState(DEFAULT_API_FILTERS);
 
   const { activities, loading, error } = useActivities();
   const { preferredCategory, setPreferredCategory, role } = useUserPreferences(session?.user?.id);
@@ -172,9 +177,15 @@ export function App() {
       const activeCat = categoryOverride !== undefined ? categoryOverride : selectedCategory;
 
       let url = `/api/activities?lat=${coords.lat}&lng=${coords.lng}&radius=${activeFilters.radius}`;
-      if (activeFilters.priceSort) url += `&priceSort=${activeFilters.priceSort}`;
-      if (activeFilters.priceMin !== '') url += `&priceMin=${activeFilters.priceMin}`;
-      if (activeFilters.priceMax !== '') url += `&priceMax=${activeFilters.priceMax}`;
+      // "range" solo habilita Mín/Máx en el frontend; al backend solo le interesa ordenar
+      // cuando el modo es realmente asc/desc.
+      if (activeFilters.priceSort === 'asc' || activeFilters.priceSort === 'desc') {
+        url += `&priceSort=${activeFilters.priceSort}`;
+      }
+      if (activeFilters.priceSort) {
+        if (activeFilters.priceMin !== '') url += `&priceMin=${activeFilters.priceMin}`;
+        if (activeFilters.priceMax !== '') url += `&priceMax=${activeFilters.priceMax}`;
+      }
       // Filtro de fecha/hora del toolbar: independiente de "planningState" (no dispara el banner
       // de recomendación ni el modo curado Top-6, solo acota la grilla normal)
       if (activeFilters.filterDate) {
@@ -293,6 +304,20 @@ export function App() {
     }
   }
 
+  // Horarios reales que existen para la fecha elegida en el filtro (en vez de dejar que el
+  // usuario escriba cualquier hora a ciegas, solo se ofrecen las franjas que de verdad tienen
+  // panoramas agendados ese día).
+  const availableHorarios = React.useMemo(() => {
+    if (!apiFilters.filterDate) return [];
+    const set = new Set<string>();
+    actualActivitiesList.forEach((a: any) => {
+      (a.schedules || []).forEach((s: any) => {
+        if (s.fecha === apiFilters.filterDate && s.horaInicio) set.add(s.horaInicio);
+      });
+    });
+    return Array.from(set).sort();
+  }, [apiFilters.filterDate, actualActivitiesList]);
+
   // Panoramas ya realizados (comprados/pagados): cuentan como interés para la similitud,
   // pero el panorama en sí NO debe recomendarse de nuevo (ya se hizo).
   const purchasedIds = Object.entries(activeReservations)
@@ -350,12 +375,11 @@ export function App() {
     }
 
     // Reiniciar los filtros locales para que sean independientes por categoría (Lógica de Barros/Daniel)
-    const resetFilters = { radius: 50000, priceSort: '' as '' | 'asc' | 'desc', priceMin: '', priceMax: '', filterDate: '', filterTime: '' };
-    setApiFilters(resetFilters);
+    setApiFilters(DEFAULT_API_FILTERS);
 
     // Disparar búsqueda inmediatamente para que cargue los panoramas de la nueva pestaña
 
-    fetchFilteredActivities(category, resetFilters);
+    fetchFilteredActivities(category, DEFAULT_API_FILTERS);
   };
 
   // a) Verificando sesión
@@ -608,61 +632,67 @@ export function App() {
               value={apiFilters.radius}
               onChange={(e) => setApiFilters({ ...apiFilters, radius: Number(e.target.value) })}
             >
-              <option value={50000}>Toda la región</option>
-              <option value={10000}>A menos de 10km</option>
-              <option value={5000}>A menos de 5km</option>
-              <option value={2000}>A menos de 2km</option>
+              <option value={30000}>30 km</option>
+              <option value={20000}>20 km</option>
+              <option value={10000}>10 km</option>
+              <option value={5000}>5 km</option>
+              <option value={2000}>Cerca de ti</option>
             </select>
-
-            <button
-              type="button"
-              onClick={() => setApiFilters({ ...apiFilters, radius: 2000 })}
-              className="text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50"
-            >
-              📍 Cerca de ti
-            </button>
 
             <select
               className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
               value={apiFilters.priceSort}
-              onChange={(e) => setApiFilters({ ...apiFilters, priceSort: e.target.value as '' | 'asc' | 'desc' })}
+              onChange={(e) => setApiFilters({ ...apiFilters, priceSort: e.target.value as '' | 'asc' | 'desc' | 'range' })}
             >
               <option value="">Precio: sin orden</option>
               <option value="asc">Precio: menor a mayor</option>
               <option value="desc">Precio: mayor a menor</option>
+              <option value="range">Precio: rango personalizado</option>
             </select>
 
-            <input
-              type="number"
-              min={0}
-              placeholder="Mín $"
-              value={apiFilters.priceMin}
-              onChange={(e) => setApiFilters({ ...apiFilters, priceMin: e.target.value })}
-              className="w-20 text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-            <input
-              type="number"
-              min={0}
-              placeholder="Máx $"
-              value={apiFilters.priceMax}
-              onChange={(e) => setApiFilters({ ...apiFilters, priceMax: e.target.value })}
-              className="w-20 text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-            />
+            {apiFilters.priceSort && (
+              <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2 py-1">
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Mín $"
+                  value={apiFilters.priceMin}
+                  onChange={(e) => setApiFilters({ ...apiFilters, priceMin: e.target.value })}
+                  className="w-16 text-xs focus:outline-none"
+                />
+                <span className="text-gray-300">—</span>
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Máx $"
+                  value={apiFilters.priceMax}
+                  onChange={(e) => setApiFilters({ ...apiFilters, priceMax: e.target.value })}
+                  className="w-16 text-xs focus:outline-none"
+                />
+              </div>
+            )}
 
             <input
               type="date"
               min={new Date().toISOString().slice(0, 10)}
               value={apiFilters.filterDate}
-              onChange={(e) => setApiFilters({ ...apiFilters, filterDate: e.target.value, filterTime: e.target.value ? apiFilters.filterTime : '' })}
+              onChange={(e) => setApiFilters({ ...apiFilters, filterDate: e.target.value, filterTime: '' })}
               className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
             />
-            <input
-              type="time"
-              disabled={!apiFilters.filterDate}
-              value={apiFilters.filterTime}
-              onChange={(e) => setApiFilters({ ...apiFilters, filterTime: e.target.value })}
-              className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
-            />
+
+            {apiFilters.filterDate && (
+              <select
+                value={apiFilters.filterTime}
+                onChange={(e) => setApiFilters({ ...apiFilters, filterTime: e.target.value })}
+                className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">Cualquier hora</option>
+                {availableHorarios.map(h => (
+                  <option key={h} value={h}>{h}</option>
+                ))}
+              </select>
+            )}
+
             {apiFilters.filterDate && (
               <button
                 type="button"
@@ -672,6 +702,14 @@ export function App() {
                 ✕ Quitar fecha
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => { setApiFilters(DEFAULT_API_FILTERS); fetchFilteredActivities(selectedCategory, DEFAULT_API_FILTERS); }}
+              className="text-xs font-medium text-gray-400 hover:text-gray-600"
+            >
+              ↺ Restablecer filtros
+            </button>
 
             <button
               onClick={() => fetchFilteredActivities(selectedCategory, apiFilters)}
