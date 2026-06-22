@@ -10,7 +10,7 @@ import { verification } from '../auth-schema';
 import { randomInt, randomUUID } from 'crypto';
 import { getCurrentWeather, getWeatherForecast } from './services/weatherService';
 import { isOutdoorFriendly } from './utils/weatherHelpers';
-import { getSimulatedOccupancy } from './services/placesService';
+import { getOccupancyFromCapacity, getTodayDateString } from './services/placesService';
 import { processPayment } from './services/paymentService';
 
 
@@ -127,8 +127,28 @@ app.get("/api/activities", async ({ query, request }) => {
     baseList = baseList.filter(a => a.category === filterCategory);
   }
 
-  // Afluencia simulada por ahora (en standby hasta definir la fuente real con el profe)
-  const placesWithOccupancy = baseList.map(a => ({ ...a, occupancy: getSimulatedOccupancy() }));
+  // --- Afluencia real (issue: afluencia reactiva a cupos) ---
+  // Contamos cuantas reservas activas (no canceladas) tiene cada panorama para HOY,
+  // y con eso calculamos el % de cupos usados. Mientras se van reservando/liberando
+  // cupos, este numero cambia, y por lo tanto la afluencia mostrada cambia en tiempo real
+  // (se recalcula en cada request a este endpoint).
+  const todayStr = getTodayDateString();
+  const reservasHoy = await db
+    .select({ activityId: userReservations.activityId, total: count(userReservations.id) })
+    .from(userReservations)
+    .where(and(eq(userReservations.reservedDate, todayStr), ne(userReservations.status, 'cancelado')))
+    .groupBy(userReservations.activityId);
+  const usadosHoyMap: Record<string, number> = {};
+  for (const r of reservasHoy) usadosHoyMap[r.activityId] = Number(r.total) || 0;
+
+  // Una sola afluencia por panorama (antes se recalculaba random dos veces y podian
+  // quedar distintas para el mismo panorama segun en que lista cayera).
+  const occupancyByActivityId: Record<string, "Low" | "Medium" | "High"> = {};
+  for (const a of mappedActivities) {
+    occupancyByActivityId[a.id] = getOccupancyFromCapacity(a.cuposPorDia, usadosHoyMap[a.id] ?? 0);
+  }
+
+  const placesWithOccupancy = baseList.map(a => ({ ...a, occupancy: occupancyByActivityId[a.id] }));
 
   // Evaluación de condiciones climáticas adaptativas (Tu lógica + Barros)
   const conditionClean = (weather?.condition || currentCondition || '').toLowerCase().trim();
@@ -184,7 +204,7 @@ app.get("/api/activities", async ({ query, request }) => {
 
   const userInteractedActivities = filteredInteracted.map(a => ({
     ...a,
-    occupancy: getSimulatedOccupancy(), // Afluencia simulada real (issue #23)
+    occupancy: occupancyByActivityId[a.id] ?? getOccupancyFromCapacity(a.cuposPorDia, usadosHoyMap[a.id] ?? 0),
     openingHour: a.openingHour || "09:00",
     closingHour: a.closingHour || "21:00"
   }));

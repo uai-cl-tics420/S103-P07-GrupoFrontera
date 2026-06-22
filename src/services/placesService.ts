@@ -16,6 +16,36 @@ export function getSimulatedOccupancy(): "Low" | "Medium" | "High" {
   }
 }
 
+/**
+ * Calcula la afluencia real de un panorama en base a los cupos diarios
+ * configurados por el admin y las reservas (no canceladas) que ya se
+ * hicieron para el día de hoy. A medida que se van reservando/liberando
+ * cupos, el resultado cambia en tiempo real (se recalcula en cada request).
+ *
+ * Si el panorama no tiene cupos configurados (cuposPorDia null/undefined/0),
+ * no hay dato real de capacidad para basarse, así que se usa el fallback
+ * por hora del día (getSimulatedOccupancy).
+ */
+export function getOccupancyFromCapacity(
+  cuposPorDia: number | null | undefined,
+  usadosHoy: number
+): "Low" | "Medium" | "High" {
+  if (cuposPorDia == null || cuposPorDia <= 0) {
+    return getSimulatedOccupancy();
+  }
+
+  const ratio = Math.min(1, Math.max(0, usadosHoy) / cuposPorDia);
+
+  if (ratio >= 0.75) return "High";
+  if (ratio >= 0.4) return "Medium";
+  return "Low";
+}
+
+/** Fecha de hoy en formato "YYYY-MM-DD", igual al que usan las franjas de horario y las reservas. */
+export function getTodayDateString(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 interface PlacesOptions {
   filterCategory?: string;
   radius?: number;
