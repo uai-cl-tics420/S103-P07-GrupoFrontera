@@ -3,10 +3,8 @@ import { cors } from '@elysiajs/cors';
 import { auth } from './lib/auth';
 import { protectMiddleware } from 'src/middleware/protect';
 import { db } from "./lib/db";
-import { user, activities, userFavorites, userReservations, activitySchedules } from "./lib/schema";
+import { user, activities, userFavorites, userReservations, activitySchedules, verification } from "./lib/schema";
 import { and, count, eq, gt, ne, sql } from "drizzle-orm";
-import nodemailer from 'nodemailer';
-import { verification } from '../auth-schema';
 import { randomInt, randomUUID } from 'crypto';
 import { getCurrentWeather, getWeatherForecast } from './services/weatherService';
 import { isOutdoorFriendly } from './utils/weatherHelpers';
@@ -14,18 +12,37 @@ import { getSimulatedOccupancy } from './services/placesService';
 import { processPayment } from './services/paymentService';
 
 
-// Puerto 587 con STARTTLS en vez del shorthand "service: 'gmail'" (que usa 465/SSL implícito):
-// algunos hosts bloquean o filtran 465, dando "Connection timeout" sin ningún error de auth.
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-  connectionTimeout: 10000,
-});
+// Servicio de envío de correo por API HTTP (Resend) para evadir bloqueos de puerto SMTP en Render
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+
+async function sendEmailViaResend(to: string | string[], subject: string, html: string) {
+  if (!RESEND_API_KEY) {
+    console.warn("⚠️ Advertencia: RESEND_API_KEY no está configurada.");
+    return { success: false, error: "Missing API Key" };
+  }
+
+  const toArray = Array.isArray(to) ? to : [to];
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${RESEND_API_KEY}`,
+    },
+    body: JSON.stringify({
+      from: "Panoramas App <onboarding@resend.dev>", // O tu remitente configurado en Resend
+      to: toArray,
+      subject: subject,
+      html: html,
+    }),
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(`Resend API respondió con error: ${res.status} - ${JSON.stringify(errData)}`);
+  }
+  return await res.json();
+}
 
 // Verificación de variables de entorno
 const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, JWT_SECRET, OPENWEATHER_API_KEY } = process.env;
@@ -501,7 +518,7 @@ app.patch("/api/admin/activities/:id", async ({ params, body, request, set }) =>
           <div style="font-family:sans-serif; max-width:500px; margin:0 auto; padding:30px; background:#fafafa; border-radius:20px; border: 1px solid #eee;">
             <h1 style="font-size:26px; font-weight:900; margin-bottom:16px; color:#111; letter-spacing:-0.03em;">PANORAMAS</h1>
             
-            <div style="display:inline-block; background:${badgeColor}; color:#fff; px-3; padding:6px 14px; rounded-full; border-radius:50px; font-size:11px; font-weight:bold; letter-spacing:0.05em; margin-bottom:20px;">
+            <div style="display:inline-block; background:${badgeColor}; color:#fff; padding:6px 14px; border-radius:50px; font-size:11px; font-weight:bold; letter-spacing:0.05em; margin-bottom:20px;">
               ${badgeText}
             </div>
 
@@ -514,24 +531,19 @@ app.patch("/api/admin/activities/:id", async ({ params, body, request, set }) =>
             </div>
 
             <div style="text-align:center; margin-top:30px;">
-              <a href="http://localhost:5173" style="background:#111; color:#fff; text-decoration:none; padding:12px 24px; font-size:14px; font-weight:600; border-radius:10px; display:inline-block;">
+              <a href="${process.env.BETTER_AUTH_URL || 'http://localhost:5173'}" style="background:#111; color:#fff; text-decoration:none; padding:12px 24px; font-size:14px; font-weight:600; border-radius:10px; display:inline-block;">
                 Ver detalles en la App
               </a>
             </div>
             
-            <p style="color:#aaa; font-size:11px; text-align:center; margin-top:40px; border-top:1px solid #eee; padding-top:20px;">
+            <p style="font-size:12px; color:#aaa; margin-top:30px; text-align:center;">
               Recibiste esta notificación automática porque formas parte de la comunidad Panoramas.
             </p>
           </div>
         `;
 
         //Enviamos el correo a la lista de distribución
-        await transporter.sendMail({
-          from: `"Panoramas App" <${process.env.GMAIL_USER}>`,
-          to: recipientEmails.join(', '),
-          subject: subject,
-          html: htmlContent,
-        });
+        await sendEmailViaResend(recipientEmails, subject, htmlContent);
 
         console.log(`¡Notificaciones enviadas con éxito a ${recipientEmails.length} usuarios!`);
       } catch (err) {
@@ -954,23 +966,18 @@ app.post("/api/otp/request", async ({ body }) => {
   });
 
   try {
-    await transporter.sendMail({
-      from: `"Panoramas App" <${process.env.GMAIL_USER}>`,
-      to: email,
-      subject: "Tu código de verificación - Panoramas",
-      html: `
-        <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:40px;background:#fff;border-radius:16px;">
-          <h1 style="font-size:24px;font-weight:900;margin-bottom:8px;">PANORAMAS</h1>
-          <p style="color:#666;margin-bottom:32px;">Tu código de verificación es:</p>
-          <div style="font-size:48px;font-weight:900;letter-spacing:0.5em;text-align:center;padding:24px;background:#f5f5f5;border-radius:12px;margin-bottom:24px;">
-            ${code}
-          </div>
-          <p style="color:#999;font-size:12px;">Este código expira en 10 minutos.</p>
+    await sendEmailViaResend(email, "Tu código de verificación - Panoramas", `
+      <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:40px;background:#fff;border-radius:16px;">
+        <h1 style="font-size:24px;font-weight:900;margin-bottom:8px;">PANORAMAS</h1>
+        <p style="color:#666;margin-bottom:32px;">Tu código de verificación es:</p>
+        <div style="font-size:48px;font-weight:900;letter-spacing:0.5em;text-align:center;padding:24px;background:#f5f5f5;border-radius:12px;margin-bottom:24px;">
+          ${code}
         </div>
-      `,
-    });
+        <p style="color:#999;font-size:12px;">Este código expira en 10 minutos.</p>
+      </div>
+    `);
   } catch (err) {
-    console.error("❌ Error enviando OTP por correo:", err);
+    console.error("❌ Error enviando OTP por Resend:", err);
     return { message: "No se pudo enviar el código por correo. Intenta de nuevo en unos segundos.", error: true };
   }
 
@@ -1223,5 +1230,6 @@ const checkDatabase = async () => {
 
 await checkDatabase();
 
-app.listen(4000);
-console.log(`🚀 PROYECTO LISTO en http://localhost:4000`);
+const serverPort = process.env.PORT || 4000;
+app.listen(serverPort);
+console.log(`🚀 PROYECTO LISTO en http://localhost:${serverPort}`);

@@ -13,8 +13,11 @@ RUN bun install
 # Copiar el resto del código fuente
 COPY . .
 
+# Compilar el frontend en la fase de construcción de la imagen
+RUN bun run build
+
 # Exponer el puerto de la aplicación
 EXPOSE 4000
 
-# Comando para iniciar la app en modo desarrollo (hot reload)
-CMD ["sh", "-c", "bunx vite build && bun --hot run src/index.ts"]
+# Ejecutar migraciones de Drizzle en Supabase y arrancar el servidor en producción sin hot reload
+CMD ["sh", "-c", "bunx drizzle-kit migrate && bun run src/index.ts"]

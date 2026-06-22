@@ -3,7 +3,8 @@ import { db } from 'src/lib/db';
 import { user } from 'src/lib/schema';
 import { eq } from 'drizzle-orm';
 
-const JWKS = createRemoteJWKSet(new URL('http://localhost:4000/api/auth/jwks'));
+const port = process.env.PORT || '4000';
+const JWKS = createRemoteJWKSet(new URL(`http://localhost:${port}/api/auth/jwks`));
 
 export const protectMiddleware = (roleRequired?: 'admin' | 'user') =>
     async ({ set, request }: any) => {
