@@ -5,7 +5,7 @@ import { useT } from '@/i18n/context';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { MOCK_STATS, MOCK_RECENT_USERS, MOCK_ACTIVITIES_BY_CATEGORY } from '@/mocks/adminData';
 import { Category } from '@/types';
-import type { TranslationKey } from '@/i18n/translations';
+type CategoryKey = 'categoryCine' | 'categoryParque' | 'categoryTeatro' | 'categoryMuseo' | 'categoryRestaurante' | 'categoryMiradores';
 import { CreatePanoramaForm } from './CreatePanoramaForm';
 import { ManagePanoramasView } from './ManagePanoramasView';
 
@@ -15,7 +15,7 @@ interface AdminDashboardProps {
 }
 
 // Mapeo de Category enum -> clave del diccionario
-const categoryKeys: Record<Category, TranslationKey> = {
+const categoryKeys: Record<Category, CategoryKey> = {
     [Category.CINE]: 'categoryCine',
     [Category.PARQUE]: 'categoryParque',
     [Category.TEATRO]: 'categoryTeatro',
@@ -39,7 +39,7 @@ function StatCard({ icon: Icon, label, value, accent }: { icon: any; label: stri
 }
 
 export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
-    const { t } = useT();
+    const { LL } = useT();
     const [realData, setRealData] = useState<any>(null);
     const [loadingData, setLoadingData] = useState(true);
     const [activeTab, setActiveTab] = useState<'dashboard' | 'crear' | 'gestionar'>('dashboard');
@@ -97,7 +97,7 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
             }
         } catch (err) {
             console.error("Error al actualizar rol del usuario:", err);
-            alert("Error al actualizar el rol en la base de datos.");
+            alert(LL.roleUpdateError());
         }
     };
 
@@ -113,7 +113,8 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
         ? realData.activitiesByCategory
         : MOCK_ACTIVITIES_BY_CATEGORY;
 
-    const topCategoryLabel = t(categoryKeys[stats.topCategory as Category] || 'categoryParque');
+    const topCategoryKey: CategoryKey = categoryKeys[stats.topCategory as Category] || 'categoryParque';
+    const topCategoryLabel = LL[topCategoryKey]();
     const maxCount = Math.max(...displayActivitiesByCategory.map((c: any) => c.count), 1);
 
     const admins = displayUsers.filter((u: any) => u.role === 'admin');
@@ -128,7 +129,7 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                         ? 'bg-black text-white'
                         : 'bg-gray-100 text-gray-600'
                 }`}>
-                    {u.role === 'admin' ? t('roleAdmin') : t('roleUser')}
+                    {u.role === 'admin' ? LL.roleAdmin() : LL.roleUser()}
                 </span>
             </td>
             <td className="py-3 px-2 text-gray-500 text-xs hidden sm:table-cell whitespace-nowrap">{u.joinedAt}</td>
@@ -139,7 +140,7 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                     <span className={`w-1.5 h-1.5 rounded-full ${
                         u.status === 'active' ? 'bg-emerald-500' : 'bg-amber-500'
                     }`}></span>
-                    {u.status === 'active' ? t('statusActive') : t('statusPending')}
+                    {u.status === 'active' ? LL.statusActive() : LL.statusPending()}
                 </span>
             </td>
             <td className="py-3 px-2 text-xs">
@@ -171,10 +172,10 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                             className="flex items-center gap-2 text-[10px] font-bold text-gray-500 uppercase tracking-tighter hover:text-gray-900 transition-colors whitespace-nowrap"
                         >
                             <ArrowLeft className="w-3 h-3" />
-                            <span className="hidden sm:inline">{t('adminGoBack')}</span>
+                            <span className="hidden sm:inline">{LL.adminGoBack()}</span>
                         </button>
                         <span className="bg-black text-white text-[9px] font-black px-2 py-1 rounded-md uppercase tracking-widest">
-                            {t('adminBadge')}
+                            {LL.adminBadge()}
                         </span>
                     </div>
                     <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -186,7 +187,7 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                             onClick={() => authClient.signOut()}
                             className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-red-400 transition-colors whitespace-nowrap"
                         >
-                            {t('logout')}
+                            {LL.logout()}
                         </button>
                     </div>
                 </div>
@@ -195,7 +196,7 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
             <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
                 <header className="mb-10">
                     <h1 className="text-3xl sm:text-4xl font-black tracking-tighter text-gray-900 mb-2">
-                        {t('adminPanel')}
+                        {LL.adminPanel()}
                     </h1>
                     <p className="text-gray-400 text-sm">Grupo Frontera • 2026</p>
                 </header>
@@ -228,25 +229,25 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                 <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-12">
                     <StatCard
                         icon={Users}
-                        label={t('statTotalUsers')}
+                        label={LL.statTotalUsers()}
                         value={stats.totalUsers}
                         accent="bg-gradient-to-tr from-blue-500 to-cyan-400"
                     />
                     <StatCard
                         icon={MapPin}
-                        label={t('statTotalActivities')}
+                        label={LL.statTotalActivities()}
                         value={stats.totalActivities}
                         accent="bg-gradient-to-tr from-orange-500 to-yellow-400"
                     />
                     <StatCard
                         icon={Mail}
-                        label={t('statOtpsSent')}
+                        label={LL.statOtpsSent()}
                         value={stats.otpsSentToday}
                         accent="bg-gradient-to-tr from-fuchsia-500 to-pink-400"
                     />
                     <StatCard
                         icon={TrendingUp}
-                        label={t('statTopCategory')}
+                        label={LL.statTopCategory()}
                         value={topCategoryLabel}
                         accent="bg-gradient-to-tr from-emerald-500 to-teal-400"
                     />
@@ -261,7 +262,7 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                     <StatCard
                         icon={CalendarCheck}
                         label="Evento en Tendencia"
-                        value={metrics?.tendencia?.name || "Calculando tendencias..."}
+                        value={metrics?.tendencia?.name || LL.calculatingTrend()}
                         accent="bg-gradient-to-tr from-orange-500 to-amber-400"
                     />
                 </section>
@@ -271,16 +272,16 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                     {/* Users table - takes 2 cols on lg */}
                     <div className="lg:col-span-2 bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm">
                         <h2 className="text-lg font-black tracking-tighter text-gray-900 mb-6">
-                            {t('sectionRecentUsers')}
+                            {LL.sectionRecentUsers()}
                         </h2>
                         <div className="overflow-x-auto -mx-2">
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="text-left">
-                                        <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2">{t('tableEmail')}</th>
-                                        <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2">{t('tableRole')}</th>
-                                        <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2 hidden sm:table-cell">{t('tableJoined')}</th>
-                                        <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2">{t('tableStatus')}</th>
+                                        <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2">{LL.tableEmail()}</th>
+                                        <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2">{LL.tableRole()}</th>
+                                        <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2 hidden sm:table-cell">{LL.tableJoined()}</th>
+                                        <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2">{LL.tableStatus()}</th>
                                         <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2">Acción</th>
                                     </tr>
                                 </thead>
@@ -290,7 +291,7 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                                         <>
                                             <tr className="bg-gray-50/40">
                                                 <td colSpan={5} className="py-2 px-2 text-[9px] font-black text-gray-400 uppercase tracking-wider select-none">
-                                                    ⚡ {t('recentAdmins')}
+                                                    ⚡ {LL.recentAdmins()}
                                                 </td>
                                             </tr>
                                             {admins.map(renderUserRow)}
@@ -302,7 +303,7 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                                         <>
                                             <tr className="bg-gray-50/40">
                                                 <td colSpan={5} className="py-2 px-2 text-[9px] font-black text-gray-400 uppercase tracking-wider select-none pt-4">
-                                                    👤 {t('recentStandardUsers')}
+                                                    👤 {LL.recentStandardUsers()}
                                                 </td>
                                             </tr>
                                             {standardUsers.map(renderUserRow)}
@@ -316,12 +317,13 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                     {/* Bar chart */}
                     <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm">
                         <h2 className="text-lg font-black tracking-tighter text-gray-900 mb-6">
-                            {t('sectionActivityByCategory')}
+                            {LL.sectionActivityByCategory()}
                         </h2>
                         <div className="flex flex-col gap-4">
                             {displayActivitiesByCategory.map(({ category, count }: any) => {
                                 const percent = (count / maxCount) * 100;
-                                const label = categoryKeys[category as Category] ? t(categoryKeys[category as Category]) : category;
+                                const catKey = categoryKeys[category as Category];
+                                const label = catKey ? LL[catKey]() : category;
                                 return (
                                     <div key={category}>
                                         <div className="flex justify-between items-center mb-1.5">

@@ -7,7 +7,7 @@ import { useToast } from "@/context/ToastContext";
 type Mode = 'login' | 'register';
 
 const LoginForm = () => {
-    const { t } = useT();
+    const { LL } = useT();
     const { showToast } = useToast();
     const [mode, setMode] = useState<Mode>('login');
     const [name, setName] = useState('');
@@ -26,7 +26,7 @@ const LoginForm = () => {
             });
             showToast("Redirigiendo a Google...", "info");
         } catch {
-            setError(t('loginGoogleFailed'));
+            setError(LL.loginGoogleFailed());
             showToast("Falló la autenticación con Google.", "error");
         }
     };
@@ -38,13 +38,13 @@ const LoginForm = () => {
         try {
             const { error } = await authClient.signIn.email({ email, password });
             if (error) { 
-                setError(error.message ?? t('badCredentials')); 
+                setError(error.message ?? LL.badCredentials()); 
                 showToast(error.message ?? "Credenciales inválidas.", "error"); 
             } else {
                 showToast("¡Sesión iniciada correctamente!", "success");
             }
         } catch {
-            setError(t('serverError'));
+            setError(LL.serverError());
             showToast("Error de conexión con el servidor.", "error");
         } finally {
             setLoading(false);
@@ -62,14 +62,14 @@ const LoginForm = () => {
                 name: name.trim() || email.split('@')[0] || 'Usuario',
             });
             if (error) {
-                setError(error.message ?? t('createAccountError'));
+                setError(error.message ?? LL.createAccountError());
                 showToast(error.message ?? "No se pudo crear la cuenta.", "error");
             } else {
                 showToast("¡Cuenta creada con éxito! Bienvenido a Panoramas.", "success");
                 setMode('login');
             }
         } catch {
-            setError(t('serverError'));
+            setError(LL.serverError());
             showToast("Error crítico en el servidor de registro.", "error");
         } finally {
             setLoading(false);
@@ -111,14 +111,14 @@ const LoginForm = () => {
                         onClick={() => { setMode('login'); setError(''); }}
                         className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${mode === 'login' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400'}`}
                     >
-                        {t('signIn')}
+                        {LL.signIn()}
                     </button>
                     <button
                         type="button"
                         onClick={() => { setMode('register'); setError(''); }}
                         className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${mode === 'register' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400'}`}
                     >
-                        {t('register')}
+                        {LL.register()}
                     </button>
                 </div>
 
@@ -126,7 +126,7 @@ const LoginForm = () => {
                     {mode === 'register' && (
                         <input
                             type="text"
-                            placeholder={t('name')}
+                            placeholder={LL.name()}
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             className="w-full px-4 py-3 bg-gray-50 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-black outline-none transition-all"
@@ -134,7 +134,7 @@ const LoginForm = () => {
                     )}
                     <input
                         type="email"
-                        placeholder={t('email')}
+                        placeholder={LL.email()}
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
@@ -145,7 +145,7 @@ const LoginForm = () => {
                     />
                     <input
                         type="password"
-                        placeholder={t('password')}
+                        placeholder={LL.password()}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
@@ -158,10 +158,10 @@ const LoginForm = () => {
                     {mode === 'register' && password.length > 0 && (
                         <div className="flex flex-col gap-1 px-1 text-left">
                             {[
-                                { ok: passwordChecks.length, label: t('pwdMin8') },
-                                { ok: passwordChecks.uppercase, label: t('pwdUppercase') },
-                                { ok: passwordChecks.number, label: t('pwdNumber') },
-                                { ok: passwordChecks.special, label: t('pwdSpecial') },
+                                { ok: passwordChecks.length, label: LL.pwdMin8() },
+                                { ok: passwordChecks.uppercase, label: LL.pwdUppercase() },
+                                { ok: passwordChecks.number, label: LL.pwdNumber() },
+                                { ok: passwordChecks.special, label: LL.pwdSpecial() },
                             ].map(({ ok, label }) => (
                                 <p key={label} className={`text-xs font-medium ${ok ? 'text-green-500' : 'text-gray-400'}`}>
                                     {ok ? '✓' : '·'} {label}
@@ -177,13 +177,13 @@ const LoginForm = () => {
                         disabled={loading || (mode === 'register' && !passwordValid)}
                         className="w-full bg-black text-white py-4 rounded-2xl font-bold text-sm hover:bg-zinc-800 transition-all active:scale-95 disabled:opacity-50"
                     >
-                        {loading ? t('loading') : mode === 'login' ? t('signIn') : t('createAccount')}
+                        {loading ? LL.loading() : mode === 'login' ? LL.signIn() : LL.createAccount()}
                     </button>
                 </form>
 
                 <div className="flex items-center gap-3 mb-4">
                     <div className="flex-1 h-px bg-gray-100"></div>
-                    <span className="text-[10px] text-gray-300 font-bold uppercase tracking-widest">{t('or')}</span>
+                    <span className="text-[10px] text-gray-300 font-bold uppercase tracking-widest">{LL.or()}</span>
                     <div className="flex-1 h-px bg-gray-100"></div>
                 </div>
 
@@ -197,12 +197,12 @@ const LoginForm = () => {
                         alt="Google"
                         className="w-5 h-5"
                     />
-                    <span className="tracking-tight text-sm">{t('continueWithGoogle')}</span>
+                    <span className="tracking-tight text-sm">{LL.continueWithGoogle()}</span>
                 </button>
 
                 <div className="mt-8 pt-6 border-t border-gray-50">
                     <p className="text-[10px] text-gray-300 uppercase tracking-[0.2em] font-bold">
-                        {t('secureAuth')}
+                        {LL.secureAuth()}
                     </p>
                 </div>
             </div>

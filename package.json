@@ -6,9 +6,11 @@
   "scripts": {
     "test": "bun test",
     "test:coverage": "bun test --coverage",
-    "dev": "bun --hot src/index.ts",
+    "dev": "concurrently -n SERVER,I18N -c blue,magenta \"bun --hot src/index.ts\" \"typesafe-i18n\"",
+    "dev:server": "bun --hot src/index.ts",
     "start": "NODE_ENV=production bun src/index.ts",
-    "build": "bunx vite build"
+    "build": "bunx vite build",
+    "typesafe-i18n": "typesafe-i18n"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",
@@ -32,10 +34,12 @@
     "react": "^19",
     "react-dom": "^19",
     "speakeasy": "^2.0.0",
-    "tailwind-merge": "^3.3.1"
+    "tailwind-merge": "^3.3.1",
+    "typesafe-i18n": "^5.27.1"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "concurrently": "^9.1.0",
     "@types/nodemailer": "^8.0.0",
     "@types/pg": "^8.20.0",
     "@types/react": "^19.2.14",
