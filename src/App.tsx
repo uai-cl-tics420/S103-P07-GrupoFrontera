@@ -58,11 +58,20 @@ export function App() {
   const [view, setView] = React.useState<View>(getInitialView);
   const { LL } = useT();
 
-  const todayStr = React.useMemo(() => new Date().toISOString().split('T')[0] as string, []);
+  const todayStr = React.useMemo(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
   const maxDateStr = React.useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + 5);
-    return d.toISOString().split('T')[0] as string;
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }, []);
 
   // Interceptor global para capturar errores 401 y 403 de la API

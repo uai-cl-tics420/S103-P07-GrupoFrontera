@@ -12,6 +12,26 @@ import { isOutdoorFriendly } from './utils/weatherHelpers';
 import { getSimulatedOccupancy } from './services/placesService';
 import { processPayment } from './services/paymentService';
 
+export const getSantiagoDateString = (date: Date = new Date()) => {
+  const formatter = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'America/Santiago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  return formatter.format(date);
+};
+
+export const getSantiagoTimeString = (date: Date = new Date()) => {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Santiago',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  return formatter.format(date);
+};
+
 
 async function sendEmail(to: string | string[], subject: string, html: string) {
   const toArray = Array.isArray(to) ? to : [to];
@@ -119,8 +139,8 @@ app.get("/api/activities", async ({ query, request }) => {
   const currentTemp = weather.temperature || 20;
   const cityName = (weather as any).cityName || (weather as any).name || "Santiago";
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const nowHM = new Date().toTimeString().slice(0, 5); // "HH:MM"
+  const todayStr = getSantiagoDateString(new Date());
+  const nowHM = getSantiagoTimeString(new Date());
 
   //traemos las actividades de la bbdd
   const rows = await db.select().from(activities);
@@ -224,7 +244,7 @@ app.get("/api/activities", async ({ query, request }) => {
   for (let i = 0; i < 5; i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
-    next5DaysArray.push(d.toISOString().slice(0, 10));
+    next5DaysArray.push(getSantiagoDateString(d));
   }
 
   // Si se busca en los próximos 5 días, construimos el mapa de reservas usadas para cada fecha en el rango
@@ -1110,8 +1130,8 @@ app.get("/api/activities/:id/availability", async ({ params }) => {
   for (const sc of sched) {
     (fechasMap[sc.fecha] ??= []).push({ horaInicio: sc.horaInicio, horaFin: sc.horaFin });
   }
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const nowHM = new Date().toTimeString().slice(0, 5); // "HH:MM"
+  const todayStr = getSantiagoDateString(new Date());
+  const nowHM = getSantiagoTimeString(new Date());
 
   const fechas = Object.entries(fechasMap)
     .filter(([fecha]) => fecha >= todayStr)
