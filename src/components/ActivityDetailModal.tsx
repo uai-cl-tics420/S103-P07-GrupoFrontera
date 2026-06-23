@@ -241,12 +241,17 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                                 <div>
                                     <p className='text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2'>{LL.scheduleLabel()}</p>
                                     <div className='flex flex-wrap gap-2'>
-                                        {franjasDeFecha.map((fr, i) => (
-                                            <button key={i} type='button' onClick={() => setSelFranja(fr)}
-                                                className={chip(selFranja === fr)}>
-                                                {fr.horaInicio} - {fr.horaFin}
-                                            </button>
-                                        ))}
+                                        {franjasDeFecha.map((fr, i) => {
+                                            const slotAgotado = (fr as any).agotado === true;
+                                            return (
+                                                <button key={i} type='button'
+                                                    disabled={slotAgotado}
+                                                    onClick={() => setSelFranja(fr)}
+                                                    className={chip(selFranja === fr, slotAgotado)}>
+                                                    {fr.horaInicio} - {fr.horaFin}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}

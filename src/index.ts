@@ -128,21 +128,23 @@ app.get("/api/activities", async ({ query, request }) => {
   //traemos los horarios de cada panorama
   const allSchedules = await db.select().from(activitySchedules);
 
-  // Obtener conteo de reservas activas para todas las actividades y fechas
+  // Obtener conteo de reservas activas para todas las actividades, fechas y horarios
   const allReservations = await db.select({
     activityId: userReservations.activityId,
     reservedDate: userReservations.reservedDate,
+    reservedTime: userReservations.reservedTime,
     count: count(userReservations.id)
   })
   .from(userReservations)
   .where(ne(userReservations.status, 'cancelado'))
-  .groupBy(userReservations.activityId, userReservations.reservedDate);
+  .groupBy(userReservations.activityId, userReservations.reservedDate, userReservations.reservedTime);
 
-  const reservationCounts: Record<string, Record<string, number>> = {};
+  const reservationCounts: Record<string, Record<string, Record<string, number>>> = {};
   for (const r of allReservations) {
     if (r.activityId && r.reservedDate) {
       const actMap = (reservationCounts[r.activityId] ??= {});
-      actMap[r.reservedDate] = r.count;
+      const dateMap = (actMap[r.reservedDate] ??= {});
+      dateMap[r.reservedTime ?? ""] = r.count;
     }
   }
 
@@ -171,7 +173,8 @@ app.get("/api/activities", async ({ query, request }) => {
       });
       if (futureSchedules.length > 0) {
         allSoldOut = futureSchedules.every(s => {
-          const usados = reservationCounts[row.id]?.[s.fecha] ?? 0;
+          const slotStr = `${s.horaInicio ?? ''} - ${s.horaFin ?? ''}`;
+          const usados = reservationCounts[row.id]?.[s.fecha]?.[slotStr] ?? 0;
           return row.cuposPorDia! - usados <= 0;
         });
       }
@@ -273,7 +276,6 @@ app.get("/api/activities", async ({ query, request }) => {
   // La fuente de panoramas ahora es la BD (creados por el admin), no Google Places.
   // Excluimos los marcados como NO disponibles.
   let baseList = mappedActivities
-    .filter(a => !a.explicitlyDisabled)
     .filter(matchesPlannedDate)
     .filter(matchesFilterDate)
     .filter(matchesRadius)
@@ -973,13 +975,30 @@ app.delete("/api/favorites", async ({ body, request, set }) => {
 app.get("/api/activities/:id/availability", async ({ params }) => {
   const [act] = await db.select().from(activities).where(eq(activities.id, params.id));
   if (!act) return { error: "Panorama no encontrado", fechas: [] };
-  const cupos = (act as any).cuposPorDia ?? null;
+  
+  if (act.disponible === false) {
+    return { activityId: params.id, name: act.name, price: act.price ?? null, fechas: [] };
+  }
+
+  const cupos = act.cuposPorDia ?? null;
   const sched = await db.select().from(activitySchedules).where(eq(activitySchedules.activityId, params.id));
-  const reservas = await db.select({ d: userReservations.reservedDate })
+  
+  const reservas = await db.select({
+    d: userReservations.reservedDate,
+    t: userReservations.reservedTime
+  })
     .from(userReservations)
     .where(and(eq(userReservations.activityId, params.id), ne(userReservations.status, 'cancelado')));
-  const usados: Record<string, number> = {};
-  for (const r of reservas) { if (r.d) usados[r.d] = (usados[r.d] ?? 0) + 1; }
+  
+  const usados: Record<string, Record<string, number>> = {};
+  for (const r of reservas) {
+    if (r.d) {
+      const dateMap = (usados[r.d] ??= {});
+      const slotKey = r.t ?? "";
+      dateMap[slotKey] = (dateMap[slotKey] ?? 0) + 1;
+    }
+  }
+
   const fechasMap: Record<string, { horaInicio: string | null; horaFin: string | null }[]> = {};
   for (const sc of sched) {
     (fechasMap[sc.fecha] ??= []).push({ horaInicio: sc.horaInicio, horaFin: sc.horaFin });
@@ -993,11 +1012,34 @@ app.get("/api/activities/:id/availability", async ({ params }) => {
       const activeFranjas = fecha === todayStr
         ? franjas.filter(fr => !fr.horaFin || fr.horaFin > nowHM)
         : franjas;
+      
+      const franjasWithAvail = activeFranjas.map(fr => {
+        const slotStr = `${fr.horaInicio ?? ''} - ${fr.horaFin ?? ''}`;
+        const slotUsados = usados[fecha]?.[slotStr] ?? 0;
+        const slotDisponibles = cupos == null ? null : Math.max(0, cupos - slotUsados);
+        const slotAgotado = slotDisponibles !== null && slotDisponibles <= 0;
+        return {
+          ...fr,
+          disponibles: slotDisponibles,
+          agotado: slotAgotado
+        };
+      });
+
+      let totalDisponibles = null;
+      if (cupos != null) {
+        if (franjasWithAvail.length > 0) {
+          totalDisponibles = franjasWithAvail.reduce((sum, f) => sum + (f.disponibles ?? 0), 0);
+        } else {
+          const dateUsados = usados[fecha]?.[ "" ] ?? 0;
+          totalDisponibles = Math.max(0, cupos - dateUsados);
+        }
+      }
+
       return {
         fecha,
-        franjas: activeFranjas,
+        franjas: franjasWithAvail,
         cuposPorDia: cupos,
-        disponibles: cupos == null ? null : Math.max(0, cupos - (usados[fecha] ?? 0)),
+        disponibles: totalDisponibles,
       };
     })
     .filter(f => f.franjas.length > 0 || (fechasMap[f.fecha]?.length ?? 0) === 0)
@@ -1089,8 +1131,15 @@ app.post("/api/reservations", async ({ body, request, set }) => {
       const cuposDia = (locked as any)?.cuposPorDia ?? null;
 
       if (cuposDia != null && reservedDate) {
-        const usados = await tx.select({ value: count() }).from(userReservations)
-          .where(and(eq(userReservations.activityId, activityId), eq(userReservations.reservedDate, reservedDate), ne(userReservations.status, 'cancelado')));
+        let queryCond = and(
+          eq(userReservations.activityId, activityId),
+          eq(userReservations.reservedDate, reservedDate),
+          ne(userReservations.status, 'cancelado')
+        );
+        if (reservedTime) {
+          queryCond = and(queryCond, eq(userReservations.reservedTime, reservedTime));
+        }
+        const usados = await tx.select({ value: count() }).from(userReservations).where(queryCond);
         if ((usados[0]?.value ?? 0) >= cuposDia) {
           throw Object.assign(new Error('SIN_CUPOS'), { code: 'SIN_CUPOS' });
         }
