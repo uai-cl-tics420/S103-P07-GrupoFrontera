@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Plus, Trash2, MapPin, Image as ImageIcon, Clock, Ticket, Users, Info } from 'lucide-react';
 import { Category } from '@/types';
 import { useT } from '@/i18n/context';
@@ -47,6 +47,12 @@ export function CreatePanoramaForm({ activityToEdit, onSuccess, onCancel }: Crea
             default: return c;
         }
     };
+    // Fecha de hoy (YYYY-MM-DD) en zona local, para impedir agendar panoramas en fechas pasadas
+    const todayStr = useMemo(() => {
+        const d = new Date();
+        const off = d.getTimezoneOffset();
+        return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
+    }, []);
     const [imageUrl, setImageUrl] = useState(activityToEdit?.imageUrl || '');
     const [nombre, setNombre] = useState(activityToEdit?.name || '');
     const [descripcion, setDescripcion] = useState(activityToEdit?.description || '');
@@ -162,6 +168,10 @@ export function CreatePanoramaForm({ activityToEdit, onSuccess, onCancel }: Crea
         if (cuposPorDia !== '' && Number(cuposPorDia) < 0) errores.push(LL.adminFormErrorSlotsNegative());
         for (const d of dias) {
             if (!d.fecha) continue;
+            if (d.fecha < todayStr) {
+                errores.push(LL.adminFormErrorPastDate({ fecha: d.fecha }));
+                break;
+            }
             for (const f of d.franjas) {
                 if (f.horaInicio && f.horaFin && f.horaInicio >= f.horaFin) {
                     errores.push(LL.adminFormErrorTimeRangeInvalid({ fecha: d.fecha }));
@@ -387,7 +397,7 @@ export function CreatePanoramaForm({ activityToEdit, onSuccess, onCancel }: Crea
                                 <div className="grid grid-cols-12 gap-2 items-end mb-3">
                                     <div className="col-span-11">
                                         <label className={labelCls}>{LL.adminFormDateLabel()}</label>
-                                        <input type="date" value={dia.fecha}
+                                        <input type="date" value={dia.fecha} min={todayStr}
                                             onChange={(e) => updateFecha(di, e.target.value)}
                                             className={inputCls} />
                                     </div>

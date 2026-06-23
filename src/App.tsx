@@ -56,7 +56,24 @@ export function App() {
   const { data: session, isPending } = authClient.useSession();
   const [jwtToken, setJwtToken] = React.useState('');
   const [view, setView] = React.useState<View>(getInitialView);
+  const [profileOpen, setProfileOpen] = React.useState(false);
+  const profileRef = React.useRef<HTMLDivElement>(null);
   const { LL } = useT();
+
+  // Cerrar el menu de perfil al hacer click fuera o presionar Escape
+  React.useEffect(() => {
+    if (!profileOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setProfileOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [profileOpen]);
 
   const todayStr = React.useMemo(() => {
     const d = new Date();
@@ -619,7 +636,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] font-sans pb-20">
+    <div className="min-h-screen bg-[#FAFAFA] font-sans pb-20 overflow-x-hidden">
       <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 sm:px-6 py-4 sm:py-5 mb-8 sm:mb-12">
         <div className="max-w-5xl mx-auto flex justify-between items-center gap-3">
           <h1 className="text-xl sm:text-2xl font-black tracking-tighter text-gray-900 italic">
@@ -629,12 +646,12 @@ export function App() {
             {loadingWeather ? (
               <WeatherSkeleton />
             ) : weatherInfo ? (
-              <div className='flex items-center gap-2 bg-zinc-50 border border-gray-100 px-4 py-2 rounded-full shadow-sm select-none transition-all duration-300 hover:bg-zinc-100 animate-fade-in'>
-                <span className='text-xs font-black text-gray-500 uppercase tracking-wider flex items-center gap-1'>
+              <div className='flex items-center gap-1.5 sm:gap-2 bg-zinc-50 border border-gray-100 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full shadow-sm select-none transition-all duration-300 hover:bg-zinc-100 animate-fade-in'>
+                <span className='hidden sm:flex text-xs font-black text-gray-500 uppercase tracking-wider items-center gap-1'>
                   <span>📍</span> {weatherInfo.cityName || "Santiago"}
                 </span>
 
-                <span className='text-gray-300'>|</span>
+                <span className='hidden sm:inline text-gray-300'>|</span>
 
                 {(() => {
                   const IconComponent = weatherIconMap[weatherInfo.condition] || Cloud;
@@ -653,41 +670,57 @@ export function App() {
               </div>
             ) : null}
 
-            <button
-              onClick={() => navigate('reservations')}
-              className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-gray-900 transition-colors whitespace-nowrap px-2 py-1 border border-gray-200 rounded"
-            >
-              {LL.myReservationsLink()}
-            </button>
-
-            {role === 'admin' && (
-              <button
-                onClick={() => navigate('admin')}
-                className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-gray-900 transition-colors whitespace-nowrap px-2 py-1 border border-gray-200 rounded"
-              >
-                {LL.adminAccessLink()}
-              </button>
-            )}
-
-            {role !== 'admin' && (
-              <button
-                onClick={handleActivateAdmin}
-                className="text-[10px] font-bold text-amber-600 uppercase tracking-tighter hover:text-amber-900 transition-colors whitespace-nowrap px-2 py-1 border border-amber-200 rounded"
-              >
-                Activar Admin
-              </button>
-            )}
             <LanguageToggle />
-            <span className="hidden md:inline text-[10px] font-bold text-gray-400 uppercase tracking-tighter truncate max-w-[160px] lg:max-w-[240px]">
-              {session?.user?.email}
-            </span>
-            <button
-              onClick={handleSignOut}
-              className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-red-400 transition-colors whitespace-nowrap"
-            >
-              {LL.logout()}
-            </button>
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-fuchsia-600 border-2 border-white shadow-md flex-shrink-0"></div>
+
+            {/* Menu de perfil: consolida correo, reservas, admin y cierre de sesion para
+                no saturar la barra (clave para que no desborde / haga zoom en movil) */}
+            <div className="relative" ref={profileRef}>
+              <button
+                onClick={() => setProfileOpen(o => !o)}
+                aria-label={LL.myAccountLabel()}
+                aria-expanded={profileOpen}
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-fuchsia-600 border-2 border-white shadow-md flex-shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
+              ></button>
+
+              {profileOpen && (
+                <div className="absolute right-0 mt-2 w-60 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 animate-fade-in flex flex-col">
+                  <div className="px-4 py-2 border-b border-gray-50">
+                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{LL.myAccountLabel()}</p>
+                    <p className="text-xs font-bold text-gray-700 truncate">{session?.user?.email}</p>
+                  </div>
+
+                  <button
+                    onClick={() => { setProfileOpen(false); navigate('reservations'); }}
+                    className="text-left px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    {LL.myReservationsLink()}
+                  </button>
+
+                  {role === 'admin' ? (
+                    <button
+                      onClick={() => { setProfileOpen(false); navigate('admin'); }}
+                      className="text-left px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      {LL.adminAccessLink()}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { setProfileOpen(false); handleActivateAdmin(); }}
+                      className="text-left px-4 py-2.5 text-sm font-semibold text-amber-600 hover:bg-amber-50 transition-colors"
+                    >
+                      {LL.activateAdminLink()}
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => { setProfileOpen(false); handleSignOut(); }}
+                    className="text-left px-4 py-2.5 text-sm font-semibold text-red-500 hover:bg-red-50 transition-colors border-t border-gray-50 mt-1"
+                  >
+                    {LL.logout()}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </nav>

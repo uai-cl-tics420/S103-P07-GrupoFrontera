@@ -1,5 +1,4 @@
 import React from 'react';
-import { useState, useEffect } from 'react';
 import { type Activity } from '../types/index';
 import { useT } from "@/i18n/context";
 import { Heart, Eye, CheckCircle2, Clock, Calendar, MapPin } from "lucide-react";
@@ -50,7 +49,6 @@ const ActivityCard = ({
 }: ActivityCardProps) => {
 
   const { LL } = useT();
-  const [drivingKm, setDrivingKm] = useState<number | null>(null);
 
   if (!activity) return null;
 
@@ -69,20 +67,10 @@ const ActivityCard = ({
   const categoryKey = categoryKeyMap[activity.category];
   const categoryLabel = categoryKey ? LL[categoryKey]() : activity.category;
   const hasValidCoords = !!activity.coordinates && (activity.coordinates.lat !== 0 || activity.coordinates.lng !== 0);
-  const distance = userCoords && hasValidCoords ? getDistance(userCoords.lat, userCoords.lng, activity.coordinates.lat, activity.coordinates.lng) : null;
-
-  // Distancia en auto (por carretera) via backend/Routes API; cae a linea recta si no esta disponible
-  useEffect(() => {
-    if (!userCoords || !hasValidCoords) { setDrivingKm(null); return; }
-    let cancel = false;
-    fetch(`/api/distance?fromLat=${userCoords.lat}&fromLng=${userCoords.lng}&toLat=${activity.coordinates.lat}&toLng=${activity.coordinates.lng}`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(d => { if (!cancel && typeof d?.km === 'number') setDrivingKm(d.km); })
-      .catch(() => {});
-    return () => { cancel = true; };
-  }, [userCoords?.lat, userCoords?.lng, activity.coordinates.lat, activity.coordinates.lng, hasValidCoords]);
-
-  const shownKm = drivingKm ?? distance;
+  // Distancia en linea recta (Haversine). Mostramos esta misma metrica con la que el backend
+  // ordena la grilla por cercania, para que el orden visible coincida con los km de cada tarjeta.
+  // La distancia por carretera (Routes API) se muestra en el detalle del panorama.
+  const shownKm = userCoords && hasValidCoords ? getDistance(userCoords.lat, userCoords.lng, activity.coordinates.lat, activity.coordinates.lng) : null;
 
   return (
     <>
@@ -131,7 +119,7 @@ const ActivityCard = ({
             </div>
             {shownKm !== null && (
               <div className="bg-white/80 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 border border-white/40 shadow-sm flex items-center gap-1">
-                <span>{drivingKm != null ? '🚗' : '📍'}</span> {shownKm.toFixed(1)} km
+                <span>📍</span> {shownKm.toFixed(1)} km
               </div>
             )}
           </div>
