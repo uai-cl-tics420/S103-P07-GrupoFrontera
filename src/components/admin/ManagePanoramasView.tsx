@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Trash2, TrendingUp, Star, CheckCircle2, XCircle, RefreshCw, MapPin } from 'lucide-react';
+import { Trash2, TrendingUp, Star, CheckCircle2, XCircle, RefreshCw, MapPin, Pencil } from 'lucide-react';
 import { Category } from '@/types';
 import { useT } from '@/i18n/context';
+import { CreatePanoramaForm } from './CreatePanoramaForm';
 
 interface AdminActivity {
     id: string;
@@ -36,6 +37,7 @@ export function ManagePanoramasView() {
     const [error, setError] = useState<string | null>(null);
     const [regeoBusy, setRegeoBusy] = useState(false);
     const [regeoMsg, setRegeoMsg] = useState<string | null>(null);
+    const [editingActivity, setEditingActivity] = useState<AdminActivity | null>(null);
 
     const load = async () => {
         setLoading(true);
@@ -93,6 +95,24 @@ export function ManagePanoramasView() {
     };
 
     const filtered = filter === 'Todas' ? items : items.filter((it) => it.category === filter);
+
+    if (editingActivity) {
+        return (
+            <div className="bg-white rounded-[32px] border border-gray-100 p-6 sm:p-8 shadow-sm">
+                <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-xl font-black text-gray-900 tracking-tighter">Editar Panorama</h3>
+                </div>
+                <CreatePanoramaForm
+                    activityToEdit={editingActivity}
+                    onSuccess={() => {
+                        setEditingActivity(null);
+                        load();
+                    }}
+                    onCancel={() => setEditingActivity(null)}
+                />
+            </div>
+        );
+    }
 
     const chip = (active: boolean) =>
         `text-[11px] font-bold uppercase tracking-widest px-3 py-2 rounded-xl transition ${active ? 'bg-black text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`;
@@ -180,6 +200,14 @@ export function ManagePanoramasView() {
                             >
                                 {it.disponible ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
                                 {it.disponible ? LL.adminManageAvailableLabel() : LL.adminManageUnavailableLabel()}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setEditingActivity(it)}
+                                className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 text-gray-500 hover:bg-zinc-200 transition"
+                                title="Editar"
+                            >
+                                <Pencil className="w-4 h-4" />
                             </button>
                             <button
                                 type="button"
