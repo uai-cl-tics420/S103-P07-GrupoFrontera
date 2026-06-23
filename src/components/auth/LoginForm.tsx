@@ -99,7 +99,7 @@ const LoginForm = () => {
                 </div>
 
                 <h1 className="text-4xl font-black tracking-tighter mb-2 text-gray-900 uppercase">
-                    Panoramas
+                    PanoramApp
                 </h1>
                 <p className="text-gray-400 text-sm mb-8 font-medium">
                     Grupo Frontera • 2026

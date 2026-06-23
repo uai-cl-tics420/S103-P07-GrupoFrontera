@@ -324,6 +324,33 @@ const es = {
 	adminManageAvailableLabel: 'Disponible',
 	adminManageUnavailableLabel: 'No disp.',
 	adminManageDeleteTitle: 'Eliminar',
+
+	// Prueba 2 - Nuevas llaves
+	otpResendCode: 'Reenviar código',
+	adminFormErrorNameRequired: 'El nombre es obligatorio.',
+	adminFormErrorPriceNegative: 'El precio no puede ser negativo.',
+	adminFormErrorSlotsNegative: 'Los cupos no pueden ser negativos.',
+	adminFormErrorTimeRangeInvalid: 'En la fecha {fecha}, la hora de inicio debe ser anterior a la de fin.',
+	currentUserLabel: 'Actual',
+	paymentDetailLabel: 'Detalle del pedido',
+	subtotalLabel: 'Subtotal',
+	serviceFeeLabel: 'Cargo por servicio',
+	totalLabel: 'Total',
+	backLabel: 'Volver',
+	soldOutLabel: 'Agotado',
+	continueToPaymentCta: 'Continuar con el pago',
+	backToDetailLink: 'Volver al detalle',
+	onlySlotsLeftAlert: '¡Solo quedan {n} cupos!',
+	slotsAvailableAlert: '{n} cupos disponibles',
+	soldOutForDateAlert: 'Agotado para esta fecha',
+	radiusMax: 'Sin límite (30 km)',
+	radius20km: 'Abrir radio (20 km)',
+	radius10km: 'Abrir radio (10 km)',
+	radius7km: 'Abrir radio (7 km)',
+	radius5km: 'Cerca de mí (5 km)',
+	radius2km: 'Cerca de mí (2 km)',
+	removeDateLink: '✕ Quitar fecha',
+	resetFiltersLink: '↺ Restablecer filtros',
 } satisfies BaseTranslation
 
 export default es

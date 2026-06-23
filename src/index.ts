@@ -119,11 +119,32 @@ app.get("/api/activities", async ({ query, request }) => {
   const currentTemp = weather.temperature || 20;
   const cityName = (weather as any).cityName || (weather as any).name || "Santiago";
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const nowHM = new Date().toTimeString().slice(0, 5); // "HH:MM"
+
   //traemos las actividades de la bbdd
   const rows = await db.select().from(activities);
 
   //traemos los horarios de cada panorama
   const allSchedules = await db.select().from(activitySchedules);
+
+  // Obtener conteo de reservas activas para todas las actividades y fechas
+  const allReservations = await db.select({
+    activityId: userReservations.activityId,
+    reservedDate: userReservations.reservedDate,
+    count: count(userReservations.id)
+  })
+  .from(userReservations)
+  .where(ne(userReservations.status, 'cancelado'))
+  .groupBy(userReservations.activityId, userReservations.reservedDate);
+
+  const reservationCounts: Record<string, Record<string, number>> = {};
+  for (const r of allReservations) {
+    if (r.activityId && r.reservedDate) {
+      const actMap = (reservationCounts[r.activityId] ??= {});
+      actMap[r.reservedDate] = r.count;
+    }
+  }
 
   //mapeamos las filas al formato typescript (panoramas creados por el admin)
   const mappedActivities = rows.map(row => {
@@ -131,6 +152,33 @@ app.get("/api/activities", async ({ query, request }) => {
       .filter(sch => sch.activityId === row.id)
       .map(sch => ({ fecha: sch.fecha, horaInicio: sch.horaInicio, horaFin: sch.horaFin }));
     const primera = sched[0];
+
+    const explicitlyDisabled = (row as any).disponible === false;
+
+    const hasSchedules = sched.length > 0;
+    const allInPast = hasSchedules && sched.every(s => {
+      if (s.fecha < todayStr) return true;
+      if (s.fecha === todayStr && s.horaFin && s.horaFin <= nowHM) return true;
+      return false;
+    });
+
+    let allSoldOut = false;
+    if (hasSchedules && !allInPast && row.cuposPorDia != null) {
+      const futureSchedules = sched.filter(s => {
+        if (s.fecha < todayStr) return false;
+        if (s.fecha === todayStr && s.horaFin && s.horaFin <= nowHM) return false;
+        return true;
+      });
+      if (futureSchedules.length > 0) {
+        allSoldOut = futureSchedules.every(s => {
+          const usados = reservationCounts[row.id]?.[s.fecha] ?? 0;
+          return row.cuposPorDia! - usados <= 0;
+        });
+      }
+    }
+
+    const isDisponible = !explicitlyDisabled && !allInPast && !allSoldOut;
+
     return {
       id: row.id,
       name: row.name,
@@ -146,15 +194,15 @@ app.get("/api/activities", async ({ query, request }) => {
       cuposPorDia: (row as any).cuposPorDia ?? undefined,
       isTendencia: (row as any).isTendencia ?? false,
       isPopular: (row as any).isPopular ?? false,
-      disponible: (row as any).disponible ?? true,
+      disponible: isDisponible,
+      explicitlyDisabled,
       schedules: sched,
     };
   });
 
   // Fecha objetivo de la planificación (si el usuario usó "Recomendar Panoramas").
   // 'today' se traduce a la fecha real de hoy para poder comparar contra activitySchedules.
-  const today = new Date().toISOString().slice(0, 10);
-  const targetDateStr = dateStr ? (dateStr === 'today' ? today : dateStr) : undefined;
+  const targetDateStr = dateStr ? (dateStr === 'today' ? todayStr : dateStr) : undefined;
 
   // Cupos ya usados por panorama en una fecha dada (reservas activas de esa fecha), para poder
   // excluir los panoramas AGOTADOS en esa fecha. Se reusa tanto para la fecha de planificación
@@ -225,7 +273,7 @@ app.get("/api/activities", async ({ query, request }) => {
   // La fuente de panoramas ahora es la BD (creados por el admin), no Google Places.
   // Excluimos los marcados como NO disponibles.
   let baseList = mappedActivities
-    .filter(a => a.disponible !== false)
+    .filter(a => !a.explicitlyDisabled)
     .filter(matchesPlannedDate)
     .filter(matchesFilterDate)
     .filter(matchesRadius)
@@ -250,8 +298,25 @@ app.get("/api/activities", async ({ query, request }) => {
     );
   }
 
-  // Afluencia simulada por ahora (en standby hasta definir la fuente real con el profe)
-  const placesWithOccupancy = baseList.map(a => ({ ...a, occupancy: getSimulatedOccupancy() }));
+  const occupancyDate = filterDate || targetDateStr || todayStr;
+  const usadosEnOccupancy = (filterDate === occupancyDate)
+    ? usadosEnFiltroFecha
+    : (targetDateStr === occupancyDate)
+      ? usadosEnFecha
+      : await buildUsadosEnFecha(occupancyDate);
+
+  const dateObj = occupancyDate ? new Date(occupancyDate + 'T12:00:00') : new Date();
+  const dayOfWeek = dateObj.getDay();
+  const filterHourStr = filterTime?.split(':')[0];
+  const timeHourStr = timeStr?.split(':')[0];
+  const hour = filterHourStr 
+    ? parseInt(filterHourStr, 10) 
+    : (timeHourStr ? parseInt(timeHourStr, 10) : new Date().getHours());
+
+  const placesWithOccupancy = baseList.map(a => ({
+    ...a,
+    occupancy: getSimulatedOccupancy(a.category, hour, dayOfWeek, a.cuposPorDia, usadosEnOccupancy[a.id] ?? 0)
+  }));
 
   // Evaluación de condiciones climáticas adaptativas (Tu lógica + Barros)
   const conditionClean = (weather?.condition || currentCondition || '').toLowerCase().trim();
@@ -263,15 +328,16 @@ app.get("/api/activities", async ({ query, request }) => {
   const weatherTag = (currentMainCondition === 'Clear' || currentMainCondition === 'Clouds') ? 'Sunny' : 'Rainy';
 
   // Ordenamos la grilla dejando primero las actividades que favorecen al clima actual de Santiago
+  const climateRecommended = (priceSort || radius !== 30000)
+    ? [...placesWithOccupancy]
+    : [...placesWithOccupancy].sort((a, b) => {
+        const aCalzaClima = a.tagClima === weatherTag;
+        const bCalzaClima = b.tagClima === weatherTag;
 
-  const climateRecommended = [...placesWithOccupancy].sort((a, b) => {
-    const aCalzaClima = a.tagClima === weatherTag;
-    const bCalzaClima = b.tagClima === weatherTag;
-
-    if (aCalzaClima && !bCalzaClima) return -1;
-    if (!aCalzaClima && bCalzaClima) return 1;
-    return 0;
-  });
+        if (aCalzaClima && !bCalzaClima) return -1;
+        if (!aCalzaClima && bCalzaClima) return 1;
+        return 0;
+      });
 
   // Extraer el usuario de la sesión para ver sus favoritos y reservas
   const session = await auth.api.getSession({ headers: request.headers });
@@ -313,7 +379,7 @@ app.get("/api/activities", async ({ query, request }) => {
 
   const userInteractedActivities = filteredInteracted.map(a => ({
     ...a,
-    occupancy: getSimulatedOccupancy(), // Afluencia simulada real (issue #23)
+    occupancy: getSimulatedOccupancy(a.category, hour, dayOfWeek, a.cuposPorDia, usadosEnOccupancy[a.id] ?? 0),
     openingHour: a.openingHour || "09:00",
     closingHour: a.closingHour || "21:00"
   }));
@@ -327,15 +393,28 @@ app.get("/api/activities", async ({ query, request }) => {
     }
   }
 
-  // Volvemos a ordenar la lista combinada final por correspondencia climática
-  const finalOrdered = combinedActivities.sort((a, b) => {
-    const aCalzaClima = a.tagClima === weatherTag;
-    const bCalzaClima = b.tagClima === weatherTag;
+  // Volvemos a ordenar la lista combinada final respetando el sort activo
+  const finalOrdered = [...combinedActivities];
+  if (priceSort) {
+    finalOrdered.sort((a, b) => {
+      const pa = a.price ?? 0, pb = b.price ?? 0;
+      return priceSort === 'asc' ? pa - pb : pb - pa;
+    });
+  } else if (radius !== 30000) {
+    finalOrdered.sort((a, b) =>
+      getDistanceInMeters(lat, lng, a.coordinates.lat, a.coordinates.lng) -
+      getDistanceInMeters(lat, lng, b.coordinates.lat, b.coordinates.lng)
+    );
+  } else {
+    finalOrdered.sort((a, b) => {
+      const aCalzaClima = a.tagClima === weatherTag;
+      const bCalzaClima = b.tagClima === weatherTag;
 
-    if (aCalzaClima && !bCalzaClima) return -1;
-    if (!aCalzaClima && bCalzaClima) return 1;
-    return 0;
-  });
+      if (aCalzaClima && !bCalzaClima) return -1;
+      if (!aCalzaClima && bCalzaClima) return 1;
+      return 0;
+    });
+  }
 
   // retornamos la lista combinada y optimizada, y la data del usuario
   return {
@@ -747,7 +826,9 @@ app.post("/api/request-admin-otp", async ({ request, set }) => {
     updatedAt: new Date(),
   });
 
-  console.log(`🔑 [Admin OTP] Código generado para ${email}: ${code}`);
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`🔑 [Admin OTP] Código generado para ${email}: ${code}`);
+  }
 
   try {
     await sendEmail(session.user.email, "Código de activación Administrador - Panoramas", `
@@ -789,12 +870,12 @@ app.post("/api/activate-admin", async ({ body, request, set }) => {
   const cleanToken = token.trim();
 
   // 1. Intentar validar como TOTP manual (Administrador)
-  const totpSecret = process.env.ADMIN_TOTP_SECRET || "KVKFKRCSN5RHKYTVMVRXEYLTMV3GOLJS";
-  const isValidTotp = speakeasy.totp.verify({
+  const totpSecret = process.env.ADMIN_TOTP_SECRET;
+  const isValidTotp = totpSecret ? speakeasy.totp.verify({
     secret: totpSecret,
     encoding: 'base32',
     token: cleanToken
-  });
+  }) : false;
 
   let activationMethod = 'totp';
 
@@ -903,12 +984,24 @@ app.get("/api/activities/:id/availability", async ({ params }) => {
   for (const sc of sched) {
     (fechasMap[sc.fecha] ??= []).push({ horaInicio: sc.horaInicio, horaFin: sc.horaFin });
   }
-  const fechas = Object.entries(fechasMap).map(([fecha, franjas]) => ({
-    fecha,
-    franjas,
-    cuposPorDia: cupos,
-    disponibles: cupos == null ? null : Math.max(0, cupos - (usados[fecha] ?? 0)),
-  })).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const nowHM = new Date().toTimeString().slice(0, 5); // "HH:MM"
+
+  const fechas = Object.entries(fechasMap)
+    .filter(([fecha]) => fecha >= todayStr)
+    .map(([fecha, franjas]) => {
+      const activeFranjas = fecha === todayStr
+        ? franjas.filter(fr => !fr.horaFin || fr.horaFin > nowHM)
+        : franjas;
+      return {
+        fecha,
+        franjas: activeFranjas,
+        cuposPorDia: cupos,
+        disponibles: cupos == null ? null : Math.max(0, cupos - (usados[fecha] ?? 0)),
+      };
+    })
+    .filter(f => f.franjas.length > 0 || (fechasMap[f.fecha]?.length ?? 0) === 0)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
   return { activityId: params.id, name: act.name, price: (act as any).price ?? null, fechas };
 });
 
@@ -1178,7 +1271,9 @@ app.post("/api/otp/request", async ({ body }) => {
     updatedAt: new Date(),
   });
 
-  console.log(`🔑 [OTP] Código generado para ${email}: ${code}`);
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`🔑 [OTP] Código generado para ${email}: ${code}`);
+  }
 
   try {
     await sendEmail(email, "Tu código de verificación - Panoramas", `

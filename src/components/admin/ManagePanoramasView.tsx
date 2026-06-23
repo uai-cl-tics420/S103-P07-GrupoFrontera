@@ -97,8 +97,14 @@ export function ManagePanoramasView() {
     const chip = (active: boolean) =>
         `text-[11px] font-bold uppercase tracking-widest px-3 py-2 rounded-xl transition ${active ? 'bg-black text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`;
 
-    const filtroLabel = (f: string) => (f === 'Todas' ? LL.categoryAll() : LL[CATEGORY_KEY_BY_VALUE[f]]());
-    const categoryLabel = (cat: string) => CATEGORY_KEY_BY_VALUE[cat] ? LL[CATEGORY_KEY_BY_VALUE[cat]]() : cat;
+    const filtroLabel = (f: string) => {
+        const key = CATEGORY_KEY_BY_VALUE[f];
+        return f === 'Todas' ? LL.categoryAll() : (key ? LL[key]() : f);
+    };
+    const categoryLabel = (cat: string) => {
+        const key = CATEGORY_KEY_BY_VALUE[cat];
+        return key ? LL[key]() : cat;
+    };
 
     return (
         <div className="space-y-6">

@@ -95,7 +95,7 @@ const OTPVerify = ({ userId, email, onVerified }: { userId: string, email: strin
                             disabled={sending}
                             className="text-xs font-bold text-gray-600 underline mt-1 disabled:opacity-50"
                         >
-                            {sending ? LL.otpVerifying() : "Reenviar código"}
+                            {sending ? LL.otpVerifying() : LL.otpResendCode()}
                         </button>
                     </div>
                 )}

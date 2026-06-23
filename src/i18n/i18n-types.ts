@@ -1122,6 +1122,109 @@ type RootTranslation = {
 	 * E​l​i​m​i​n​a​r
 	 */
 	adminManageDeleteTitle: string
+	/**
+	 * R​e​e​n​v​i​a​r​ ​c​ó​d​i​g​o
+	 */
+	otpResendCode: string
+	/**
+	 * E​l​ ​n​o​m​b​r​e​ ​e​s​ ​o​b​l​i​g​a​t​o​r​i​o​.
+	 */
+	adminFormErrorNameRequired: string
+	/**
+	 * E​l​ ​p​r​e​c​i​o​ ​n​o​ ​p​u​e​d​e​ ​s​e​r​ ​n​e​g​a​t​i​v​o​.
+	 */
+	adminFormErrorPriceNegative: string
+	/**
+	 * L​o​s​ ​c​u​p​o​s​ ​n​o​ ​p​u​e​d​e​n​ ​s​e​r​ ​n​e​g​a​t​i​v​o​s​.
+	 */
+	adminFormErrorSlotsNegative: string
+	/**
+	 * E​n​ ​l​a​ ​f​e​c​h​a​ ​{​f​e​c​h​a​}​,​ ​l​a​ ​h​o​r​a​ ​d​e​ ​i​n​i​c​i​o​ ​d​e​b​e​ ​s​e​r​ ​a​n​t​e​r​i​o​r​ ​a​ ​l​a​ ​d​e​ ​f​i​n​.
+	 * @param {unknown} fecha
+	 */
+	adminFormErrorTimeRangeInvalid: RequiredParams<'fecha'>
+	/**
+	 * A​c​t​u​a​l
+	 */
+	currentUserLabel: string
+	/**
+	 * D​e​t​a​l​l​e​ ​d​e​l​ ​p​e​d​i​d​o
+	 */
+	paymentDetailLabel: string
+	/**
+	 * S​u​b​t​o​t​a​l
+	 */
+	subtotalLabel: string
+	/**
+	 * C​a​r​g​o​ ​p​o​r​ ​s​e​r​v​i​c​i​o
+	 */
+	serviceFeeLabel: string
+	/**
+	 * T​o​t​a​l
+	 */
+	totalLabel: string
+	/**
+	 * V​o​l​v​e​r
+	 */
+	backLabel: string
+	/**
+	 * A​g​o​t​a​d​o
+	 */
+	soldOutLabel: string
+	/**
+	 * C​o​n​t​i​n​u​a​r​ ​c​o​n​ ​e​l​ ​p​a​g​o
+	 */
+	continueToPaymentCta: string
+	/**
+	 * V​o​l​v​e​r​ ​a​l​ ​d​e​t​a​l​l​e
+	 */
+	backToDetailLink: string
+	/**
+	 * ¡​S​o​l​o​ ​q​u​e​d​a​n​ ​{​n​}​ ​c​u​p​o​s​!
+	 * @param {unknown} n
+	 */
+	onlySlotsLeftAlert: RequiredParams<'n'>
+	/**
+	 * {​n​}​ ​c​u​p​o​s​ ​d​i​s​p​o​n​i​b​l​e​s
+	 * @param {unknown} n
+	 */
+	slotsAvailableAlert: RequiredParams<'n'>
+	/**
+	 * A​g​o​t​a​d​o​ ​p​a​r​a​ ​e​s​t​a​ ​f​e​c​h​a
+	 */
+	soldOutForDateAlert: string
+	/**
+	 * S​i​n​ ​l​í​m​i​t​e​ ​(​3​0​ ​k​m​)
+	 */
+	radiusMax: string
+	/**
+	 * A​b​r​i​r​ ​r​a​d​i​o​ ​(​2​0​ ​k​m​)
+	 */
+	radius20km: string
+	/**
+	 * A​b​r​i​r​ ​r​a​d​i​o​ ​(​1​0​ ​k​m​)
+	 */
+	radius10km: string
+	/**
+	 * A​b​r​i​r​ ​r​a​d​i​o​ ​(​7​ ​k​m​)
+	 */
+	radius7km: string
+	/**
+	 * C​e​r​c​a​ ​d​e​ ​m​í​ ​(​5​ ​k​m​)
+	 */
+	radius5km: string
+	/**
+	 * C​e​r​c​a​ ​d​e​ ​m​í​ ​(​2​ ​k​m​)
+	 */
+	radius2km: string
+	/**
+	 * ✕​ ​Q​u​i​t​a​r​ ​f​e​c​h​a
+	 */
+	removeDateLink: string
+	/**
+	 * ↺​ ​R​e​s​t​a​b​l​e​c​e​r​ ​f​i​l​t​r​o​s
+	 */
+	resetFiltersLink: string
 }
 
 export type TranslationFunctions = {
@@ -2225,6 +2328,106 @@ Ingresa 1 o 2:
 	 * Eliminar
 	 */
 	adminManageDeleteTitle: () => LocalizedString
+	/**
+	 * Reenviar código
+	 */
+	otpResendCode: () => LocalizedString
+	/**
+	 * El nombre es obligatorio.
+	 */
+	adminFormErrorNameRequired: () => LocalizedString
+	/**
+	 * El precio no puede ser negativo.
+	 */
+	adminFormErrorPriceNegative: () => LocalizedString
+	/**
+	 * Los cupos no pueden ser negativos.
+	 */
+	adminFormErrorSlotsNegative: () => LocalizedString
+	/**
+	 * En la fecha {fecha}, la hora de inicio debe ser anterior a la de fin.
+	 */
+	adminFormErrorTimeRangeInvalid: (arg: { fecha: unknown }) => LocalizedString
+	/**
+	 * Actual
+	 */
+	currentUserLabel: () => LocalizedString
+	/**
+	 * Detalle del pedido
+	 */
+	paymentDetailLabel: () => LocalizedString
+	/**
+	 * Subtotal
+	 */
+	subtotalLabel: () => LocalizedString
+	/**
+	 * Cargo por servicio
+	 */
+	serviceFeeLabel: () => LocalizedString
+	/**
+	 * Total
+	 */
+	totalLabel: () => LocalizedString
+	/**
+	 * Volver
+	 */
+	backLabel: () => LocalizedString
+	/**
+	 * Agotado
+	 */
+	soldOutLabel: () => LocalizedString
+	/**
+	 * Continuar con el pago
+	 */
+	continueToPaymentCta: () => LocalizedString
+	/**
+	 * Volver al detalle
+	 */
+	backToDetailLink: () => LocalizedString
+	/**
+	 * ¡Solo quedan {n} cupos!
+	 */
+	onlySlotsLeftAlert: (arg: { n: unknown }) => LocalizedString
+	/**
+	 * {n} cupos disponibles
+	 */
+	slotsAvailableAlert: (arg: { n: unknown }) => LocalizedString
+	/**
+	 * Agotado para esta fecha
+	 */
+	soldOutForDateAlert: () => LocalizedString
+	/**
+	 * Sin límite (30 km)
+	 */
+	radiusMax: () => LocalizedString
+	/**
+	 * Abrir radio (20 km)
+	 */
+	radius20km: () => LocalizedString
+	/**
+	 * Abrir radio (10 km)
+	 */
+	radius10km: () => LocalizedString
+	/**
+	 * Abrir radio (7 km)
+	 */
+	radius7km: () => LocalizedString
+	/**
+	 * Cerca de mí (5 km)
+	 */
+	radius5km: () => LocalizedString
+	/**
+	 * Cerca de mí (2 km)
+	 */
+	radius2km: () => LocalizedString
+	/**
+	 * ✕ Quitar fecha
+	 */
+	removeDateLink: () => LocalizedString
+	/**
+	 * ↺ Restablecer filtros
+	 */
+	resetFiltersLink: () => LocalizedString
 }
 
 export type Formatters = {}

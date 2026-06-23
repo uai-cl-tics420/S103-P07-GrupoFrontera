@@ -124,21 +124,22 @@ export function CreatePanoramaForm() {
 
         // Validacion de inputs
         const errores: string[] = [];
-        if (!nombre.trim()) errores.push('El nombre es obligatorio.');
-        if (precio !== '' && Number(precio) < 0) errores.push('El precio no puede ser negativo.');
-        if (cuposPorDia !== '' && Number(cuposPorDia) < 0) errores.push('Los cupos no pueden ser negativos.');
+        if (!nombre.trim()) errores.push(LL.adminFormErrorNameRequired());
+        if (precio !== '' && Number(precio) < 0) errores.push(LL.adminFormErrorPriceNegative());
+        if (cuposPorDia !== '' && Number(cuposPorDia) < 0) errores.push(LL.adminFormErrorSlotsNegative());
         for (const d of dias) {
             if (!d.fecha) continue;
             for (const f of d.franjas) {
                 if (f.horaInicio && f.horaFin && f.horaInicio >= f.horaFin) {
-                    errores.push(`En la fecha ${d.fecha}, la hora de inicio debe ser anterior a la de fin.`);
+                    errores.push(LL.adminFormErrorTimeRangeInvalid({ fecha: d.fecha }));
                     break;
                 }
             }
         }
         if (errores.length > 0) {
-            showToast(errores[0], 'error');
-            setResultMsg({ ok: false, text: errores[0] });
+            const firstError = errores[0] ?? 'Error';
+            showToast(firstError, 'error');
+            setResultMsg({ ok: false, text: firstError });
             return;
         }
         // Objeto que (en la próxima etapa) se enviará a POST /api/admin/activities

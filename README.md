@@ -31,7 +31,7 @@ bun install
 bun run dev
 ```
 
-La app queda disponible en `http://localhost:3000`.
+La app queda disponible en `http://localhost:4000`.
 
 ### Con Docker (recomendado para desarrollo en equipo)
 
@@ -39,7 +39,7 @@ La app queda disponible en `http://localhost:3000`.
 docker compose up
 ```
 
-Esto construye la imagen y levanta el servidor con hot reload en `http://localhost:3000`.
+Esto construye la imagen y levanta el servidor con hot reload en `http://localhost:4000`.
 
 ## Política de ramas
 
@@ -76,8 +76,8 @@ Para que la aplicación funcione en producción, se deben definir las siguientes
 | `BETTER_AUTH_SECRET` | Clave para cifrar sesiones de better-auth | `un_secreto_largo_y_seguro` |
 | `JWT_SECRET` | Clave para firma de tokens JWT internos | `otro_secreto_largo_y_seguro` |
 | `AUTHORIZED_ADMIN_EMAILS` | Emails con permiso de activación de admin automática | `correo1@alumnos.uai.cl,correo2@gmail.com` |
-| `ADMIN_TOTP_SECRET` | Clave secreta base32 para verificación TOTP manual | `KVKFKRCSN5RHKYTVMVRXEYLTMV3GOLJS` |
-| `RESEND_API_KEY` | API Key de Resend para envío de correos OTP | `re_xxxxxxxxx` |
+| `ADMIN_TOTP_SECRET` | Clave secreta base32 para verificación TOTP manual | `TU_SECRETO_BASE32_AQUI` |
+| `BREVO_API_KEY` | API Key de Brevo para envío de correos OTP | `xkeysib-xxxxxxxxx` |
 | `OPENWEATHER_API_KEY` | API Key de OpenWeather | `xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` |
 | `GOOGLE_PLACES_API_KEY` | API Key de Google Places | `AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxx` |
 | `GOOGLE_CLIENT_ID` | Client ID de Google OAuth | `xxxx.apps.googleusercontent.com` |

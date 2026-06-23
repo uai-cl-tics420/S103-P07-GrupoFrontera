@@ -324,6 +324,33 @@ const en = {
 	adminManageAvailableLabel: 'Available',
 	adminManageUnavailableLabel: 'Unavail.',
 	adminManageDeleteTitle: 'Delete',
+
+	// Prueba 2 - New keys
+	otpResendCode: 'Resend code',
+	adminFormErrorNameRequired: 'Name is required.',
+	adminFormErrorPriceNegative: 'Price cannot be negative.',
+	adminFormErrorSlotsNegative: 'Spots cannot be negative.',
+	adminFormErrorTimeRangeInvalid: 'For date {fecha}, the start time must be before the end time.',
+	currentUserLabel: 'Current',
+	paymentDetailLabel: 'Order Details',
+	subtotalLabel: 'Subtotal',
+	serviceFeeLabel: 'Service fee',
+	totalLabel: 'Total',
+	backLabel: 'Back',
+	soldOutLabel: 'Sold out',
+	continueToPaymentCta: 'Continue to payment',
+	backToDetailLink: 'Back to details',
+	onlySlotsLeftAlert: 'Only {n} spots left!',
+	slotsAvailableAlert: '{n} spots available',
+	soldOutForDateAlert: 'Sold out for this date',
+	radiusMax: 'No limit (30 km)',
+	radius20km: 'Expand radius (20 km)',
+	radius10km: 'Expand radius (10 km)',
+	radius7km: 'Expand radius (7 km)',
+	radius5km: 'Near me (5 km)',
+	radius2km: 'Near me (2 km)',
+	removeDateLink: '✕ Remove date',
+	resetFiltersLink: '↺ Reset filters',
 } satisfies Translation
 
 export default en

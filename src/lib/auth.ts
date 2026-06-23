@@ -84,7 +84,7 @@ export const auth = betterAuth({
         jwt(),
     ],
     logger: {
-        level: "debug",
+        level: "warn",
     }
 
 });

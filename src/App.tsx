@@ -61,7 +61,7 @@ export function App() {
   // Interceptor global para capturar errores 401 y 403 de la API
   React.useEffect(() => {
     const originalFetch = window.fetch;
-    window.fetch = async (input, init) => {
+    window.fetch = (async (input: any, init: any) => {
       const response = await originalFetch(input, init);
       if (response.status === 401) {
         const urlStr = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
@@ -78,7 +78,7 @@ export function App() {
         showToast(LL.noPermissionToast(), "error");
       }
       return response;
-    };
+    }) as any;
     return () => {
       window.fetch = originalFetch;
     };
@@ -375,8 +375,12 @@ export function App() {
     ? (planningState.date === 'today' ? undefined : (planningState.time || 'any'))
     : undefined;
 
+  const hasExplicitSort = apiFilters.priceSort === 'asc' || apiFilters.priceSort === 'desc' || apiFilters.radius !== 30000;
+
   // Motor de recomendaciones optimizado con las variables de tus compañeros
-  const recommendedActivities = getRecommendedActivities(currentUser, actualActivitiesList, activeWeather, activeTime);
+  const recommendedActivities = hasExplicitSort
+    ? actualActivitiesList
+    : getRecommendedActivities(currentUser, actualActivitiesList, activeWeather, activeTime);
 
   // Inicializamos la categoría usando preferredCategory pero con el resguardo de filtrado dinámico
   const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(recommendedActivities, preferredCategory || null);
@@ -748,11 +752,12 @@ export function App() {
               value={apiFilters.radius}
               onChange={(e) => setApiFilters({ ...apiFilters, radius: Number(e.target.value) })}
             >
-              <option value={30000}>30 km</option>
-              <option value={20000}>20 km</option>
-              <option value={10000}>10 km</option>
-              <option value={5000}>5 km</option>
-              <option value={2000}>{LL.filterNearbyRadius()}</option>
+              <option value={30000}>{LL.radiusMax()}</option>
+              <option value={20000}>{LL.radius20km()}</option>
+              <option value={10000}>{LL.radius10km()}</option>
+              <option value={7000}>{LL.radius7km()}</option>
+              <option value={5000}>{LL.radius5km()}</option>
+              <option value={2000}>{LL.radius2km()}</option>
             </select>
 
             <select
@@ -802,7 +807,7 @@ export function App() {
                 onChange={(e) => setApiFilters({ ...apiFilters, filterTime: e.target.value })}
                 className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
               >
-                <option value="">Cualquier hora</option>
+                <option value="">{LL.anyTimeText()}</option>
                 {availableHorarios.map(h => (
                   <option key={h} value={h}>{h}</option>
                 ))}
@@ -815,7 +820,7 @@ export function App() {
                 onClick={() => setApiFilters({ ...apiFilters, filterDate: '', filterTime: '' })}
                 className="text-xs font-medium text-gray-400 hover:text-gray-600"
               >
-                ✕ Quitar fecha
+                {LL.removeDateLink()}
               </button>
             )}
 
@@ -824,7 +829,7 @@ export function App() {
               onClick={() => { setApiFilters(DEFAULT_API_FILTERS); fetchFilteredActivities(selectedCategory, DEFAULT_API_FILTERS); }}
               className="text-xs font-medium text-gray-400 hover:text-gray-600"
             >
-              ↺ Restablecer filtros
+              {LL.resetFiltersLink()}
             </button>
 
             <button
