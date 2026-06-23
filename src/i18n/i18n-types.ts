@@ -211,6 +211,14 @@ type RootTranslation = {
 	 */
 	adminAccessLink: string
 	/**
+	 * A​c​t​i​v​a​r​ ​A​d​m​i​n
+	 */
+	activateAdminLink: string
+	/**
+	 * M​i​ ​c​u​e​n​t​a
+	 */
+	myAccountLabel: string
+	/**
 	 * U​s​u​a​r​i​o​s​ ​t​o​t​a​l​e​s
 	 */
 	statTotalUsers: string
@@ -1156,6 +1164,11 @@ type RootTranslation = {
 	 */
 	adminFormErrorTimeRangeInvalid: RequiredParams<'fecha'>
 	/**
+	 * L​a​ ​f​e​c​h​a​ ​{​f​e​c​h​a​}​ ​y​a​ ​p​a​s​ó​.​ ​E​l​i​g​e​ ​u​n​a​ ​f​e​c​h​a​ ​d​e​ ​h​o​y​ ​e​n​ ​a​d​e​l​a​n​t​e​.
+	 * @param {unknown} fecha
+	 */
+	adminFormErrorPastDate: RequiredParams<'fecha'>
+	/**
 	 * A​c​t​u​a​l
 	 */
 	currentUserLabel: string
@@ -1436,6 +1449,14 @@ export type TranslationFunctions = {
 	 * Admin
 	 */
 	adminAccessLink: () => LocalizedString
+	/**
+	 * Activar Admin
+	 */
+	activateAdminLink: () => LocalizedString
+	/**
+	 * Mi cuenta
+	 */
+	myAccountLabel: () => LocalizedString
 	/**
 	 * Usuarios totales
 	 */
@@ -2372,6 +2393,10 @@ Ingresa 1 o 2:
 	 * En la fecha {fecha}, la hora de inicio debe ser anterior a la de fin.
 	 */
 	adminFormErrorTimeRangeInvalid: (arg: { fecha: unknown }) => LocalizedString
+	/**
+	 * La fecha {fecha} ya pasó. Elige una fecha de hoy en adelante.
+	 */
+	adminFormErrorPastDate: (arg: { fecha: unknown }) => LocalizedString
 	/**
 	 * Actual
 	 */
