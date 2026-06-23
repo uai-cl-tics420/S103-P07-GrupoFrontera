@@ -471,10 +471,29 @@ app.get("/api/activities", async ({ query, request }) => {
     });
   }
 
+  // Filtrar las fechas programadas de cada panorama para que solo se devuelvan
+  // las que pertenecen al rango de planificación activo.  Así el frontend no
+  // muestra fechas fuera del rango seleccionado por el usuario.
+  const activeDateFilter = targetDateStr || filterDate;
+  const filteredActivities = finalOrdered.map(a => {
+    if (!a.schedules || a.schedules.length === 0) return a;
+    if (activeDateFilter === 'next5days') {
+      return { ...a, schedules: a.schedules.filter((s: { fecha: string }) => next5DaysArray.includes(s.fecha)) };
+    }
+    if (activeDateFilter && activeDateFilter !== 'today') {
+      // Fecha específica: solo mostrar la fecha que coincida
+      return { ...a, schedules: a.schedules.filter((s: { fecha: string }) => s.fecha === activeDateFilter) };
+    }
+    if (activeDateFilter === 'today') {
+      return { ...a, schedules: a.schedules.filter((s: { fecha: string }) => s.fecha === todayStr) };
+    }
+    return a;
+  });
+
   // retornamos la lista combinada y optimizada, y la data del usuario
   return {
     currentWeather: weather,
-    activities: finalOrdered,
+    activities: filteredActivities,
     userHistory: {
       favorites: userFavs,
       reservations: userRes
