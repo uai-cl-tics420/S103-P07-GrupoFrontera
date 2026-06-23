@@ -112,7 +112,7 @@ export function App() {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
 
   // Estados temporales del formulario de planificación
-  const [planningDateType, setPlanningDateType] = React.useState<'today' | 'future'>('today');
+  const [planningDateType, setPlanningDateType] = React.useState<'today' | 'next5days' | 'future'>('today');
   const [planningTimeType, setPlanningTimeType] = React.useState<'any' | 'specific'>('any');
   const [dateValue, setDateValue] = React.useState<string>(todayStr);
   const [timeValue, setTimeValue] = React.useState("20:00");
@@ -723,13 +723,25 @@ export function App() {
                 <div className="flex items-center justify-center sm:justify-start gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
                   <h3 className="text-base sm:text-lg font-black tracking-tight text-emerald-950 leading-tight">
-                    {planningState.date === 'today' ? LL.planningActiveTodayTitle() : LL.planningActiveFutureTitle()}
+                    {planningState.date === 'today'
+                      ? LL.planningActiveTodayTitle()
+                      : planningState.date === 'next5days'
+                        ? LL.planningActive5DaysTitle()
+                        : LL.planningActiveFutureTitle()
+                    }
                   </h3>
                 </div>
                 <p className="text-xs text-emerald-800 font-semibold mt-1">
                   {planningState.date === 'today' ? (
                     <>
                       {LL.planningTodayIntro()} <span className="font-bold underline">{LL.today()}</span> {LL.inRealTime()} {LL.weatherDetectedBy()} <span className="font-bold underline">{weatherInfo?.condition === 'Clear' ? LL.weatherClear() : weatherInfo?.condition === 'Clouds' ? LL.weatherCloudy() : LL.weatherRainy()} ({weatherInfo?.temperature.toFixed(1)}°C)</span>.
+                    </>
+                  ) : planningState.date === 'next5days' ? (
+                    <>
+                      {LL.planning5DaysIntro()}{' '}
+                      {weatherInfo ? (
+                        <>{LL.weatherEstimatedBy()} <span className="font-bold underline">{weatherInfo.condition === 'Clear' ? LL.weatherClear() : weatherInfo.condition === 'Clouds' ? LL.weatherCloudy() : LL.weatherRainy()} ({weatherInfo.temperature.toFixed(1)}°C)</span>.</>
+                      ) : null}
                     </>
                   ) : (
                     <>
@@ -835,7 +847,6 @@ export function App() {
             <input
               type="date"
               min={todayStr}
-              max={maxDateStr}
               value={apiFilters.filterDate}
               onChange={(e) => setApiFilters({ ...apiFilters, filterDate: e.target.value, filterTime: '' })}
               className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -974,7 +985,8 @@ export function App() {
                 e.preventDefault();
                 if (planningDateType === 'today') {
                   setPlanningState({ date: 'today', time: undefined });
-
+                } else if (planningDateType === 'next5days') {
+                  setPlanningState({ date: 'next5days', time: undefined });
                 } else {
                   setPlanningState({
                     date: dateValue,
@@ -990,23 +1002,31 @@ export function App() {
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                   {LL.whenQuestion()}
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setPlanningDateType('today')}
-                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${planningDateType === 'today'
+                    className={`py-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all border text-center ${planningDateType === 'today'
                       ? 'bg-black text-white border-black shadow-md shadow-black/10'
                       : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
                       }`}
                   >
-
                     {LL.todayOptionCta()}
-
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPlanningDateType('next5days')}
+                    className={`py-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all border text-center ${planningDateType === 'next5days'
+                      ? 'bg-black text-white border-black shadow-md shadow-black/10'
+                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                      }`}
+                  >
+                    {LL.next5daysOptionCta()}
                   </button>
                   <button
                     type="button"
                     onClick={() => setPlanningDateType('future')}
-                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${planningDateType === 'future'
+                    className={`py-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all border text-center ${planningDateType === 'future'
                       ? 'bg-black text-white border-black shadow-md shadow-black/10'
                       : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
                       }`}
@@ -1027,7 +1047,6 @@ export function App() {
                       type="date"
                       required
                       min={todayStr}
-                      max={maxDateStr}
                       value={dateValue}
                       onChange={(e) => setDateValue(e.target.value)}
                       className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-gray-700"

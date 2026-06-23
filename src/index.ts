@@ -106,7 +106,7 @@ app.get("/api/activities", async ({ query, request }) => {
   const timeStr = query.time as string | undefined;
 
   let weather;
-  if (dateStr && dateStr !== 'today') {
+  if (dateStr && dateStr !== 'today' && dateStr !== 'next5days') {
     console.log(`Consultando pronóstico para fecha: ${dateStr}, hora: ${timeStr || 'cualquier hora'}`);
     weather = await getWeatherForecast(lat, lng, dateStr, timeStr);
   } else {
@@ -219,10 +219,45 @@ app.get("/api/activities", async ({ query, request }) => {
   // Un panorama SIN fechas programadas se considera de entrada libre (disponible todos los días).
   // Un panorama CON fechas programadas solo aparece si la fecha coincide con alguna de sus fechas
   // agendadas Y todavía quedan cupos para esa fecha (no está agotado).
+  // Generar arreglo con los próximos 5 días (de hoy a hoy+4)
+  const next5DaysArray: string[] = [];
+  for (let i = 0; i < 5; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    next5DaysArray.push(d.toISOString().slice(0, 10));
+  }
+
+  // Si se busca en los próximos 5 días, construimos el mapa de reservas usadas para cada fecha en el rango
+  const next5DaysUsados: Record<string, Record<string, number>> = {};
+  if (targetDateStr === 'next5days' || filterDate === 'next5days') {
+    for (const f of next5DaysArray) {
+      next5DaysUsados[f] = await buildUsadosEnFecha(f);
+    }
+  }
+
+  // Un panorama SIN fechas programadas se considera de entrada libre (disponible todos los días).
+  // Un panorama CON fechas programadas solo aparece si la fecha coincide con alguna de sus fechas
+  // agendadas Y todavía quedan cupos para esa fecha (no está agotado).
   function buildMatchesDate(fecha: string | undefined, usados: Record<string, number>) {
     return (a: { id: string; schedules: { fecha: string }[]; cuposPorDia?: number }): boolean => {
       if (!fecha) return true; // sin filtro de fecha
       if (!a.schedules || a.schedules.length === 0) return true; // entrada libre
+
+      if (fecha === 'next5days') {
+        // En los próximos 5 días, ver si hay alguna fecha programada en ese rango que no esté agotada
+        const tieneFechaValida = a.schedules.some(s => {
+          const isWithin5Days = next5DaysArray.includes(s.fecha);
+          if (!isWithin5Days) return false;
+          if (a.cuposPorDia != null) {
+            const usadosEnEsaFecha = next5DaysUsados[s.fecha]?.[a.id] ?? 0;
+            const disponibles = a.cuposPorDia - usadosEnEsaFecha;
+            return disponibles > 0;
+          }
+          return true;
+        });
+        return tieneFechaValida;
+      }
+
       const tieneFecha = a.schedules.some(s => s.fecha === fecha);
       if (!tieneFecha) return false;
       if (a.cuposPorDia != null) {
@@ -233,10 +268,10 @@ app.get("/api/activities", async ({ query, request }) => {
     };
   }
 
-  const usadosEnFecha = targetDateStr ? await buildUsadosEnFecha(targetDateStr) : {};
+  const usadosEnFecha = (targetDateStr && targetDateStr !== 'next5days') ? await buildUsadosEnFecha(targetDateStr) : {};
   const matchesPlannedDate = buildMatchesDate(targetDateStr, usadosEnFecha);
 
-  const usadosEnFiltroFecha = filterDate ? await buildUsadosEnFecha(filterDate) : {};
+  const usadosEnFiltroFecha = (filterDate && filterDate !== 'next5days') ? await buildUsadosEnFecha(filterDate) : {};
   const matchesFilterDate = buildMatchesDate(filterDate, usadosEnFiltroFecha);
 
   // Filtro de precio por rango, sobre el monto real en CLP guardado en la BD (activities.price)
@@ -298,11 +333,12 @@ app.get("/api/activities", async ({ query, request }) => {
   }
 
   const occupancyDate = filterDate || targetDateStr || todayStr;
+  const targetDateForOccupancy = occupancyDate === 'next5days' ? todayStr : occupancyDate;
   const usadosEnOccupancy = (filterDate === occupancyDate)
     ? usadosEnFiltroFecha
     : (targetDateStr === occupancyDate)
       ? usadosEnFecha
-      : await buildUsadosEnFecha(occupancyDate);
+      : await buildUsadosEnFecha(targetDateForOccupancy);
 
   const dateObj = occupancyDate ? new Date(occupancyDate + 'T12:00:00') : new Date();
   const dayOfWeek = dateObj.getDay();
