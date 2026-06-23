@@ -239,21 +239,6 @@ export const getRecommendedActivities = (user: User, activities: Activity[], wea
     // Ordenar por score descendente
     const sorted = scoredActivities.sort((a, b) => b.score - a.score);
 
-    // DEBUG VISUAL PARA LA CONSOLA: Muestra la puntuación detallada, incluyendo el precio estimado
-    if (typeof window !== 'undefined') {
-        console.log("=== 🧠 ANÁLISIS DEL MOTOR DE RECOMENDACIONES (PASO 2) ===");
-        console.table(sorted.map(s => ({
-            Panorama: s.activity.name,
-            Categoría: s.activity.category,
-            Puntaje_Total: s.score.toFixed(1),
-            Precio_Est: s.debug.estimatedPrice,
-            Distancia: s.debug.distance,
-            Está_Abierto: s.debug.open ? 'Sí ✅' : 'No ❌',
-            Alcanza_a_llegar: s.debug.reachable ? 'Sí ✅' : 'No ⏱️',
-            Es_Favorito: favoriteActivityIds.includes(s.activity.id) ? 'Sí ❤️' : 'No'
-        })));
-    }
-
     return sorted.map(scored => scored.activity);
 };
 

@@ -58,6 +58,13 @@ export function App() {
   const [view, setView] = React.useState<View>(getInitialView);
   const { LL } = useT();
 
+  const todayStr = React.useMemo(() => new Date().toISOString().split('T')[0] as string, []);
+  const maxDateStr = React.useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 5);
+    return d.toISOString().split('T')[0] as string;
+  }, []);
+
   // Interceptor global para capturar errores 401 y 403 de la API
   React.useEffect(() => {
     const originalFetch = window.fetch;
@@ -107,7 +114,7 @@ export function App() {
   // Estados temporales del formulario de planificación
   const [planningDateType, setPlanningDateType] = React.useState<'today' | 'future'>('today');
   const [planningTimeType, setPlanningTimeType] = React.useState<'any' | 'specific'>('any');
-  const [dateValue, setDateValue] = React.useState<string>(new Date().toISOString().split('T')[0] as string);
+  const [dateValue, setDateValue] = React.useState<string>(todayStr);
   const [timeValue, setTimeValue] = React.useState("20:00");
 
   //estado local para los filtros de búsqueda en servidor
@@ -827,7 +834,8 @@ export function App() {
 
             <input
               type="date"
-              min={new Date().toISOString().slice(0, 10)}
+              min={todayStr}
+              max={maxDateStr}
               value={apiFilters.filterDate}
               onChange={(e) => setApiFilters({ ...apiFilters, filterDate: e.target.value, filterTime: '' })}
               className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -1018,6 +1026,8 @@ export function App() {
                     <input
                       type="date"
                       required
+                      min={todayStr}
+                      max={maxDateStr}
                       value={dateValue}
                       onChange={(e) => setDateValue(e.target.value)}
                       className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-gray-700"
