@@ -17,6 +17,7 @@ interface Reservation {
         id: string;
         name: string;
         category: string;
+        price?: number | null;
         coordinates?: { lat: number; lng: number };
     } | null;
 }
@@ -272,6 +273,7 @@ export function UserReservationsView({ userId, userEmail, onBack, onReservationC
                 <PayModal
                     reservationId={payTarget.id}
                     activityName={payTarget.activity?.name ?? payTarget.activityId}
+                    price={payTarget.activity?.price ?? undefined}
                     open={!!payTarget}
                     onClose={() => setPayTarget(null)}
                     onSuccess={async () => {

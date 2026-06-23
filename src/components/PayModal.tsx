@@ -5,6 +5,7 @@ import { useT } from '@/i18n/context';
 interface PayModalProps {
     reservationId: string;
     activityName: string;
+    price?: number | null;
     open: boolean;
     onClose: () => void;
     onSuccess?: () => void;
@@ -12,7 +13,7 @@ interface PayModalProps {
 
 type Phase = 'idle' | 'processing' | 'success' | 'error';
 
-export function PayModal({ reservationId, activityName, open, onClose, onSuccess }: PayModalProps) {
+export function PayModal({ reservationId, activityName, price, open, onClose, onSuccess }: PayModalProps) {
     const { LL } = useT();
     const [phase, setPhase] = useState<Phase>('idle');
     const [errorMsg, setErrorMsg] = useState('');
@@ -91,9 +92,33 @@ export function PayModal({ reservationId, activityName, open, onClose, onSuccess
                 </div>
 
                 <div className="px-6 sm:px-8 py-6">
-                    {phase === 'idle' && (
-                        <p className="text-sm text-gray-500">{LL.reservationModalDescription()}</p>
-                    )}
+                {phase === 'idle' && (() => {
+                        const base = price ?? 0;
+                        const servicio = Math.round(base * 0.10);
+                        const total = base + servicio;
+                        return (
+                            <div className="space-y-3">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                    {LL.paymentDetailLabel ? LL.paymentDetailLabel() : "Detalle del pedido"}
+                                </p>
+                                <div className="bg-gray-50 rounded-2xl p-4 space-y-2">
+                                    <div className="flex justify-between text-sm text-gray-600">
+                                        <span>Subtotal</span>
+                                        <span className="font-bold text-gray-900">${base.toLocaleString('es-CL')}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm text-gray-600">
+                                        <span>Cargo por servicio</span>
+                                        <span className="font-bold text-gray-900">${servicio.toLocaleString('es-CL')}</span>
+                                    </div>
+                                    <div className="border-t border-gray-200 pt-2 flex justify-between items-center">
+                                        <span className="text-sm font-black text-gray-900">Total</span>
+                                        <span className="text-xl font-black text-blue-600">${total.toLocaleString('es-CL')}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
                     {phase === 'processing' && (
                         <div className="flex flex-col items-center gap-3 py-4">
                             <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
@@ -132,7 +157,9 @@ export function PayModal({ reservationId, activityName, open, onClose, onSuccess
                                 onClick={handlePay}
                                 className="w-full bg-emerald-600 text-white text-sm font-black py-3 sm:py-4 rounded-2xl hover:bg-emerald-700 active:scale-[0.98] transition-all uppercase tracking-widest shadow-lg shadow-emerald-600/10"
                             >
+
                                 {LL.reservationConfirmPay()}
+
                             </button>
                             <button
                                 type="button"

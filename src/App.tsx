@@ -47,7 +47,7 @@ export function App() {
 
   //estados para capturar las coordenadas reales del navegador
   const [coords, setCoords] = React.useState({ lat: -33.4372, lng: -70.6506 }); //Stgo. centro por defecto
-  const [weatherInfo, setWeatherInfo] = React.useState<{ condition: string; temperature: number; cityName?: string } | null>(null);
+  const [weatherInfo, setWeatherInfo] = React.useState<{ condition: string; temperature: number; cityName?: string; reliable?: boolean } | null>(null);
 
   //estado local para guardar los panoramas que traemos dinámicamente
   const [dynamicActivities, setDynamicActivities] = React.useState<any[]>([]);
@@ -131,7 +131,7 @@ export function App() {
     // y terminaba agotando la conexión a Postgres.
   }, [session?.user?.id]);
 
-  const [userHistory, setUserHistory] = React.useState<{favorites: string[], reservations: string[]}>({ favorites: [], reservations: [] });
+  const [userHistory, setUserHistory] = React.useState<{ favorites: string[], reservations: string[] }>({ favorites: [], reservations: [] });
 
   const [activeReservations, setActiveReservations] = React.useState<Record<string, { id: string; status: string }>>({});
   const historyLoadedRef = React.useRef(false);
@@ -176,7 +176,7 @@ export function App() {
       let url = `/api/activities?lat=${coords.lat}&lng=${coords.lng}&radius=${activeFilters.radius}`;
       if (activeFilters.exactPrice !== '') url += `&exactPrice=${activeFilters.exactPrice}`;
       if (activeFilters.openNow) url += `&openNow=true`;
-      
+
       // Inyectar parámetros de planificación de fecha futura si están activos
       if (planningState) {
         url += `&date=${planningState.date}`;
@@ -230,10 +230,10 @@ export function App() {
   const handleToggleFavorite = async (activityId: string) => {
     const isFav = userHistory.favorites.includes(activityId);
 
-    
+
     const activity = actualActivitiesList.find(a => a.id === activityId);
 
-    
+
     if (isFav) {
       showToast(LL.toastFavRemoved(), "info");
     } else {
@@ -243,7 +243,7 @@ export function App() {
     // Update local state optimistically
     setUserHistory(prev => ({
       ...prev,
-      favorites: isFav 
+      favorites: isFav
         ? prev.favorites.filter(id => id !== activityId)
         : [...prev.favorites, activityId]
     }));
@@ -274,12 +274,14 @@ export function App() {
 
   let actualActivitiesList: any[] = [];
 
-  // Si ya terminó de cargar la petición filtrada por clima/parámetros, usamos estrictamente esa
-  if (!loadingWeather) {
+  // Mantener lo ya cargado aunque haya una recarga en segundo plano (evita que la lista
+  // se vacie al volver a la pestana / al revalidar la sesion). Solo usamos el fallback
+  // provisorio si todavia no se ha cargado ningun panorama.
+  if (dynamicActivities.length > 0) {
     actualActivitiesList = dynamicActivities;
-  } 
-  // Si aún está cargando la petición en segundo plano, usamos el hook original como fallback provisorio
-  else if (activities) {
+  } else if (!loadingWeather) {
+    actualActivitiesList = dynamicActivities;
+  } else if (activities) {
     if (Array.isArray(activities)) {
       actualActivitiesList = activities;
     } else if ((activities as any).activities && Array.isArray((activities as any).activities)) {
@@ -287,39 +289,68 @@ export function App() {
     }
   }
 
+  // Panoramas ya realizados (comprados/pagados): cuentan como interés para la similitud,
+  // pero el panorama en sí NO debe recomendarse de nuevo (ya se hizo).
+  const purchasedIds = Object.entries(activeReservations)
+    .filter(([, r]) => r.status === 'pagado' || r.status === 'comprado')
+    .map(([id]) => id);
+
   const currentUser: User = {
     id: session?.user?.id ?? "anon",
     name: session?.user?.name ?? "Usuario",
     preferences: [], // Eliminamos la preferencia fija heredada para usar el modelo 100% dinámico basado en likes, reservas, clima y distancia
     currentLocation: coords,
-    history: userHistory
+    history: { ...userHistory, purchased: purchasedIds }
   };
 
   // Parámetros avanzados de clima y tiempo
-  const weatherTag = weatherInfo ? ((weatherInfo.condition === 'Clear' || weatherInfo.condition === 'Clouds') ? 'Sunny' : 'Rainy') : undefined;
+  // El clima solo se usa para ordenar/penalizar si el pronóstico es confiable (fecha <= 5 días).
+  // Para fechas lejanas el clima es solo informativo, así que no condiciona la recomendación.
+  const weatherTag = (weatherInfo && weatherInfo.reliable !== false)
+    ? ((weatherInfo.condition === 'Clear' || weatherInfo.condition === 'Clouds') ? 'Sunny' : 'Rainy')
+    : undefined;
   const activeWeather = weatherTag;
-  const activeTime = planningState 
+  const activeTime = planningState
     ? (planningState.date === 'today' ? undefined : (planningState.time || 'any'))
     : undefined;
 
   // Motor de recomendaciones optimizado con las variables de tus compañeros
   const recommendedActivities = getRecommendedActivities(currentUser, actualActivitiesList, activeWeather, activeTime);
-  
+
   // Inicializamos la categoría usando preferredCategory pero con el resguardo de filtrado dinámico
   const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(recommendedActivities, preferredCategory || null);
-  
+
+  // Al volver a la pestaña (o recuperar el foco), recargamos la vista ACTUAL para que la
+  // lista no quede vacia tras la revalidacion de sesion de better-auth.
+  React.useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && session) {
+        fetchFilteredActivities(selectedCategory, apiFilters);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategory, apiFilters, coords, planningState, session]);
+
   // Manejador unificado de pestañas con tus Toasts y el reseteo de filtros de los chicos
   const handleSelectCategory = (category: typeof selectedCategory) => {
     setSelectedCategory(category);
     if (category !== null) {
       setPreferredCategory(category);
+
       showToast(LL.toastPrefsSaved({ category: category as string }), "info");
+
     }
 
     // Reiniciar los filtros locales para que sean independientes por categoría (Lógica de Barros/Daniel)
     const resetFilters = { radius: 50000, exactPrice: '', openNow: false };
     setApiFilters(resetFilters);
-    
+
     // Disparar búsqueda inmediatamente para que cargue los panoramas de la nueva pestaña
 
     fetchFilteredActivities(category, resetFilters);
@@ -409,7 +440,7 @@ export function App() {
     try {
       const response = await fetch('/api/reservations', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ activityId })
@@ -418,12 +449,12 @@ export function App() {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       console.log("¡Reserva confirmada con éxito en el servidor!");
 
     } catch (err) {
       console.error("🚨 Error real en la petición de reserva, revirtiendo estado:", err);
-      
+
       setUserHistory(prev => ({
         ...prev,
         reservations: prev.reservations.filter(id => id !== activityId)
@@ -436,7 +467,7 @@ export function App() {
       <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 sm:px-6 py-4 sm:py-5 mb-8 sm:mb-12">
         <div className="max-w-5xl mx-auto flex justify-between items-center gap-3">
           <h1 className="text-xl sm:text-2xl font-black tracking-tighter text-gray-900 italic">
-            PANORAMAS
+            PanoramApp
           </h1>
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {loadingWeather ? (
@@ -454,8 +485,8 @@ export function App() {
 
                   const iconColor =
                     weatherInfo.condition === 'Clear' ? 'text-amber-500 animate-spin-slow' :
-                    weatherInfo.condition === 'Rain' || weatherInfo.condition === 'Drizzle' ? 'text-blue-500' :
-                    weatherInfo.condition === 'Thunderstorm' ? 'text-purple-600' : 'text-zinc-400';
+                      weatherInfo.condition === 'Rain' || weatherInfo.condition === 'Drizzle' ? 'text-blue-500' :
+                        weatherInfo.condition === 'Thunderstorm' ? 'text-purple-600' : 'text-zinc-400';
 
                   return <IconComponent className={`w-4 h-4 ${iconColor}`} />;
                 })()}
@@ -546,7 +577,12 @@ export function App() {
                     </>
                   ) : (
                     <>
-                      {LL.planningFutureIntro()} <span className="font-bold underline">{planningState.date}</span> {planningState.time ? <>{LL.atTime()} <span className="font-bold underline">{planningState.time}</span></> : LL.anyTimeText()}. {LL.weatherEstimatedBy()} <span className="font-bold underline">{weatherInfo?.condition === 'Clear' ? LL.weatherClear() : weatherInfo?.condition === 'Clouds' ? LL.weatherCloudy() : LL.weatherRainy()} ({weatherInfo?.temperature.toFixed(1)}°C)</span>.
+                    {LL.planningFutureIntro()} <span className="font-bold underline">{planningState.date}</span> {planningState.time ? <>{LL.atTime()} <span className="font-bold underline">{planningState.time}</span></> : LL.anyTimeText()}.{' '}
+                    {weatherInfo?.reliable === false ? (
+                      <span className="font-bold">{LL.weatherNotConsidered || "El clima no se considera para esta fecha (fuera del pronóstico de 5 días)."}</span>
+                    ) : (
+                      <>{LL.weatherEstimatedBy()} <span className="font-bold underline">{weatherInfo?.condition === 'Clear' ? LL.weatherClear() : weatherInfo?.condition === 'Clouds' ? LL.weatherCloudy() : LL.weatherRainy()} ({weatherInfo?.temperature.toFixed(1)}°C)</span>.</>
+                    )}
                     </>
                   )}
                 </p>
@@ -565,8 +601,8 @@ export function App() {
             <div className="flex flex-wrap items-center gap-3 px-2 py-3 bg-white/50 border border-gray-100 rounded-xl shadow-sm animate-fade-in">
               <span className="text-xs font-bold text-gray-500 uppercase tracking-widest mr-2">{LL.filters()}:</span>
 
-              
-              <select 
+
+              <select
                 className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
                 value={apiFilters.radius}
                 onChange={(e) => setApiFilters({ ...apiFilters, radius: Number(e.target.value) })}
@@ -579,7 +615,7 @@ export function App() {
 
               {(selectedCategory === 'Restaurante' || selectedCategory === 'Cine' || selectedCategory === 'Teatro' || selectedCategory === 'Museo' || selectedCategory === 'Miradores' || selectedCategory === 'Parque') && (
                 selectedCategory === 'Restaurante' ? (
-                  <select 
+                  <select
                     className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
                     value={apiFilters.exactPrice}
                     onChange={(e) => setApiFilters({ ...apiFilters, exactPrice: e.target.value })}
@@ -591,7 +627,7 @@ export function App() {
                     <option value="4">{LL.filterPriceVeryExpensive()}</option>
                   </select>
                 ) : (
-                  <select 
+                  <select
                     className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
                     value={apiFilters.exactPrice}
                     onChange={(e) => setApiFilters({ ...apiFilters, exactPrice: e.target.value })}
@@ -604,8 +640,8 @@ export function App() {
               )}
 
               <label className="flex items-center gap-2 text-xs font-medium text-gray-600 cursor-pointer bg-white border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={apiFilters.openNow}
                   onChange={(e) => setApiFilters({ ...apiFilters, openNow: e.target.checked })}
                   className="accent-primary"
@@ -613,7 +649,7 @@ export function App() {
                 {LL.filterOpenNow()}
               </label>
 
-              <button 
+              <button
                 onClick={() => fetchFilteredActivities(selectedCategory, apiFilters)}
                 disabled={loadingWeather}
                 className="ml-auto text-xs font-bold text-white bg-gray-900 px-4 py-1.5 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center gap-2"
@@ -639,7 +675,7 @@ export function App() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-10">
-          {(loading || loadingWeather) ? (
+          {((loading || loadingWeather) && actualActivitiesList.length === 0) ? (
             //Si la base de datos está cargando, pintamos 6 tarjetas fantasma c/ animación de pulso
             Array.from({ length: 6 }).map((_, index) => (
               <ActivityCardSkeleton key={`main-skeleton-${index}`} />
@@ -650,9 +686,9 @@ export function App() {
             </p>
           ) : (
             (planningState ? filteredActivities.slice(0, 6) : filteredActivities).map((act, index) => (
-              <ActivityCard 
-                key={act.id} 
-                activity={act} 
+              <ActivityCard
+                key={act.id}
+                activity={act}
 
                 isFavorite={userHistory.favorites.includes(act.id)}
                 reservation={activeReservations[act.id] as any}
@@ -685,7 +721,7 @@ export function App() {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 flex flex-col gap-5 relative animate-scale-up">
-            
+
             <button
               onClick={() => setIsModalOpen(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-900 text-lg font-bold p-1 transition-colors cursor-pointer"
@@ -730,22 +766,22 @@ export function App() {
                   <button
                     type="button"
                     onClick={() => setPlanningDateType('today')}
-                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
-                      planningDateType === 'today'
-                        ? 'bg-black text-white border-black shadow-md shadow-black/10'
-                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                    }`}
+                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${planningDateType === 'today'
+                      ? 'bg-black text-white border-black shadow-md shadow-black/10'
+                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                      }`}
                   >
+
                     {LL.todayOptionCta()}
+
                   </button>
                   <button
                     type="button"
                     onClick={() => setPlanningDateType('future')}
-                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
-                      planningDateType === 'future'
-                        ? 'bg-black text-white border-black shadow-md shadow-black/10'
-                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                    }`}
+                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${planningDateType === 'future'
+                      ? 'bg-black text-white border-black shadow-md shadow-black/10'
+                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                      }`}
                   >
                     {LL.otherDayOptionCta()}
                   </button>
@@ -777,22 +813,20 @@ export function App() {
                       <button
                         type="button"
                         onClick={() => setPlanningTimeType('any')}
-                        className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${
-                          planningTimeType === 'any'
-                            ? 'bg-gray-800 text-white border-gray-800'
-                            : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                        }`}
+                        className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${planningTimeType === 'any'
+                          ? 'bg-gray-800 text-white border-gray-800'
+                          : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                          }`}
                       >
                         {LL.anyTimeOptionCta()}
                       </button>
                       <button
                         type="button"
                         onClick={() => setPlanningTimeType('specific')}
-                        className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${
-                          planningTimeType === 'specific'
-                            ? 'bg-gray-800 text-white border-gray-800'
-                            : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                        }`}
+                        className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${planningTimeType === 'specific'
+                          ? 'bg-gray-800 text-white border-gray-800'
+                          : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                          }`}
                       >
                         {LL.specificTimeOptionCta()}
                       </button>

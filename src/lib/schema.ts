@@ -69,6 +69,7 @@ export const activities = pgTable('activities', {
     imageUrl: text('image_url'),
     description: text('description'),
     address: text('address'),
+    placeId: text('place_id'),
     price: integer('price'),
     cuposPorDia: integer('cupos_por_dia'),
     // --- Flags de gestion (pestaña Administrar panoramas) ---
@@ -85,13 +86,6 @@ export const activitySchedules = pgTable('activity_schedules', {
     fecha: text('fecha').notNull(),        // "YYYY-MM-DD"
     horaInicio: text('hora_inicio'),       // "HH:MM"
     horaFin: text('hora_fin'),             // "HH:MM"
-});
-
-// --- 2. Tabla de Preferencias de Usuario ---
-export const userPreferences = pgTable('user_preferences', {
-    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
-    preferredCategories: text('preferred_categories').array(),
 });
 
 // --- 3. Favoritos y Reservas (Issue #50) ---

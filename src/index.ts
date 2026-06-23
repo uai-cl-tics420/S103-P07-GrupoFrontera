@@ -3,7 +3,7 @@ import { cors } from '@elysiajs/cors';
 import { auth } from './lib/auth';
 import { protectMiddleware } from 'src/middleware/protect';
 import { db } from "./lib/db";
-import { user, activities, userPreferences, userFavorites, userReservations, activitySchedules } from "./lib/schema";
+import { user, activities, userFavorites, userReservations, activitySchedules } from "./lib/schema";
 import { and, count, eq, gt, ne, sql } from "drizzle-orm";
 import nodemailer from 'nodemailer';
 import { verification } from '../auth-schema';
@@ -32,7 +32,7 @@ if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !JWT_SECRET || !OPENWEATHER_AP
 const app = new Elysia();
 
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: ['http://localhost:5173', 'https://panoramapp.onrender.com'],
   credentials: true
 }));
 
@@ -120,9 +120,42 @@ app.get("/api/activities", async ({ query, request }) => {
     };
   });
 
+  // Fecha objetivo de la planificación (si el usuario usó "Recomendar Panoramas").
+  // 'today' se traduce a la fecha real de hoy para poder comparar contra activitySchedules.
+  const today = new Date().toISOString().slice(0, 10);
+  const targetDateStr = dateStr ? (dateStr === 'today' ? today : dateStr) : undefined;
+
+  // Cupos ya usados por panorama en la fecha objetivo (reservas activas de esa fecha),
+  // para poder excluir de las recomendaciones los panoramas AGOTADOS en esa fecha.
+  const usadosEnFecha: Record<string, number> = {};
+  if (targetDateStr) {
+    const reservasFecha = await db.select({ activityId: userReservations.activityId })
+      .from(userReservations)
+      .where(and(eq(userReservations.reservedDate, targetDateStr), ne(userReservations.status, 'cancelado')));
+    for (const r of reservasFecha) {
+      usadosEnFecha[r.activityId] = (usadosEnFecha[r.activityId] ?? 0) + 1;
+    }
+  }
+
+  // Un panorama SIN fechas programadas se considera de entrada libre (disponible todos los días).
+  // Un panorama CON fechas programadas solo aparece si la fecha planificada coincide con alguna
+  // de sus fechas agendadas Y todavía quedan cupos para esa fecha (no está agotado).
+  function matchesPlannedDate(a: { id: string; schedules: { fecha: string }[]; cuposPorDia?: number }): boolean {
+    if (!targetDateStr) return true; // navegación normal, sin planificación: no filtramos por fecha
+    if (!a.schedules || a.schedules.length === 0) return true; // entrada libre
+    const tieneFecha = a.schedules.some(s => s.fecha === targetDateStr);
+    if (!tieneFecha) return false;
+    // Agotado: si hay cupo limitado y no quedan disponibles para esa fecha → excluir
+    if (a.cuposPorDia != null) {
+      const disponibles = a.cuposPorDia - (usadosEnFecha[a.id] ?? 0);
+      if (disponibles <= 0) return false;
+    }
+    return true;
+  }
+
   // La fuente de panoramas ahora es la BD (creados por el admin), no Google Places.
   // Excluimos los marcados como NO disponibles.
-  let baseList = mappedActivities.filter(a => a.disponible !== false);
+  let baseList = mappedActivities.filter(a => a.disponible !== false).filter(matchesPlannedDate);
   if (filterCategory && filterCategory !== 'Todas') {
     baseList = baseList.filter(a => a.category === filterCategory);
   }
@@ -188,8 +221,11 @@ app.get("/api/activities", async ({ query, request }) => {
   }
 
   // Filtrar las actividades de la base de datos que el usuario ha interactuado
-  // (Likes y Reservas), y asegurarnos de que cumplan con la categoría y el radio seleccionado para que no distorsionen los filtros
-  let filteredInteracted = mappedActivities.filter(a => userFavs.includes(a.id) || userRes.includes(a.id));
+  // (Likes y Reservas), y asegurarnos de que cumplan con la categoría, el radio y la fecha
+  // planificada seleccionados para que no distorsionen los filtros
+  let filteredInteracted = mappedActivities
+    .filter(a => userFavs.includes(a.id) || userRes.includes(a.id))
+    .filter(matchesPlannedDate);
 
   // 1. Filtrar por categoría si se especificó una distinta de 'Todas'
   if (filterCategory && filterCategory !== 'Todas') {
@@ -278,35 +314,48 @@ app.post("/api/admin/activities", async ({ body, request, set }) => {
     return { error: "Faltan campos obligatorios: name y category" };
   }
 
-  const coords = b.address ? await geocodeAddress(b.address) : null;
+  const coords = (typeof b.coordinates?.lat === 'number' && typeof b.coordinates?.lng === 'number')
+    ? { lat: b.coordinates.lat, lng: b.coordinates.lng }
+    : (b.address ? await geocodeAddress(b.address) : null);
 
   const id = randomUUID();
-  await db.insert(activities).values({
-    id,
-    name: b.name,
-    category: b.category,
-    tag_clima: b.tag_clima ?? 'All',
-    lat: coords?.lat ?? 0,
-    lng: coords?.lng ?? 0,
-    imageUrl: b.image_url ?? null,
-    description: b.description ?? null,
-    address: b.address ?? null,
-    price: typeof b.price === 'number' ? b.price : null,
-    cuposPorDia: typeof b.cupos_por_dia === 'number' ? b.cupos_por_dia : null,
-  });
-
   const schedules = Array.isArray(b.schedules) ? b.schedules : [];
-  for (const dia of schedules) {
-    if (!dia?.fecha) continue;
-    const franjas = Array.isArray(dia.franjas) ? dia.franjas : [];
-    for (const f of franjas) {
-      await db.insert(activitySchedules).values({
-        activityId: id,
-        fecha: dia.fecha,
-        horaInicio: f?.horaInicio || null,
-        horaFin: f?.horaFin || null,
+
+  // Transaccion: el panorama y todos sus horarios se guardan atomicamente.
+  try {
+    await db.transaction(async (tx) => {
+      await tx.insert(activities).values({
+        id,
+        name: b.name,
+        category: b.category,
+        tag_clima: b.tag_clima ?? 'All',
+        lat: coords?.lat ?? 0,
+        lng: coords?.lng ?? 0,
+        imageUrl: b.image_url ?? null,
+        description: b.description ?? null,
+        address: b.address ?? null,
+        placeId: b.place_id ?? null,
+        price: typeof b.price === 'number' ? b.price : null,
+        cuposPorDia: typeof b.cupos_por_dia === 'number' ? b.cupos_por_dia : null,
       });
-    }
+
+      for (const dia of schedules) {
+        if (!dia?.fecha) continue;
+        const franjas = Array.isArray(dia.franjas) ? dia.franjas : [];
+        for (const f of franjas) {
+          await tx.insert(activitySchedules).values({
+            activityId: id,
+            fecha: dia.fecha,
+            horaInicio: f?.horaInicio || null,
+            horaFin: f?.horaFin || null,
+          });
+        }
+      }
+    });
+  } catch (e) {
+    console.error('[crear panorama] transaccion revertida:', e);
+    set.status = 500;
+    return { error: "No se pudo guardar el panorama (cambios revertidos)" };
   }
 
   return { success: true, id, geocoded: coords !== null, coordinates: coords };
@@ -500,52 +549,14 @@ app.get("/api/distance", async ({ query }) => {
   }
 });
 
+// Devuelve solo el ROL del usuario (admin/user). La categoría dejó de ser una preferencia
+// persistida: el interés del usuario se modela con likes/reservas/compras.
 app.get("/api/preferences/:userId", async ({ params }) => {
-  let rows = await db.select().from(userPreferences)
-    .where(eq(userPreferences.userId, params.userId));
-  
-  if (rows.length === 0) {
-    await db.insert(userPreferences).values({
-      userId: params.userId,
-      preferredCategories: [],
-    });
-    
-    rows = await db.select().from(userPreferences)
-      .where(eq(userPreferences.userId, params.userId));
-  }
-  
-  // Buscar el rol real directamente en la tabla user
   const u = await db.select().from(user)
     .where(eq(user.id, params.userId))
     .limit(1);
-  
-  const role = u[0]?.role ?? 'user';
-  
-  return { 
-    categories: rows[0]?.preferredCategories ?? [],
-    role: role
-  };
-});
 
-app.put("/api/preferences/:userId", async ({ params, body }) => {
-  const { categories } = body as { categories: string[] };
-  
-  const existing = await db.select().from(userPreferences)
-    .where(eq(userPreferences.userId, params.userId))
-    .limit(1);
-    
-  if (existing.length > 0) {
-    await db.update(userPreferences)
-      .set({ preferredCategories: categories })
-      .where(eq(userPreferences.userId, params.userId));
-  } else {
-    await db.insert(userPreferences).values({
-      userId: params.userId,
-      preferredCategories: categories,
-    });
-  }
-  
-  return { ok: true, categories };
+  return { role: u[0]?.role ?? 'user' };
 });
 
 // --- RUTAS FAVORITOS ---
@@ -625,6 +636,58 @@ app.get("/api/activities/:id/availability", async ({ params }) => {
   return { activityId: params.id, name: act.name, price: (act as any).price ?? null, fechas };
 });
 
+// --- Autocomplete de direcciones (Places API New) ---
+app.get("/api/places/autocomplete", async ({ query, request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id) { set.status = 401; return { suggestions: [] }; }
+  const input = (query.q as string) || '';
+  const key = process.env.GOOGLE_PLACES_API_KEY;
+  if (!key || input.trim().length < 3) return { suggestions: [] };
+  try {
+    const res = await fetch('https://places.googleapis.com/v1/places:autocomplete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key },
+      body: JSON.stringify({ input, includedRegionCodes: ['cl'] }),
+    });
+    const data = await res.json();
+    const suggestions = Array.isArray(data?.suggestions)
+      ? data.suggestions
+          .filter((sug: any) => sug?.placePrediction)
+          .map((sug: any) => ({ placeId: sug.placePrediction.placeId, description: sug.placePrediction.text?.text ?? '' }))
+      : [];
+    if (!suggestions.length && data?.error) console.warn('[autocomplete]', data.error?.message);
+    return { suggestions };
+  } catch (e) {
+    console.error('[autocomplete] error:', e);
+    return { suggestions: [] };
+  }
+});
+
+// --- Detalle de un lugar: direccion formateada + coordenadas (Places API New) ---
+app.get("/api/places/details", async ({ query, request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id) { set.status = 401; return { error: "No autorizado" }; }
+  const placeId = (query.placeId as string) || '';
+  const key = process.env.GOOGLE_PLACES_API_KEY;
+  if (!key || !placeId) { set.status = 400; return { error: "placeId requerido" }; }
+  try {
+    const res = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, {
+      headers: { 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': 'id,formattedAddress,location' },
+    });
+    const data = await res.json();
+    if (data?.location) {
+      return { placeId: data.id, address: data.formattedAddress ?? '', lat: data.location.latitude, lng: data.location.longitude };
+    }
+    console.warn('[place details]', data?.error?.message);
+    set.status = 502;
+    return { error: "No se pudo obtener el detalle del lugar" };
+  } catch (e) {
+    console.error('[place details] error:', e);
+    set.status = 500;
+    return { error: "Error consultando el detalle" };
+  }
+});
+
 // --- RUTAS RESERVAS (issue #28) ---
 // POST /api/reservations { activityId, payNow? }: crea reserva.
 // payNow=false (default) => status='pendiente', sin cobro.
@@ -648,47 +711,63 @@ app.post("/api/reservations", async ({ body, request, set }) => {
     return { error: "Actividad no encontrada" };
   }
 
-  // Verificar cupos disponibles para la fecha elegida
-  const cuposDia = (act as any).cuposPorDia ?? null;
-  if (cuposDia != null && reservedDate) {
-    const usados = await db.select({ value: count() }).from(userReservations)
-      .where(and(eq(userReservations.activityId, activityId), eq(userReservations.reservedDate, reservedDate), ne(userReservations.status, 'cancelado')));
-    if ((usados[0]?.value ?? 0) >= cuposDia) {
+  // Transaccion atomica anti-sobreventa: bloquea la actividad, valida cupos,
+  // (cobra si corresponde) e inserta la reserva. Si algo falla, se revierte todo.
+  try {
+    const result = await db.transaction(async (tx) => {
+      // Lock de la fila de la actividad para serializar reservas concurrentes
+      const [locked] = await tx.select().from(activities).where(eq(activities.id, activityId)).for('update');
+      const cuposDia = (locked as any)?.cuposPorDia ?? null;
+
+      if (cuposDia != null && reservedDate) {
+        const usados = await tx.select({ value: count() }).from(userReservations)
+          .where(and(eq(userReservations.activityId, activityId), eq(userReservations.reservedDate, reservedDate), ne(userReservations.status, 'cancelado')));
+        if ((usados[0]?.value ?? 0) >= cuposDia) {
+          throw Object.assign(new Error('SIN_CUPOS'), { code: 'SIN_CUPOS' });
+        }
+      }
+
+      let payment: any = null;
+      let status = 'pendiente';
+      if (payNow) {
+        payment = await processPayment({ userId: session.user.id, activityId });
+        if (!payment.success) {
+          throw Object.assign(new Error('PAGO_FALLO'), { code: 'PAGO_FALLO', payment });
+        }
+        status = 'pagado';
+      }
+
+      const [created] = await tx.insert(userReservations).values({
+        userId: session.user.id,
+        activityId,
+        status,
+        reservedDate: reservedDate ?? null,
+        reservedTime: reservedTime ?? null,
+      }).returning();
+
+      return { created, payment };
+    });
+
+    return {
+      success: true,
+      reservation: result.created,
+      payment: result.payment
+        ? { transactionId: result.payment.transactionId, processedAt: result.payment.processedAt }
+        : null,
+    };
+  } catch (e: any) {
+    if (e?.code === 'SIN_CUPOS') {
       set.status = 409;
       return { error: "No quedan cupos para esa fecha" };
     }
+    if (e?.code === 'PAGO_FALLO') {
+      set.status = 402;
+      return { error: e.payment?.error ?? "Pago rechazado", processedAt: e.payment?.processedAt };
+    }
+    console.error('[reservar] transaccion revertida:', e);
+    set.status = 500;
+    return { error: "No se pudo crear la reserva (cambios revertidos)" };
   }
-
-  // Sin pago inmediato: queda pendiente
-  if (!payNow) {
-    const [created] = await db.insert(userReservations).values({
-      userId: session.user.id,
-      activityId,
-      status: "pendiente",
-      reservedDate: reservedDate ?? null,
-      reservedTime: reservedTime ?? null,
-    }).returning();
-    return { success: true, reservation: created, payment: null };
-  }
-
-  // Con pago inmediato: cobrar y guardar como pagado
-  const payment = await processPayment({ userId: session.user.id, activityId });
-  if (!payment.success) {
-    set.status = 402;
-    return { error: payment.error, processedAt: payment.processedAt };
-  }
-  const [created] = await db.insert(userReservations).values({
-    userId: session.user.id,
-    activityId,
-    status: "pagado",
-    reservedDate: reservedDate ?? null,
-    reservedTime: reservedTime ?? null,
-  }).returning();
-  return {
-    success: true,
-    reservation: created,
-    payment: { transactionId: payment.transactionId, processedAt: payment.processedAt },
-  };
 });
 
 // POST /api/reservations/:id/pay : cobra una reserva pendiente y la pasa a pagada
@@ -753,6 +832,7 @@ app.get("/api/reservations/:userId", async ({ params, request, set }) => {
       activityCategory: activities.category,
       activityLat: activities.lat,
       activityLng: activities.lng,
+      activityPrice: activities.price,
     })
     .from(userReservations)
     .leftJoin(activities, eq(userReservations.activityId, activities.id))
@@ -767,6 +847,7 @@ app.get("/api/reservations/:userId", async ({ params, request, set }) => {
       id: r.activityId,
       name: r.activityName,
       category: r.activityCategory,
+      price: r.activityPrice ?? null,
       coordinates: { lat: r.activityLat, lng: r.activityLng },
     } : null,
   }));
