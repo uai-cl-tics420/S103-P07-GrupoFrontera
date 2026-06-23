@@ -139,22 +139,21 @@ describe("getRecommendedActivities (Smart Engine)", () => {
         const activities = [
             makeActivity("1", Category.PARQUE, 0, 0, undefined, undefined, "Parque Araucano"), // Aire libre (Parque)
             makeActivity("2", Category.MIRADORES, 0, 0, undefined, undefined, "Cerro San Cristóbal"), // Aire libre (Mirador)
-            makeActivity("3", Category.MIRADORES, 0, 0, undefined, undefined, "Sky Costanera"), // Cerrado / Interior (Sky Costanera)
+            makeActivity("3", Category.MIRADORES, 0, 0, undefined, undefined, "Sky Costanera"), // También Mirador: aunque sea techado, sin vista no tiene gracia
             makeActivity("4", Category.CINE, 0, 0), // Interior
         ];
         const user = makeUser([], 0, 0);
 
         const result = getRecommendedActivities(user, activities, "Rainy");
-        
-        // Las dos actividades al aire libre (1 y 2) deben tener penalización extrema (-1000)
-        // Por ende, "Sky Costanera" (3) y "Cine" (4) deben quedar al principio de las recomendaciones
-        const firstTwoIds = result.slice(0, 2).map(a => a.id);
-        expect(firstTwoIds).toContain("3");
-        expect(firstTwoIds).toContain("4");
 
-        const lastTwoIds = result.slice(2, 4).map(a => a.id);
-        expect(lastTwoIds).toContain("1");
-        expect(lastTwoIds).toContain("2");
+        // Las tres actividades al aire libre/Miradores (1, 2 y 3) deben tener penalización extrema (-1000)
+        // Por ende, "Cine" (4) debe quedar primero en las recomendaciones
+        expect(result[0]!.id).toBe("4");
+
+        const penalizedIds = result.slice(1, 4).map(a => a.id);
+        expect(penalizedIds).toContain("1");
+        expect(penalizedIds).toContain("2");
+        expect(penalizedIds).toContain("3");
     });
 
     it("aplica afinidad de precios basada en la capacidad adquisitiva histórica del usuario", () => {

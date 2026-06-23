@@ -56,6 +56,7 @@ export function App() {
   const { data: session, isPending } = authClient.useSession();
   const [jwtToken, setJwtToken] = React.useState('');
   const [view, setView] = React.useState<View>(getInitialView);
+  const { LL } = useT();
 
   // Interceptor global para capturar errores 401 y 403 de la API
   React.useEffect(() => {
@@ -68,20 +69,20 @@ export function App() {
         if (!urlStr.includes('/api/auth/')) {
           console.warn("Sesión expirada o no válida (401). Redirigiendo a login...");
           authClient.signOut().then(() => {
-            showToast("Tu sesión ha expirado o es inválida. Por favor, inicia sesión nuevamente.", "error");
+            showToast(LL.sessionExpiredToast(), "error");
           }).catch(() => {
-            showToast("Sesión expirada. Por favor, vuelve a ingresar.", "error");
+            showToast(LL.sessionExpiredRetryToast(), "error");
           });
         }
       } else if (response.status === 403) {
-        showToast("No tienes permisos para realizar esta acción.", "error");
+        showToast(LL.noPermissionToast(), "error");
       }
       return response;
     };
     return () => {
       window.fetch = originalFetch;
     };
-  }, [showToast]);
+  }, [showToast, LL]);
 
   //estados para capturar las coordenadas reales del navegador
   const [coords, setCoords] = React.useState({ lat: -33.4372, lng: -70.6506 }); //Stgo. centro por defecto
@@ -114,7 +115,6 @@ export function App() {
 
   const { activities, loading, error } = useActivities();
   const { preferredCategory, setPreferredCategory, role } = useUserPreferences(session?.user?.id);
-  const { LL } = useT();
 
   // Sincroniza el estado con el boton "Atras" del browser
   React.useEffect(() => {
@@ -523,18 +523,13 @@ export function App() {
   };
 
   const handleActivateAdmin = async () => {
-    const choice = prompt(
-      "Selecciona el método para activar Admin:\n" +
-      "1. Enviar código automáticamente a mi correo (solo si tu correo está autorizado)\n" +
-      "2. Ingresar código manual del Administrador (TOTP)\n\n" +
-      "Ingresa 1 o 2:"
-    );
+    const choice = prompt(LL.adminActivatePromptChoice());
 
     if (!choice) return;
 
     const trimmedChoice = choice.trim();
     if (trimmedChoice !== '1' && trimmedChoice !== '2') {
-      showToast("Opción inválida. Debes ingresar 1 o 2.", "error");
+      showToast(LL.adminActivateInvalidChoice(), "error");
       return;
     }
 
@@ -543,7 +538,7 @@ export function App() {
     if (trimmedChoice === '1') {
       // Método 1: OTP por Correo
       try {
-        showToast("Solicitando envío de código a tu correo...", "info");
+        showToast(LL.adminOtpRequestingToast(), "info");
         const reqResponse = await fetch('/api/request-admin-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
@@ -551,29 +546,29 @@ export function App() {
 
         const reqData = await reqResponse.json();
         if (!reqResponse.ok) {
-          showToast(reqData.error || "No se pudo solicitar el código por correo.", "error");
+          showToast(reqData.error || LL.adminOtpRequestError(), "error");
           return;
         }
 
-        showToast(reqData.message || "Código enviado con éxito.", "success");
+        showToast(reqData.message || LL.adminOtpSentSuccess(), "success");
 
-        const code = prompt("Ingresa el código de 6 dígitos que enviamos a tu correo:");
+        const code = prompt(LL.adminOtpEnterCodePrompt());
         if (!code) return;
         codeToSend = code.trim();
       } catch (err) {
         console.error("Error al solicitar OTP:", err);
-        showToast("Error de conexión al solicitar el código.", "error");
+        showToast(LL.adminOtpConnectionError(), "error");
         return;
       }
     } else {
       // Método 2: TOTP Manual del Administrador
-      const code = prompt("Ingresa el código TOTP de 6 dígitos provisto por el Administrador:");
+      const code = prompt(LL.adminTotpManualPrompt());
       if (!code) return;
       codeToSend = code.trim();
     }
 
     if (codeToSend.length !== 6 || Number.isNaN(Number(codeToSend))) {
-      showToast("Código inválido. Debe ser de 6 dígitos.", "error");
+      showToast(LL.adminCodeInvalidLength(), "error");
       return;
     }
 
@@ -586,17 +581,17 @@ export function App() {
 
       const data = await response.json();
       if (response.ok && data.success) {
-        const methodMsg = data.method === 'email' ? "correo" : "TOTP manual";
-        showToast(`¡Rol de administrador activado con éxito vía ${methodMsg}!`, "success");
+        const methodMsg = data.method === 'email' ? LL.adminMethodEmail() : LL.adminMethodTotp();
+        showToast(LL.adminActivateSuccess({ method: methodMsg }), "success");
         setTimeout(() => {
           window.location.reload();
         }, 1500);
       } else {
-        showToast(data.error || "Código incorrecto o expirado.", "error");
+        showToast(data.error || LL.adminCodeIncorrectOrExpired(), "error");
       }
     } catch (err) {
       console.error("Error al activar administrador:", err);
-      showToast("Error de conexión al activar administrador.", "error");
+      showToast(LL.adminActivateConnectionError(), "error");
     }
   };
 
@@ -757,7 +752,7 @@ export function App() {
               <option value={20000}>20 km</option>
               <option value={10000}>10 km</option>
               <option value={5000}>5 km</option>
-              <option value={2000}>Cerca de ti</option>
+              <option value={2000}>{LL.filterNearbyRadius()}</option>
             </select>
 
             <select
@@ -765,10 +760,10 @@ export function App() {
               value={apiFilters.priceSort}
               onChange={(e) => setApiFilters({ ...apiFilters, priceSort: e.target.value as '' | 'asc' | 'desc' | 'range' })}
             >
-              <option value="">Precio: sin orden</option>
-              <option value="asc">Precio: menor a mayor</option>
-              <option value="desc">Precio: mayor a menor</option>
-              <option value="range">Precio: rango personalizado</option>
+              <option value="">{LL.priceSortNone()}</option>
+              <option value="asc">{LL.priceSortAsc()}</option>
+              <option value="desc">{LL.priceSortDesc()}</option>
+              <option value="range">{LL.priceSortRange()}</option>
             </select>
 
             {apiFilters.priceSort && (
@@ -776,7 +771,7 @@ export function App() {
                 <input
                   type="number"
                   min={0}
-                  placeholder="Mín $"
+                  placeholder={LL.priceMinPlaceholder()}
                   value={apiFilters.priceMin}
                   onChange={(e) => setApiFilters({ ...apiFilters, priceMin: e.target.value })}
                   className="w-16 text-xs focus:outline-none"
@@ -785,7 +780,7 @@ export function App() {
                 <input
                   type="number"
                   min={0}
-                  placeholder="Máx $"
+                  placeholder={LL.priceMaxPlaceholder()}
                   value={apiFilters.priceMax}
                   onChange={(e) => setApiFilters({ ...apiFilters, priceMax: e.target.value })}
                   className="w-16 text-xs focus:outline-none"

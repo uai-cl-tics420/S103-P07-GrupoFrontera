@@ -303,7 +303,7 @@ export function CreatePanoramaForm() {
                         )}
                     </div>
                     {coords && (
-                        <p className="text-[11px] text-emerald-600 font-bold mt-1">✓ Ubicacion seleccionada de Google (coordenadas capturadas).</p>
+                        <p className="text-[11px] text-emerald-600 font-bold mt-1">{LL.adminFormLocationSelected()}</p>
                     )}
                     <div className="mt-3 flex items-start gap-2 bg-blue-50/60 border border-blue-100 rounded-xl p-3">
                         <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />

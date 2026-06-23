@@ -44,37 +44,23 @@ function isOpen(openingHour?: string, closingHour?: string, targetTime?: string)
 
 // Estima el nivel de precio (0 a 4) para cualquier panorama para calcular afinidades
 function estimatePriceLevel(activity: Activity): number {
+    // Permite a los tests inyectar un nivel de precio explícito
     if ((activity as any).price_level !== undefined) {
         return (activity as any).price_level;
     }
-    
-    const nameLower = activity.name.toLowerCase();
-    const cat = activity.category;
-    
-    if (cat === 'Parque') return 0;
-    if (cat === 'Miradores') {
-        if (nameLower.includes("sky costanera")) return 4;
-        return 0; // Cerros gratuitos
+
+    // Precio real en CLP cargado por el admin al crear el panorama: la fuente de verdad.
+    if (typeof activity.price === 'number') {
+        if (activity.price <= 0) return 0;
+        if (activity.price <= 5000) return 1;
+        if (activity.price <= 15000) return 2;
+        if (activity.price <= 30000) return 3;
+        return 4;
     }
-    if (cat === 'Museo') {
-        const freeMuseums = [
-            "bellas artes", "fine arts", "nacional de bellas artes",
-            "arte contemporáneo", "contemporary art", "histórico nacional",
-            "national history of chile", "museo histórico", "memoria", "memory",
-            "human rights", "militar", "military", "natural history",
-            "gabriela mistral", "cultural centre", "cultural center",
-            "popular", "folk art", "lo matta", "matta cultural"
-        ];
-        if (freeMuseums.some(m => nameLower.includes(m))) return 0;
-        return 2; // Museos de pago estimados en nivel 2
-    }
-    if (cat === 'Cine') return 2;
-    if (cat === 'Teatro') return 2;
-    if (cat === 'Restaurante') {
-        if (nameLower.includes("bocanáriz") || nameLower.includes("mestizo") || nameLower.includes("rubaiyat")) return 3;
-        return 2;
-    }
-    return 1; // Fallback general
+
+    // Fallback por categoría solo si el panorama no tiene precio cargado
+    if (activity.category === 'Parque' || activity.category === 'Miradores') return 0;
+    return 1;
 }
 
 // Convierte "HH:MM" a minutos desde medianoche. Devuelve null si no es válido.
@@ -97,12 +83,11 @@ function getTargetMinutes(targetTime?: string): number | null {
     return now.getHours() * 60 + now.getMinutes();
 }
 
-// Un panorama es "al aire libre" si es un Parque, o un Mirador que NO sea el Sky Costanera
-// (este último es una torre techada). Se usa tanto para la regla de lluvia como la de noche.
+// Un panorama es "al aire libre" si es un Parque o un Mirador. Se usa tanto para la regla
+// de lluvia como la de noche: incluso un mirador techado pierde su atractivo (la vista) con
+// mal clima, así que no tiene sentido eximirlo de la penalización.
 function isOutdoorActivity(activity: Activity): boolean {
-    if (activity.category === 'Parque') return true;
-    if (activity.category === 'Miradores' && !activity.name.toLowerCase().includes('sky costanera')) return true;
-    return false;
+    return activity.category === 'Parque' || activity.category === 'Miradores';
 }
 
 export const getRecommendedActivities = (user: User, activities: Activity[], weatherTag?: string, targetTime?: string): Activity[] => {
