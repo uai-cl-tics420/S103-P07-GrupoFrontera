@@ -188,6 +188,8 @@ const en = {
 	// App.tsx: banner de planificacion activa
 	planningActiveTodayTitle: '📅 Recommendation for Today Active',
 	planningActiveFutureTitle: '📅 Planned Recommendation Active',
+	planningActive5DaysTitle: '📅 Recommendation for the Next 5 Days Active',
+	planning5DaysIntro: 'Showing activities with available slots for the next 5 days and current weather.',
 	planningTodayIntro: 'Showing ideal activities for',
 	today: 'today',
 	inRealTime: 'in real time.',
@@ -247,7 +249,8 @@ const en = {
 	planningModalDescription: 'Tell us when you plan to do the activity so the system can calculate the best options automatically.',
 	whenQuestion: 'When do you want to do the activity?',
 	todayOptionCta: 'Today',
-	otherDayOptionCta: 'Other day 📅',
+	next5daysOptionCta: 'Next 5 days 📅',
+	otherDayOptionCta: 'Specific date 📅',
 	selectDateLabel: 'Select the date',
 	whatTimeQuestion: 'What time do you plan to go?',
 	anyTimeOptionCta: 'Any time',

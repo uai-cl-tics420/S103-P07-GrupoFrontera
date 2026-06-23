@@ -627,6 +627,14 @@ type RootTranslation = {
 	 */
 	planningActiveFutureTitle: string
 	/**
+	 * �​�​ ​R​e​c​o​m​e​n​d​a​c​i​ó​n​ ​p​a​r​a​ ​l​o​s​ ​P​r​ó​x​i​m​o​s​ ​5​ ​D​í​a​s​ ​A​c​t​i​v​a
+	 */
+	planningActive5DaysTitle: string
+	/**
+	 * M​o​s​t​r​a​n​d​o​ ​p​a​n​o​r​a​m​a​s​ ​c​o​n​ ​c​u​p​o​s​ ​d​i​s​p​o​n​i​b​l​e​s​ ​p​a​r​a​ ​l​o​s​ ​p​r​ó​x​i​m​o​s​ ​5​ ​d​í​a​s​ ​y​ ​c​l​i​m​a​ ​e​s​t​i​m​a​d​o​ ​a​c​t​u​a​l​.
+	 */
+	planning5DaysIntro: string
+	/**
 	 * M​o​s​t​r​a​n​d​o​ ​p​a​n​o​r​a​m​a​s​ ​i​d​e​a​l​e​s​ ​p​a​r​a
 	 */
 	planningTodayIntro: string
@@ -837,7 +845,11 @@ type RootTranslation = {
 	 */
 	todayOptionCta: string
 	/**
-	 * O​t​r​o​ ​d​í​a​ ​�​�
+	 * P​r​ó​x​.​ ​5​ ​d​í​a​s​ ​�​�
+	 */
+	next5daysOptionCta: string
+	/**
+	 * F​e​c​h​a​ ​e​s​p​e​c​í​f​i​c​a​ ​�​�
 	 */
 	otherDayOptionCta: string
 	/**
@@ -1168,7 +1180,7 @@ type RootTranslation = {
 	 */
 	backLabel: string
 	/**
-	 * A​g​o​t​a​d​o
+	 * N​o​ ​d​i​s​p​o​n​i​b​l​e
 	 */
 	soldOutLabel: string
 	/**
@@ -1837,6 +1849,14 @@ export type TranslationFunctions = {
 	 */
 	planningActiveFutureTitle: () => LocalizedString
 	/**
+	 * 📅 Recomendación para los Próximos 5 Días Activa
+	 */
+	planningActive5DaysTitle: () => LocalizedString
+	/**
+	 * Mostrando panoramas con cupos disponibles para los próximos 5 días y clima estimado actual.
+	 */
+	planning5DaysIntro: () => LocalizedString
+	/**
 	 * Mostrando panoramas ideales para
 	 */
 	planningTodayIntro: () => LocalizedString
@@ -2045,7 +2065,11 @@ Ingresa 1 o 2:
 	 */
 	todayOptionCta: () => LocalizedString
 	/**
-	 * Otro día 📅
+	 * Próx. 5 días 📅
+	 */
+	next5daysOptionCta: () => LocalizedString
+	/**
+	 * Fecha específica 📅
 	 */
 	otherDayOptionCta: () => LocalizedString
 	/**
@@ -2373,7 +2397,7 @@ Ingresa 1 o 2:
 	 */
 	backLabel: () => LocalizedString
 	/**
-	 * Agotado
+	 * No disponible
 	 */
 	soldOutLabel: () => LocalizedString
 	/**
