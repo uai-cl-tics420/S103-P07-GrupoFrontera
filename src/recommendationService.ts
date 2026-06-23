@@ -20,17 +20,23 @@ function isOpen(openingHour?: string, closingHour?: string, targetTime?: string)
     
     let currentMinutes: number;
     if (targetTime) {
-        const [tH, tM] = targetTime.split(':').map(Number);
+        const parts = targetTime.split(':');
+        const tH = Number(parts[0] ?? 0);
+        const tM = Number(parts[1] ?? 0);
         currentMinutes = tH * 60 + tM;
     } else {
         const now = new Date();
         currentMinutes = now.getHours() * 60 + now.getMinutes();
     }
     
-    const [oH, oM] = openingHour.split(':').map(Number);
+    const oParts = openingHour.split(':');
+    const oH = Number(oParts[0] ?? 0);
+    const oM = Number(oParts[1] ?? 0);
     const openMinutes = oH * 60 + oM;
     
-    const [cH, cM] = closingHour.split(':').map(Number);
+    const cParts = closingHour.split(':');
+    const cH = Number(cParts[0] ?? 0);
+    const cM = Number(cParts[1] ?? 0);
     let closeMinutes = cH * 60 + cM;
     if (closeMinutes < openMinutes) closeMinutes += 24 * 60; // Pasa la medianoche
     
@@ -232,21 +238,6 @@ export const getRecommendedActivities = (user: User, activities: Activity[], wea
 
     // Ordenar por score descendente
     const sorted = scoredActivities.sort((a, b) => b.score - a.score);
-
-    // DEBUG VISUAL PARA LA CONSOLA: Muestra la puntuación detallada, incluyendo el precio estimado
-    if (typeof window !== 'undefined') {
-        console.log("=== 🧠 ANÁLISIS DEL MOTOR DE RECOMENDACIONES (PASO 2) ===");
-        console.table(sorted.map(s => ({
-            Panorama: s.activity.name,
-            Categoría: s.activity.category,
-            Puntaje_Total: s.score.toFixed(1),
-            Precio_Est: s.debug.estimatedPrice,
-            Distancia: s.debug.distance,
-            Está_Abierto: s.debug.open ? 'Sí ✅' : 'No ❌',
-            Alcanza_a_llegar: s.debug.reachable ? 'Sí ✅' : 'No ⏱️',
-            Es_Favorito: favoriteActivityIds.includes(s.activity.id) ? 'Sí ❤️' : 'No'
-        })));
-    }
 
     return sorted.map(scored => scored.activity);
 };

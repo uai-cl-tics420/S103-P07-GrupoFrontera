@@ -12,6 +12,26 @@ import { isOutdoorFriendly } from './utils/weatherHelpers';
 import { getSimulatedOccupancy } from './services/placesService';
 import { processPayment } from './services/paymentService';
 
+export const getSantiagoDateString = (date: Date = new Date()) => {
+  const formatter = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'America/Santiago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  return formatter.format(date);
+};
+
+export const getSantiagoTimeString = (date: Date = new Date()) => {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Santiago',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  return formatter.format(date);
+};
+
 
 async function sendEmail(to: string | string[], subject: string, html: string) {
   const toArray = Array.isArray(to) ? to : [to];
@@ -106,7 +126,7 @@ app.get("/api/activities", async ({ query, request }) => {
   const timeStr = query.time as string | undefined;
 
   let weather;
-  if (dateStr && dateStr !== 'today') {
+  if (dateStr && dateStr !== 'today' && dateStr !== 'next5days') {
     console.log(`Consultando pronóstico para fecha: ${dateStr}, hora: ${timeStr || 'cualquier hora'}`);
     weather = await getWeatherForecast(lat, lng, dateStr, timeStr);
   } else {
@@ -119,11 +139,32 @@ app.get("/api/activities", async ({ query, request }) => {
   const currentTemp = weather.temperature || 20;
   const cityName = (weather as any).cityName || (weather as any).name || "Santiago";
 
+  const todayStr = getSantiagoDateString(new Date());
+  const nowHM = getSantiagoTimeString(new Date());
+
   //traemos las actividades de la bbdd
   const rows = await db.select().from(activities);
 
   //traemos los horarios de cada panorama
   const allSchedules = await db.select().from(activitySchedules);
+
+  // Obtener conteo de reservas activas para todas las actividades y fechas
+  const allReservations = await db.select({
+    activityId: userReservations.activityId,
+    reservedDate: userReservations.reservedDate,
+    count: count(userReservations.id)
+  })
+  .from(userReservations)
+  .where(ne(userReservations.status, 'cancelado'))
+  .groupBy(userReservations.activityId, userReservations.reservedDate);
+
+  const reservationCounts: Record<string, Record<string, number>> = {};
+  for (const r of allReservations) {
+    if (r.activityId && r.reservedDate) {
+      const actMap = (reservationCounts[r.activityId] ??= {});
+      actMap[r.reservedDate] = r.count;
+    }
+  }
 
   //mapeamos las filas al formato typescript (panoramas creados por el admin)
   const mappedActivities = rows.map(row => {
@@ -131,6 +172,33 @@ app.get("/api/activities", async ({ query, request }) => {
       .filter(sch => sch.activityId === row.id)
       .map(sch => ({ fecha: sch.fecha, horaInicio: sch.horaInicio, horaFin: sch.horaFin }));
     const primera = sched[0];
+
+    const explicitlyDisabled = (row as any).disponible === false;
+
+    const hasSchedules = sched.length > 0;
+    const allInPast = hasSchedules && sched.every(s => {
+      if (s.fecha < todayStr) return true;
+      if (s.fecha === todayStr && s.horaFin && s.horaFin <= nowHM) return true;
+      return false;
+    });
+
+    let allSoldOut = false;
+    if (hasSchedules && !allInPast && row.cuposPorDia != null) {
+      const futureSchedules = sched.filter(s => {
+        if (s.fecha < todayStr) return false;
+        if (s.fecha === todayStr && s.horaFin && s.horaFin <= nowHM) return false;
+        return true;
+      });
+      if (futureSchedules.length > 0) {
+        allSoldOut = futureSchedules.every(s => {
+          const usados = reservationCounts[row.id]?.[s.fecha] ?? 0;
+          return row.cuposPorDia! - usados <= 0;
+        });
+      }
+    }
+
+    const isDisponible = !explicitlyDisabled && !allInPast && !allSoldOut;
+
     return {
       id: row.id,
       name: row.name,
@@ -146,15 +214,15 @@ app.get("/api/activities", async ({ query, request }) => {
       cuposPorDia: (row as any).cuposPorDia ?? undefined,
       isTendencia: (row as any).isTendencia ?? false,
       isPopular: (row as any).isPopular ?? false,
-      disponible: (row as any).disponible ?? true,
+      disponible: isDisponible,
+      explicitlyDisabled,
       schedules: sched,
     };
   });
 
   // Fecha objetivo de la planificación (si el usuario usó "Recomendar Panoramas").
   // 'today' se traduce a la fecha real de hoy para poder comparar contra activitySchedules.
-  const today = new Date().toISOString().slice(0, 10);
-  const targetDateStr = dateStr ? (dateStr === 'today' ? today : dateStr) : undefined;
+  const targetDateStr = dateStr ? (dateStr === 'today' ? todayStr : dateStr) : undefined;
 
   // Cupos ya usados por panorama en una fecha dada (reservas activas de esa fecha), para poder
   // excluir los panoramas AGOTADOS en esa fecha. Se reusa tanto para la fecha de planificación
@@ -171,10 +239,45 @@ app.get("/api/activities", async ({ query, request }) => {
   // Un panorama SIN fechas programadas se considera de entrada libre (disponible todos los días).
   // Un panorama CON fechas programadas solo aparece si la fecha coincide con alguna de sus fechas
   // agendadas Y todavía quedan cupos para esa fecha (no está agotado).
+  // Generar arreglo con los próximos 5 días (de hoy a hoy+4)
+  const next5DaysArray: string[] = [];
+  for (let i = 0; i < 5; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    next5DaysArray.push(getSantiagoDateString(d));
+  }
+
+  // Si se busca en los próximos 5 días, construimos el mapa de reservas usadas para cada fecha en el rango
+  const next5DaysUsados: Record<string, Record<string, number>> = {};
+  if (targetDateStr === 'next5days' || filterDate === 'next5days') {
+    for (const f of next5DaysArray) {
+      next5DaysUsados[f] = await buildUsadosEnFecha(f);
+    }
+  }
+
+  // Un panorama SIN fechas programadas se considera de entrada libre (disponible todos los días).
+  // Un panorama CON fechas programadas solo aparece si la fecha coincide con alguna de sus fechas
+  // agendadas Y todavía quedan cupos para esa fecha (no está agotado).
   function buildMatchesDate(fecha: string | undefined, usados: Record<string, number>) {
     return (a: { id: string; schedules: { fecha: string }[]; cuposPorDia?: number }): boolean => {
       if (!fecha) return true; // sin filtro de fecha
       if (!a.schedules || a.schedules.length === 0) return true; // entrada libre
+
+      if (fecha === 'next5days') {
+        // En los próximos 5 días, ver si hay alguna fecha programada en ese rango que no esté agotada
+        const tieneFechaValida = a.schedules.some(s => {
+          const isWithin5Days = next5DaysArray.includes(s.fecha);
+          if (!isWithin5Days) return false;
+          if (a.cuposPorDia != null) {
+            const usadosEnEsaFecha = next5DaysUsados[s.fecha]?.[a.id] ?? 0;
+            const disponibles = a.cuposPorDia - usadosEnEsaFecha;
+            return disponibles > 0;
+          }
+          return true;
+        });
+        return tieneFechaValida;
+      }
+
       const tieneFecha = a.schedules.some(s => s.fecha === fecha);
       if (!tieneFecha) return false;
       if (a.cuposPorDia != null) {
@@ -185,10 +288,10 @@ app.get("/api/activities", async ({ query, request }) => {
     };
   }
 
-  const usadosEnFecha = targetDateStr ? await buildUsadosEnFecha(targetDateStr) : {};
+  const usadosEnFecha = (targetDateStr && targetDateStr !== 'next5days') ? await buildUsadosEnFecha(targetDateStr) : {};
   const matchesPlannedDate = buildMatchesDate(targetDateStr, usadosEnFecha);
 
-  const usadosEnFiltroFecha = filterDate ? await buildUsadosEnFecha(filterDate) : {};
+  const usadosEnFiltroFecha = (filterDate && filterDate !== 'next5days') ? await buildUsadosEnFecha(filterDate) : {};
   const matchesFilterDate = buildMatchesDate(filterDate, usadosEnFiltroFecha);
 
   // Filtro de precio por rango, sobre el monto real en CLP guardado en la BD (activities.price)
@@ -225,7 +328,6 @@ app.get("/api/activities", async ({ query, request }) => {
   // La fuente de panoramas ahora es la BD (creados por el admin), no Google Places.
   // Excluimos los marcados como NO disponibles.
   let baseList = mappedActivities
-    .filter(a => a.disponible !== false)
     .filter(matchesPlannedDate)
     .filter(matchesFilterDate)
     .filter(matchesRadius)
@@ -250,8 +352,26 @@ app.get("/api/activities", async ({ query, request }) => {
     );
   }
 
-  // Afluencia simulada por ahora (en standby hasta definir la fuente real con el profe)
-  const placesWithOccupancy = baseList.map(a => ({ ...a, occupancy: getSimulatedOccupancy() }));
+  const occupancyDate = filterDate || targetDateStr || todayStr;
+  const targetDateForOccupancy = occupancyDate === 'next5days' ? todayStr : occupancyDate;
+  const usadosEnOccupancy = (filterDate === occupancyDate)
+    ? usadosEnFiltroFecha
+    : (targetDateStr === occupancyDate)
+      ? usadosEnFecha
+      : await buildUsadosEnFecha(targetDateForOccupancy);
+
+  const dateObj = occupancyDate ? new Date(occupancyDate + 'T12:00:00') : new Date();
+  const dayOfWeek = dateObj.getDay();
+  const filterHourStr = filterTime?.split(':')[0];
+  const timeHourStr = timeStr?.split(':')[0];
+  const hour = filterHourStr 
+    ? parseInt(filterHourStr, 10) 
+    : (timeHourStr ? parseInt(timeHourStr, 10) : new Date().getHours());
+
+  const placesWithOccupancy = baseList.map(a => ({
+    ...a,
+    occupancy: getSimulatedOccupancy(a.category, hour, dayOfWeek, a.cuposPorDia, usadosEnOccupancy[a.id] ?? 0, a.vicinity)
+  }));
 
   // Evaluación de condiciones climáticas adaptativas (Tu lógica + Barros)
   const conditionClean = (weather?.condition || currentCondition || '').toLowerCase().trim();
@@ -263,15 +383,16 @@ app.get("/api/activities", async ({ query, request }) => {
   const weatherTag = (currentMainCondition === 'Clear' || currentMainCondition === 'Clouds') ? 'Sunny' : 'Rainy';
 
   // Ordenamos la grilla dejando primero las actividades que favorecen al clima actual de Santiago
+  const climateRecommended = (priceSort || radius !== 30000)
+    ? [...placesWithOccupancy]
+    : [...placesWithOccupancy].sort((a, b) => {
+        const aCalzaClima = a.tagClima === weatherTag;
+        const bCalzaClima = b.tagClima === weatherTag;
 
-  const climateRecommended = [...placesWithOccupancy].sort((a, b) => {
-    const aCalzaClima = a.tagClima === weatherTag;
-    const bCalzaClima = b.tagClima === weatherTag;
-
-    if (aCalzaClima && !bCalzaClima) return -1;
-    if (!aCalzaClima && bCalzaClima) return 1;
-    return 0;
-  });
+        if (aCalzaClima && !bCalzaClima) return -1;
+        if (!aCalzaClima && bCalzaClima) return 1;
+        return 0;
+      });
 
   // Extraer el usuario de la sesión para ver sus favoritos y reservas
   const session = await auth.api.getSession({ headers: request.headers });
@@ -313,7 +434,7 @@ app.get("/api/activities", async ({ query, request }) => {
 
   const userInteractedActivities = filteredInteracted.map(a => ({
     ...a,
-    occupancy: getSimulatedOccupancy(), // Afluencia simulada real (issue #23)
+    occupancy: getSimulatedOccupancy(a.category, hour, dayOfWeek, a.cuposPorDia, usadosEnOccupancy[a.id] ?? 0, a.vicinity),
     openingHour: a.openingHour || "09:00",
     closingHour: a.closingHour || "21:00"
   }));
@@ -327,20 +448,52 @@ app.get("/api/activities", async ({ query, request }) => {
     }
   }
 
-  // Volvemos a ordenar la lista combinada final por correspondencia climática
-  const finalOrdered = combinedActivities.sort((a, b) => {
-    const aCalzaClima = a.tagClima === weatherTag;
-    const bCalzaClima = b.tagClima === weatherTag;
+  // Volvemos a ordenar la lista combinada final respetando el sort activo
+  const finalOrdered = [...combinedActivities];
+  if (priceSort) {
+    finalOrdered.sort((a, b) => {
+      const pa = a.price ?? 0, pb = b.price ?? 0;
+      return priceSort === 'asc' ? pa - pb : pb - pa;
+    });
+  } else if (radius !== 30000) {
+    finalOrdered.sort((a, b) =>
+      getDistanceInMeters(lat, lng, a.coordinates.lat, a.coordinates.lng) -
+      getDistanceInMeters(lat, lng, b.coordinates.lat, b.coordinates.lng)
+    );
+  } else {
+    finalOrdered.sort((a, b) => {
+      const aCalzaClima = a.tagClima === weatherTag;
+      const bCalzaClima = b.tagClima === weatherTag;
 
-    if (aCalzaClima && !bCalzaClima) return -1;
-    if (!aCalzaClima && bCalzaClima) return 1;
-    return 0;
+      if (aCalzaClima && !bCalzaClima) return -1;
+      if (!aCalzaClima && bCalzaClima) return 1;
+      return 0;
+    });
+  }
+
+  // Filtrar las fechas programadas de cada panorama para que solo se devuelvan
+  // las que pertenecen al rango de planificación activo.  Así el frontend no
+  // muestra fechas fuera del rango seleccionado por el usuario.
+  const activeDateFilter = targetDateStr || filterDate;
+  const filteredActivities = finalOrdered.map(a => {
+    if (!a.schedules || a.schedules.length === 0) return a;
+    if (activeDateFilter === 'next5days') {
+      return { ...a, schedules: a.schedules.filter((s: { fecha: string }) => next5DaysArray.includes(s.fecha)) };
+    }
+    if (activeDateFilter && activeDateFilter !== 'today') {
+      // Fecha específica: solo mostrar la fecha que coincida
+      return { ...a, schedules: a.schedules.filter((s: { fecha: string }) => s.fecha === activeDateFilter) };
+    }
+    if (activeDateFilter === 'today') {
+      return { ...a, schedules: a.schedules.filter((s: { fecha: string }) => s.fecha === todayStr) };
+    }
+    return a;
   });
 
   // retornamos la lista combinada y optimizada, y la data del usuario
   return {
     currentWeather: weather,
-    activities: finalOrdered,
+    activities: filteredActivities,
     userHistory: {
       favorites: userFavs,
       reservations: userRes
@@ -443,18 +596,104 @@ app.group("/api/admin", (adminGroup) => adminGroup
       await db.delete(activities).where(eq(activities.id, params.id));
       return { success: true, id: params.id };
     })
+    .get("/activities/:id", async ({ params, set }) => {
+      const [act] = await db.select().from(activities).where(eq(activities.id, params.id));
+      if (!act) { set.status = 404; return { error: "Actividad no encontrada" }; }
+      const scheds = await db.select().from(activitySchedules).where(eq(activitySchedules.activityId, params.id));
+      
+      const diasMap: Record<string, { fecha: string; franjas: { horaInicio: string; horaFin: string }[] }> = {};
+      for (const s of scheds) {
+        let dayGroup = diasMap[s.fecha];
+        if (!dayGroup) {
+          dayGroup = { fecha: s.fecha, franjas: [] };
+          diasMap[s.fecha] = dayGroup;
+        }
+        if (s.horaInicio || s.horaFin) {
+          dayGroup.franjas.push({
+            horaInicio: s.horaInicio || '',
+            horaFin: s.horaFin || '',
+          });
+        }
+      }
+      
+      return {
+        id: act.id,
+        name: act.name,
+        category: act.category,
+        tag_clima: act.tag_clima,
+        imageUrl: (act as any).imageUrl ?? null,
+        description: (act as any).description ?? null,
+        address: (act as any).address ?? null,
+        placeId: (act as any).placeId ?? null,
+        price: (act as any).price ?? null,
+        cupos_por_dia: (act as any).cuposPorDia ?? null,
+        isTendencia: (act as any).isTendencia ?? false,
+        isPopular: (act as any).isPopular ?? false,
+        disponible: (act as any).disponible ?? true,
+        schedules: Object.values(diasMap),
+      };
+    })
     .patch("/activities/:id", async ({ params, body, set }) => {
       const b = body as any;
       const updates: any = {};
+      
+      if (b.name !== undefined) updates.name = b.name;
+      if (b.category !== undefined) updates.category = b.category;
+      if (b.description !== undefined) updates.description = b.description;
+      if (b.address !== undefined) updates.address = b.address;
+      if (b.tag_clima !== undefined) updates.tag_clima = b.tag_clima;
+      if (b.price !== undefined) updates.price = b.price === '' ? null : Number(b.price);
+      if (b.cupos_por_dia !== undefined) updates.cuposPorDia = b.cupos_por_dia === '' ? null : Number(b.cupos_por_dia);
+      if (b.image_url !== undefined) updates.imageUrl = b.image_url;
+      if (b.place_id !== undefined) updates.placeId = b.place_id;
+      
       if (typeof b.isTendencia === 'boolean') updates.isTendencia = b.isTendencia;
       if (typeof b.isPopular === 'boolean') updates.isPopular = b.isPopular;
       if (typeof b.disponible === 'boolean') updates.disponible = b.disponible;
-      if (Object.keys(updates).length === 0) { set.status = 400; return { error: "Nada que actualizar" }; }
 
       const [currentActivity] = await db.select().from(activities).where(eq(activities.id, params.id));
       if (!currentActivity) { set.status = 404; return { error: "Actividad no encontrada" }; }
 
-      await db.update(activities).set(updates).where(eq(activities.id, params.id));
+      if (b.address !== undefined && b.address !== (currentActivity as any).address) {
+        const coords = (typeof b.coordinates?.lat === 'number' && typeof b.coordinates?.lng === 'number')
+          ? { lat: b.coordinates.lat, lng: b.coordinates.lng }
+          : await geocodeAddress(b.address);
+        if (coords) {
+          updates.lat = coords.lat;
+          updates.lng = coords.lng;
+        }
+      } else if (b.coordinates?.lat !== undefined) {
+        updates.lat = b.coordinates.lat;
+        updates.lng = b.coordinates.lng;
+      }
+
+      try {
+        await db.transaction(async (tx) => {
+          if (Object.keys(updates).length > 0) {
+            await tx.update(activities).set(updates).where(eq(activities.id, params.id));
+          }
+
+          if (Array.isArray(b.schedules)) {
+            await tx.delete(activitySchedules).where(eq(activitySchedules.activityId, params.id));
+            for (const dia of b.schedules) {
+              if (!dia?.fecha) continue;
+              const franjas = Array.isArray(dia.franjas) ? dia.franjas : [];
+              for (const f of franjas) {
+                await tx.insert(activitySchedules).values({
+                  activityId: params.id,
+                  fecha: dia.fecha,
+                  horaInicio: f?.horaInicio || null,
+                  horaFin: f?.horaFin || null,
+                });
+              }
+            }
+          }
+        });
+      } catch (e) {
+        console.error('[editar panorama] transaccion revertida:', e);
+        set.status = 500;
+        return { error: "No se pudo actualizar el panorama (cambios revertidos)" };
+      }
 
       const seVolvioTendencia = updates.isTendencia === true && !(currentActivity as any).isTendencia;
       const seVolvioPopular = updates.isPopular === true && !(currentActivity as any).isPopular;
@@ -747,7 +986,9 @@ app.post("/api/request-admin-otp", async ({ request, set }) => {
     updatedAt: new Date(),
   });
 
-  console.log(`🔑 [Admin OTP] Código generado para ${email}: ${code}`);
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`🔑 [Admin OTP] Código generado para ${email}: ${code}`);
+  }
 
   try {
     await sendEmail(session.user.email, "Código de activación Administrador - Panoramas", `
@@ -789,12 +1030,12 @@ app.post("/api/activate-admin", async ({ body, request, set }) => {
   const cleanToken = token.trim();
 
   // 1. Intentar validar como TOTP manual (Administrador)
-  const totpSecret = process.env.ADMIN_TOTP_SECRET || "KVKFKRCSN5RHKYTVMVRXEYLTMV3GOLJS";
-  const isValidTotp = speakeasy.totp.verify({
+  const totpSecret = process.env.ADMIN_TOTP_SECRET;
+  const isValidTotp = totpSecret ? speakeasy.totp.verify({
     secret: totpSecret,
     encoding: 'base32',
     token: cleanToken
-  });
+  }) : false;
 
   let activationMethod = 'totp';
 
@@ -892,7 +1133,12 @@ app.delete("/api/favorites", async ({ body, request, set }) => {
 app.get("/api/activities/:id/availability", async ({ params }) => {
   const [act] = await db.select().from(activities).where(eq(activities.id, params.id));
   if (!act) return { error: "Panorama no encontrado", fechas: [] };
-  const cupos = (act as any).cuposPorDia ?? null;
+  
+  if (act.disponible === false) {
+    return { activityId: params.id, name: act.name, price: act.price ?? null, fechas: [] };
+  }
+
+  const cupos = act.cuposPorDia ?? null;
   const sched = await db.select().from(activitySchedules).where(eq(activitySchedules.activityId, params.id));
   const reservas = await db.select({ d: userReservations.reservedDate })
     .from(userReservations)
@@ -903,13 +1149,25 @@ app.get("/api/activities/:id/availability", async ({ params }) => {
   for (const sc of sched) {
     (fechasMap[sc.fecha] ??= []).push({ horaInicio: sc.horaInicio, horaFin: sc.horaFin });
   }
-  const fechas = Object.entries(fechasMap).map(([fecha, franjas]) => ({
-    fecha,
-    franjas,
-    cuposPorDia: cupos,
-    disponibles: cupos == null ? null : Math.max(0, cupos - (usados[fecha] ?? 0)),
-  })).sort((a, b) => a.fecha.localeCompare(b.fecha));
-  return { activityId: params.id, name: act.name, price: (act as any).price ?? null, fechas };
+  const todayStr = getSantiagoDateString(new Date());
+  const nowHM = getSantiagoTimeString(new Date());
+
+  const fechas = Object.entries(fechasMap)
+    .filter(([fecha]) => fecha >= todayStr)
+    .map(([fecha, franjas]) => {
+      const activeFranjas = fecha === todayStr
+        ? franjas.filter(fr => !fr.horaFin || fr.horaFin > nowHM)
+        : franjas;
+      return {
+        fecha,
+        franjas: activeFranjas,
+        cuposPorDia: cupos,
+        disponibles: cupos == null ? null : Math.max(0, cupos - (usados[fecha] ?? 0)),
+      };
+    })
+    .filter(f => f.franjas.length > 0 || (fechasMap[f.fecha]?.length ?? 0) === 0)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
+  return { activityId: params.id, name: act.name, price: act.price ?? null, fechas };
 });
 
 // --- Autocomplete de direcciones (Places API New) ---
@@ -1178,7 +1436,9 @@ app.post("/api/otp/request", async ({ body }) => {
     updatedAt: new Date(),
   });
 
-  console.log(`🔑 [OTP] Código generado para ${email}: ${code}`);
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`🔑 [OTP] Código generado para ${email}: ${code}`);
+  }
 
   try {
     await sendEmail(email, "Tu código de verificación - Panoramas", `

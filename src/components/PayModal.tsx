@@ -99,19 +99,19 @@ export function PayModal({ reservationId, activityName, price, open, onClose, on
                         return (
                             <div className="space-y-3">
                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                                    {LL.paymentDetailLabel ? LL.paymentDetailLabel() : "Detalle del pedido"}
+                                    {LL.paymentDetailLabel()}
                                 </p>
                                 <div className="bg-gray-50 rounded-2xl p-4 space-y-2">
                                     <div className="flex justify-between text-sm text-gray-600">
-                                        <span>Subtotal</span>
+                                        <span>{LL.subtotalLabel()}</span>
                                         <span className="font-bold text-gray-900">${base.toLocaleString('es-CL')}</span>
                                     </div>
                                     <div className="flex justify-between text-sm text-gray-600">
-                                        <span>Cargo por servicio</span>
+                                        <span>{LL.serviceFeeLabel()}</span>
                                         <span className="font-bold text-gray-900">${servicio.toLocaleString('es-CL')}</span>
                                     </div>
                                     <div className="border-t border-gray-200 pt-2 flex justify-between items-center">
-                                        <span className="text-sm font-black text-gray-900">Total</span>
+                                        <span className="text-sm font-black text-gray-900">{LL.totalLabel()}</span>
                                         <span className="text-xl font-black text-blue-600">${total.toLocaleString('es-CL')}</span>
                                     </div>
                                 </div>

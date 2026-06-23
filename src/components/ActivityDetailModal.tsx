@@ -254,28 +254,28 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                             {selFecha && fechaSel?.disponibles != null && (
                                 <div className={`text-center text-xs font-black rounded-xl py-2 ${fechaSel.disponibles === 0 ? 'bg-red-50 text-red-600' : fechaSel.disponibles <= 5 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
                                     {fechaSel.disponibles === 0
-                                        ? 'Agotado para esta fecha'
+                                        ? LL.soldOutForDateAlert()
                                         : fechaSel.disponibles <= 5
-                                        ? `¡Solo quedan ${fechaSel.disponibles} cupos!`
-                                        : `${fechaSel.disponibles} cupos disponibles`}
+                                        ? LL.onlySlotsLeftAlert({ n: fechaSel.disponibles })
+                                        : LL.slotsAvailableAlert({ n: fechaSel.disponibles })}
                                 </div>
                             )}
                         </div>
                     )}
                 </div>
-
+ 
                 <div className='p-6 bg-zinc-50 border-t border-gray-100 mt-auto space-y-3'>
                     {msg && (
                         <p className={`text-xs font-bold text-center ${msg.ok ? 'text-emerald-600' : 'text-red-500'}`}>{msg.text}</p>
                     )}
-
+ 
                     {step === 'detalle' && !msg?.ok && (
                         <button type='button' onClick={consultar} disabled={loadingAvail}
                             className='w-full text-xs font-black py-4 rounded-2xl bg-black hover:bg-zinc-800 text-white uppercase tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50'>
                             <Calendar className='w-4 h-4' /> {loadingAvail ? LL.loading() : LL.checkDateTime()}
                         </button>
                     )}
-
+ 
                     {step === 'fechas' && !msg?.ok && (
                         <>
                             {confirmPay ? (
@@ -286,20 +286,20 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                                         const total = base + servicio;
                                         return (
                                             <div className='bg-white border border-gray-100 rounded-2xl p-4 space-y-2'>
-                                                <p className='text-[10px] font-bold text-gray-400 uppercase tracking-widest'>Detalle del pedido</p>
-                                                <div className='flex justify-between text-sm text-gray-600'><span>Subtotal</span><span className='font-bold text-gray-900'>${base.toLocaleString('es-CL')}</span></div>
-                                                <div className='flex justify-between text-sm text-gray-600'><span>Cargo por servicio</span><span className='font-bold text-gray-900'>${servicio.toLocaleString('es-CL')}</span></div>
-                                                <div className='border-t border-gray-200 pt-2 flex justify-between items-center'><span className='text-sm font-black text-gray-900'>Total</span><span className='text-xl font-black text-blue-600'>${total.toLocaleString('es-CL')}</span></div>
+                                                <p className='text-[10px] font-bold text-gray-400 uppercase tracking-widest'>{LL.paymentDetailLabel()}</p>
+                                                <div className='flex justify-between text-sm text-gray-600'><span>{LL.subtotalLabel()}</span><span className='font-bold text-gray-900'>${base.toLocaleString('es-CL')}</span></div>
+                                                <div className='flex justify-between text-sm text-gray-600'><span>{LL.serviceFeeLabel()}</span><span className='font-bold text-gray-900'>${servicio.toLocaleString('es-CL')}</span></div>
+                                                <div className='border-t border-gray-200 pt-2 flex justify-between items-center'><span className='text-sm font-black text-gray-900'>{LL.totalLabel()}</span><span className='text-xl font-black text-blue-600'>${total.toLocaleString('es-CL')}</span></div>
                                             </div>
                                         );
                                     })()}
                                     <button type='button' onClick={() => reservar(true)} disabled={busy}
                                         className='w-full text-xs font-black py-4 rounded-2xl bg-black hover:bg-zinc-800 text-white uppercase tracking-widest active:scale-[0.98] disabled:opacity-50'>
-                                        {busy ? 'Procesando...' : LL.payRightNowCta()}
+                                        {busy ? LL.loading() : LL.payRightNowCta()}
                                     </button>
                                     <button type='button' onClick={() => setConfirmPay(false)}
                                         className='w-full text-[11px] font-bold text-gray-400 hover:text-gray-700 uppercase tracking-widest'>
-                                        Volver
+                                        {LL.backLabel()}
                                     </button>
                                 </>
                             ) : (
@@ -307,7 +307,7 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                                     {agotadoSel ? (
                                         <button type='button' disabled
                                             className='w-full text-xs font-black py-4 rounded-2xl bg-gray-300 text-gray-500 uppercase tracking-widest cursor-not-allowed'>
-                                            Agotado
+                                            {LL.soldOutLabel()}
                                         </button>
                                     ) : puedeReservar && (
                                         <div className='flex gap-2'>
@@ -317,13 +317,13 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                                             </button>
                                             <button type='button' onClick={() => setConfirmPay(true)} disabled={busy}
                                                 className='flex-1 text-xs font-black py-4 rounded-2xl bg-black hover:bg-zinc-800 text-white uppercase tracking-widest active:scale-[0.98] disabled:opacity-50'>
-                                                Continuar con el pago
+                                                {LL.continueToPaymentCta()}
                                             </button>
                                         </div>
                                     )}
                                     <button type='button' onClick={() => { setStep('detalle'); setSelFecha(null); setSelFranja(null); }}
                                         className='w-full text-[11px] font-bold text-gray-400 hover:text-gray-700 uppercase tracking-widest flex items-center justify-center gap-1'>
-                                        <ArrowLeft className='w-3 h-3' /> Volver al detalle
+                                        <ArrowLeft className='w-3 h-3' /> {LL.backToDetailLink()}
                                     </button>
                                 </>
                             )}

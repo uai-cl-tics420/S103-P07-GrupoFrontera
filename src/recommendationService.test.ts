@@ -65,7 +65,7 @@ describe("getRecommendedActivities (Smart Engine)", () => {
     it("penaliza severamente si la actividad está cerrada actualmente", () => {
         // Mockeamos la hora a las 12:00 de forma segura
         const RealDate = global.Date;
-        const dateSpy = spyOn(global, 'Date').mockImplementation(() => new RealDate('2026-05-26T12:00:00Z') as any);
+        const dateSpy = spyOn(global as any, 'Date').mockImplementation(() => new RealDate('2026-05-26T12:00:00Z') as any);
         
         const activities = [
             makeActivity("1", Category.CINE, 0, 0, "13:00", "20:00"), // Cerrado (abre a las 13)

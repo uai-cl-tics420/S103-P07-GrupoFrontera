@@ -58,10 +58,26 @@ export function App() {
   const [view, setView] = React.useState<View>(getInitialView);
   const { LL } = useT();
 
+  const todayStr = React.useMemo(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
+  const maxDateStr = React.useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 5);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
+
   // Interceptor global para capturar errores 401 y 403 de la API
   React.useEffect(() => {
     const originalFetch = window.fetch;
-    window.fetch = async (input, init) => {
+    window.fetch = (async (input: any, init: any) => {
       const response = await originalFetch(input, init);
       if (response.status === 401) {
         const urlStr = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
@@ -78,7 +94,7 @@ export function App() {
         showToast(LL.noPermissionToast(), "error");
       }
       return response;
-    };
+    }) as any;
     return () => {
       window.fetch = originalFetch;
     };
@@ -105,13 +121,15 @@ export function App() {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
 
   // Estados temporales del formulario de planificación
-  const [planningDateType, setPlanningDateType] = React.useState<'today' | 'future'>('today');
+  const [planningDateType, setPlanningDateType] = React.useState<'today' | 'next5days' | 'future'>('today');
   const [planningTimeType, setPlanningTimeType] = React.useState<'any' | 'specific'>('any');
-  const [dateValue, setDateValue] = React.useState<string>(new Date().toISOString().split('T')[0] as string);
+  const [dateValue, setDateValue] = React.useState<string>(todayStr);
   const [timeValue, setTimeValue] = React.useState("20:00");
 
   //estado local para los filtros de búsqueda en servidor
   const [apiFilters, setApiFilters] = React.useState(DEFAULT_API_FILTERS);
+  //estado aplicado de los filtros
+  const [appliedFilters, setAppliedFilters] = React.useState(DEFAULT_API_FILTERS);
 
   const { activities, loading, error } = useActivities();
   const { preferredCategory, setPreferredCategory, role } = useUserPreferences(session?.user?.id);
@@ -204,7 +222,7 @@ export function App() {
   const fetchFilteredActivities = async (categoryOverride?: string | null, filtersOverride?: typeof apiFilters) => {
     try {
       setLoadingWeather(true);
-      const activeFilters = filtersOverride || apiFilters;
+      const activeFilters = filtersOverride || appliedFilters;
       const activeCat = categoryOverride !== undefined ? categoryOverride : selectedCategory;
 
       let url = `/api/activities?lat=${coords.lat}&lng=${coords.lng}&radius=${activeFilters.radius}`;
@@ -269,7 +287,7 @@ export function App() {
   React.useEffect(() => {
     if (session) {
       historyLoadedRef.current = false; // Permitir recarga limpia al cambiar usuario, ubicación o planificación
-      fetchFilteredActivities(preferredCategory, apiFilters);
+      fetchFilteredActivities(preferredCategory, appliedFilters);
     }
     // session?.user?.id en vez de session completo: misma razón que el efecto de geolocalización.
   }, [coords, session?.user?.id, planningState, preferredCategory]); // Se ejecuta al cambiar ubicación, sesión o preferencia
@@ -375,8 +393,12 @@ export function App() {
     ? (planningState.date === 'today' ? undefined : (planningState.time || 'any'))
     : undefined;
 
+  const hasExplicitSort = appliedFilters.priceSort === 'asc' || appliedFilters.priceSort === 'desc' || appliedFilters.radius !== 30000;
+
   // Motor de recomendaciones optimizado con las variables de tus compañeros
-  const recommendedActivities = getRecommendedActivities(currentUser, actualActivitiesList, activeWeather, activeTime);
+  const recommendedActivities = hasExplicitSort
+    ? actualActivitiesList
+    : getRecommendedActivities(currentUser, actualActivitiesList, activeWeather, activeTime);
 
   // Inicializamos la categoría usando preferredCategory pero con el resguardo de filtrado dinámico
   const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(recommendedActivities, preferredCategory || null);
@@ -386,7 +408,7 @@ export function App() {
   React.useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === 'visible' && session) {
-        fetchFilteredActivities(selectedCategory, apiFilters);
+        fetchFilteredActivities(selectedCategory, appliedFilters);
       }
     };
     document.addEventListener('visibilitychange', onVisible);
@@ -396,7 +418,7 @@ export function App() {
       window.removeEventListener('focus', onVisible);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategory, apiFilters, coords, planningState, session]);
+  }, [selectedCategory, appliedFilters, coords, planningState, session]);
 
   // Manejador unificado de pestañas con tus Toasts y el reseteo de filtros de los chicos
   const handleSelectCategory = (category: typeof selectedCategory) => {
@@ -410,6 +432,7 @@ export function App() {
 
     // Reiniciar los filtros locales para que sean independientes por categoría (Lógica de Barros/Daniel)
     setApiFilters(DEFAULT_API_FILTERS);
+    setAppliedFilters(DEFAULT_API_FILTERS);
 
     // Disparar búsqueda inmediatamente para que cargue los panoramas de la nueva pestaña
 
@@ -709,13 +732,25 @@ export function App() {
                 <div className="flex items-center justify-center sm:justify-start gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
                   <h3 className="text-base sm:text-lg font-black tracking-tight text-emerald-950 leading-tight">
-                    {planningState.date === 'today' ? LL.planningActiveTodayTitle() : LL.planningActiveFutureTitle()}
+                    {planningState.date === 'today'
+                      ? LL.planningActiveTodayTitle()
+                      : planningState.date === 'next5days'
+                        ? LL.planningActive5DaysTitle()
+                        : LL.planningActiveFutureTitle()
+                    }
                   </h3>
                 </div>
                 <p className="text-xs text-emerald-800 font-semibold mt-1">
                   {planningState.date === 'today' ? (
                     <>
                       {LL.planningTodayIntro()} <span className="font-bold underline">{LL.today()}</span> {LL.inRealTime()} {LL.weatherDetectedBy()} <span className="font-bold underline">{weatherInfo?.condition === 'Clear' ? LL.weatherClear() : weatherInfo?.condition === 'Clouds' ? LL.weatherCloudy() : LL.weatherRainy()} ({weatherInfo?.temperature.toFixed(1)}°C)</span>.
+                    </>
+                  ) : planningState.date === 'next5days' ? (
+                    <>
+                      {LL.planning5DaysIntro()}{' '}
+                      {weatherInfo ? (
+                        <>{LL.weatherEstimatedBy()} <span className="font-bold underline">{weatherInfo.condition === 'Clear' ? LL.weatherClear() : weatherInfo.condition === 'Clouds' ? LL.weatherCloudy() : LL.weatherRainy()} ({weatherInfo.temperature.toFixed(1)}°C)</span>.</>
+                      ) : null}
                     </>
                   ) : (
                     <>
@@ -743,17 +778,47 @@ export function App() {
             <span className="text-xs font-bold text-gray-500 uppercase tracking-widest mr-2">{LL.filters()}:</span>
 
 
-            <select
-              className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-              value={apiFilters.radius}
-              onChange={(e) => setApiFilters({ ...apiFilters, radius: Number(e.target.value) })}
-            >
-              <option value={30000}>30 km</option>
-              <option value={20000}>20 km</option>
-              <option value={10000}>10 km</option>
-              <option value={5000}>5 km</option>
-              <option value={2000}>{LL.filterNearbyRadius()}</option>
-            </select>
+            {apiFilters.radius === 30000 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const newFilters = { ...apiFilters, radius: 5000 };
+                  setApiFilters(newFilters);
+                  setAppliedFilters(newFilters);
+                  fetchFilteredActivities(selectedCategory, newFilters);
+                }}
+                className="text-xs bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border border-zinc-200 rounded-lg px-3 py-1.5 font-bold transition flex items-center gap-1 cursor-pointer"
+              >
+                📍 {LL.filterNearbyRadius()}
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5 animate-fade-in">
+                <select
+                  className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary font-bold text-gray-700"
+                  value={apiFilters.radius}
+                  onChange={(e) => setApiFilters({ ...apiFilters, radius: Number(e.target.value) })}
+                >
+                  <option value={20000}>{LL.radius20km()}</option>
+                  <option value={10000}>{LL.radius10km()}</option>
+                  <option value={7000}>{LL.radius7km()}</option>
+                  <option value={5000}>{LL.radius5km()}</option>
+                  <option value={2000}>{LL.radius2km()}</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newFilters = { ...apiFilters, radius: 30000 };
+                    setApiFilters(newFilters);
+                    setAppliedFilters(newFilters);
+                    fetchFilteredActivities(selectedCategory, newFilters);
+                  }}
+                  className="text-xs font-semibold text-red-500 hover:text-red-700 ml-0.5 cursor-pointer"
+                  title="Quitar filtro de distancia"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
 
             <select
               className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -790,7 +855,7 @@ export function App() {
 
             <input
               type="date"
-              min={new Date().toISOString().slice(0, 10)}
+              min={todayStr}
               value={apiFilters.filterDate}
               onChange={(e) => setApiFilters({ ...apiFilters, filterDate: e.target.value, filterTime: '' })}
               className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -802,7 +867,7 @@ export function App() {
                 onChange={(e) => setApiFilters({ ...apiFilters, filterTime: e.target.value })}
                 className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
               >
-                <option value="">Cualquier hora</option>
+                <option value="">{LL.anyTimeText()}</option>
                 {availableHorarios.map(h => (
                   <option key={h} value={h}>{h}</option>
                 ))}
@@ -815,20 +880,27 @@ export function App() {
                 onClick={() => setApiFilters({ ...apiFilters, filterDate: '', filterTime: '' })}
                 className="text-xs font-medium text-gray-400 hover:text-gray-600"
               >
-                ✕ Quitar fecha
+                {LL.removeDateLink()}
               </button>
             )}
 
             <button
               type="button"
-              onClick={() => { setApiFilters(DEFAULT_API_FILTERS); fetchFilteredActivities(selectedCategory, DEFAULT_API_FILTERS); }}
+              onClick={() => {
+                setApiFilters(DEFAULT_API_FILTERS);
+                setAppliedFilters(DEFAULT_API_FILTERS);
+                fetchFilteredActivities(selectedCategory, DEFAULT_API_FILTERS);
+              }}
               className="text-xs font-medium text-gray-400 hover:text-gray-600"
             >
-              ↺ Restablecer filtros
+              {LL.resetFiltersLink()}
             </button>
 
             <button
-              onClick={() => fetchFilteredActivities(selectedCategory, apiFilters)}
+              onClick={() => {
+                setAppliedFilters(apiFilters);
+                fetchFilteredActivities(selectedCategory, apiFilters);
+              }}
               disabled={loadingWeather}
               className="ml-auto text-xs font-bold text-white bg-gray-900 px-4 py-1.5 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center gap-2"
             >
@@ -922,7 +994,8 @@ export function App() {
                 e.preventDefault();
                 if (planningDateType === 'today') {
                   setPlanningState({ date: 'today', time: undefined });
-
+                } else if (planningDateType === 'next5days') {
+                  setPlanningState({ date: 'next5days', time: undefined });
                 } else {
                   setPlanningState({
                     date: dateValue,
@@ -938,23 +1011,31 @@ export function App() {
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                   {LL.whenQuestion()}
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setPlanningDateType('today')}
-                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${planningDateType === 'today'
+                    className={`py-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all border text-center ${planningDateType === 'today'
                       ? 'bg-black text-white border-black shadow-md shadow-black/10'
                       : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
                       }`}
                   >
-
                     {LL.todayOptionCta()}
-
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPlanningDateType('next5days')}
+                    className={`py-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all border text-center ${planningDateType === 'next5days'
+                      ? 'bg-black text-white border-black shadow-md shadow-black/10'
+                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                      }`}
+                  >
+                    {LL.next5daysOptionCta()}
                   </button>
                   <button
                     type="button"
                     onClick={() => setPlanningDateType('future')}
-                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${planningDateType === 'future'
+                    className={`py-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all border text-center ${planningDateType === 'future'
                       ? 'bg-black text-white border-black shadow-md shadow-black/10'
                       : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
                       }`}
@@ -974,6 +1055,7 @@ export function App() {
                     <input
                       type="date"
                       required
+                      min={todayStr}
                       value={dateValue}
                       onChange={(e) => setDateValue(e.target.value)}
                       className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-gray-700"

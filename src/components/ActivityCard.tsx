@@ -86,7 +86,7 @@ const ActivityCard = ({
 
   return (
     <>
-      <div className="group w-full bg-white rounded-[28px] sm:rounded-[32px] overflow-hidden border border-gray-100/80 shadow-sm mb-2 hover:shadow-xl hover:-translate-y-2 transition-all duration-300 ease-in-out font-sans flex flex-col h-full">
+      <div className={`group w-full bg-white rounded-[28px] sm:rounded-[32px] overflow-hidden border border-gray-100/80 shadow-sm mb-2 hover:shadow-xl hover:-translate-y-2 transition-all duration-300 ease-in-out font-sans flex flex-col h-full ${activity.disponible === false ? 'opacity-65 saturate-50' : ''}`}>
         <div className="aspect-square w-full bg-gradient-to-br from-gray-50 to-zinc-100 flex items-center justify-center relative border-b border-gray-50 overflow-hidden">
           
           {/* Renderizado de imagen de Google Places o Emoji animado (Tu UI Premium) */}
@@ -108,6 +108,12 @@ const ActivityCard = ({
           )}
 
           <div className="absolute top-3 right-3 sm:top-5 sm:right-5 flex flex-col gap-2 items-end z-10">
+            {activity.disponible === false && (
+              <div className='bg-zinc-800 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1 border border-zinc-700/20 animate-fade-in'>
+                <span>🚫</span> {LL.soldOutLabel()}
+              </div>
+            )}
+
             {activity.isPopular && (
               <div className='bg-gradient-to-r from-pink-500 to-rose-400 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1 border border-pink-400/20 animate-fade-in'>
                 <span>⭐️</span> {LL.badgePopular()}

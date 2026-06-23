@@ -46,14 +46,12 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
     const [loadingMetrics, setLoadingMetrics] = useState(true);
 
     useEffect(() => {
-        console.log("GATILLANDO FETCH DE MÉTRICAS ALOOOOOO");
         fetch('/api/admin/metrics')
             .then(res => {
                 if (!res.ok) throw new Error('Falló la consulta de métricas');
                 return res.json();
             })
             .then(response => {
-                console.log("DATOS RECIBIDOS DEL BE:", response);
                 if (response.success) setMetrics(response.data);
                 setLoadingMetrics(false);
             })
@@ -146,12 +144,12 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                         onChange={(e) => handleRoleChange(u.id, e.target.value as 'user' | 'admin')}
                         className="text-[10px] font-bold bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:ring-1 focus:ring-black cursor-pointer"
                     >
-                        <option value="user">Usuario</option>
-                        <option value="admin">Admin</option>
+                        <option value="user">{LL.roleUser()}</option>
+                        <option value="admin">{LL.roleAdmin()}</option>
                     </select>
                 ) : (
                     <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest px-2 py-1 select-none">
-                        Actual
+                        {LL.currentUserLabel()}
                     </span>
                 )}
             </td>

@@ -52,5 +52,6 @@ export interface Activity {
   description?: string;
   price?: number;
   schedules?: { fecha: string; horaInicio: string | null; horaFin: string | null }[];
+  disponible?: boolean;
 }
 
