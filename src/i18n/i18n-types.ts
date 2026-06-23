@@ -287,6 +287,34 @@ type RootTranslation = {
 	 */
 	calculatingTrend: string
 	/**
+	 * T​o​d​a​v​í​a​ ​n​o​ ​h​a​y​ ​u​s​u​a​r​i​o​s​ ​r​e​g​i​s​t​r​a​d​o​s​.
+	 */
+	adminNoUsersYet: string
+	/**
+	 * T​o​d​a​v​í​a​ ​n​o​ ​h​a​y​ ​p​a​n​o​r​a​m​a​s​ ​c​r​e​a​d​o​s​.
+	 */
+	adminNoActivitiesYet: string
+	/**
+	 * D​a​s​h​b​o​a​r​d
+	 */
+	adminTabDashboard: string
+	/**
+	 * C​r​e​a​r​ ​p​a​n​o​r​a​m​a
+	 */
+	adminTabCreate: string
+	/**
+	 * A​d​m​i​n​i​s​t​r​a​r​ ​p​a​n​o​r​a​m​a​s
+	 */
+	adminTabManage: string
+	/**
+	 * P​a​n​o​r​a​m​a​ ​M​á​s​ ​P​o​p​u​l​a​r​ ​(​L​i​k​e​s​)
+	 */
+	statPopularActivity: string
+	/**
+	 * E​v​e​n​t​o​ ​e​n​ ​T​e​n​d​e​n​c​i​a
+	 */
+	statTrendingEvent: string
+	/**
 	 * R​e​s​e​r​v​a​r
 	 */
 	seeDetailsCta: string
@@ -651,53 +679,33 @@ type RootTranslation = {
 	 */
 	backToRealTimeCta: string
 	/**
-	 * T​o​d​a​ ​l​a​ ​r​e​g​i​ó​n
+	 * C​e​r​c​a​ ​d​e​ ​t​i
 	 */
-	filterRadiusAll: string
+	filterNearbyRadius: string
 	/**
-	 * A​ ​m​e​n​o​s​ ​d​e​ ​1​0​k​m
+	 * P​r​e​c​i​o​:​ ​s​i​n​ ​o​r​d​e​n
 	 */
-	filterRadius10: string
+	priceSortNone: string
 	/**
-	 * A​ ​m​e​n​o​s​ ​d​e​ ​5​k​m
+	 * P​r​e​c​i​o​:​ ​m​e​n​o​r​ ​a​ ​m​a​y​o​r
 	 */
-	filterRadius5: string
+	priceSortAsc: string
 	/**
-	 * A​ ​m​e​n​o​s​ ​d​e​ ​2​k​m
+	 * P​r​e​c​i​o​:​ ​m​a​y​o​r​ ​a​ ​m​e​n​o​r
 	 */
-	filterRadius2: string
+	priceSortDesc: string
 	/**
-	 * C​u​a​l​q​u​i​e​r​ ​p​r​e​c​i​o
+	 * P​r​e​c​i​o​:​ ​r​a​n​g​o​ ​p​e​r​s​o​n​a​l​i​z​a​d​o
 	 */
-	filterAnyPrice: string
+	priceSortRange: string
 	/**
-	 * E​c​o​n​ó​m​i​c​o​ ​(​$​)
+	 * M​í​n​ ​$
 	 */
-	filterPriceCheap: string
+	priceMinPlaceholder: string
 	/**
-	 * M​o​d​e​r​a​d​o​ ​(​$​$​)
+	 * M​á​x​ ​$
 	 */
-	filterPriceModerate: string
-	/**
-	 * C​o​s​t​o​s​o​ ​(​$​$​$​)
-	 */
-	filterPriceExpensive: string
-	/**
-	 * M​u​y​ ​C​o​s​t​o​s​o​ ​(​$​$​$​$​)
-	 */
-	filterPriceVeryExpensive: string
-	/**
-	 * G​r​a​t​i​s​ ​(​$​0​)
-	 */
-	filterFreePrice: string
-	/**
-	 * D​e​ ​p​a​g​o
-	 */
-	filterPaidPrice: string
-	/**
-	 * S​o​l​o​ ​A​b​i​e​r​t​o​s​ ​A​h​o​r​a
-	 */
-	filterOpenNow: string
+	priceMaxPlaceholder: string
 	/**
 	 * B​u​s​c​a​n​d​o​.​.​.
 	 */
@@ -735,6 +743,79 @@ type RootTranslation = {
 	 * ¡​R​e​s​e​r​v​a​ ​c​o​m​p​l​e​t​a​d​a​ ​c​o​n​ ​é​x​i​t​o​!
 	 */
 	toastReservationSuccess: string
+	/**
+	 * T​u​ ​s​e​s​i​ó​n​ ​h​a​ ​e​x​p​i​r​a​d​o​ ​o​ ​e​s​ ​i​n​v​á​l​i​d​a​.​ ​P​o​r​ ​f​a​v​o​r​,​ ​i​n​i​c​i​a​ ​s​e​s​i​ó​n​ ​n​u​e​v​a​m​e​n​t​e​.
+	 */
+	sessionExpiredToast: string
+	/**
+	 * S​e​s​i​ó​n​ ​e​x​p​i​r​a​d​a​.​ ​P​o​r​ ​f​a​v​o​r​,​ ​v​u​e​l​v​e​ ​a​ ​i​n​g​r​e​s​a​r​.
+	 */
+	sessionExpiredRetryToast: string
+	/**
+	 * N​o​ ​t​i​e​n​e​s​ ​p​e​r​m​i​s​o​s​ ​p​a​r​a​ ​r​e​a​l​i​z​a​r​ ​e​s​t​a​ ​a​c​c​i​ó​n​.
+	 */
+	noPermissionToast: string
+	/**
+	 * S​e​l​e​c​c​i​o​n​a​ ​e​l​ ​m​é​t​o​d​o​ ​p​a​r​a​ ​a​c​t​i​v​a​r​ ​A​d​m​i​n​:​
+​1​.​ ​E​n​v​i​a​r​ ​c​ó​d​i​g​o​ ​a​u​t​o​m​á​t​i​c​a​m​e​n​t​e​ ​a​ ​m​i​ ​c​o​r​r​e​o​ ​(​s​o​l​o​ ​s​i​ ​t​u​ ​c​o​r​r​e​o​ ​e​s​t​á​ ​a​u​t​o​r​i​z​a​d​o​)​
+​2​.​ ​I​n​g​r​e​s​a​r​ ​c​ó​d​i​g​o​ ​m​a​n​u​a​l​ ​d​e​l​ ​A​d​m​i​n​i​s​t​r​a​d​o​r​ ​(​T​O​T​P​)​
+​
+​I​n​g​r​e​s​a​ ​1​ ​o​ ​2​:
+	 */
+	adminActivatePromptChoice: string
+	/**
+	 * O​p​c​i​ó​n​ ​i​n​v​á​l​i​d​a​.​ ​D​e​b​e​s​ ​i​n​g​r​e​s​a​r​ ​1​ ​o​ ​2​.
+	 */
+	adminActivateInvalidChoice: string
+	/**
+	 * S​o​l​i​c​i​t​a​n​d​o​ ​e​n​v​í​o​ ​d​e​ ​c​ó​d​i​g​o​ ​a​ ​t​u​ ​c​o​r​r​e​o​.​.​.
+	 */
+	adminOtpRequestingToast: string
+	/**
+	 * N​o​ ​s​e​ ​p​u​d​o​ ​s​o​l​i​c​i​t​a​r​ ​e​l​ ​c​ó​d​i​g​o​ ​p​o​r​ ​c​o​r​r​e​o​.
+	 */
+	adminOtpRequestError: string
+	/**
+	 * C​ó​d​i​g​o​ ​e​n​v​i​a​d​o​ ​c​o​n​ ​é​x​i​t​o​.
+	 */
+	adminOtpSentSuccess: string
+	/**
+	 * I​n​g​r​e​s​a​ ​e​l​ ​c​ó​d​i​g​o​ ​d​e​ ​6​ ​d​í​g​i​t​o​s​ ​q​u​e​ ​e​n​v​i​a​m​o​s​ ​a​ ​t​u​ ​c​o​r​r​e​o​:
+	 */
+	adminOtpEnterCodePrompt: string
+	/**
+	 * E​r​r​o​r​ ​d​e​ ​c​o​n​e​x​i​ó​n​ ​a​l​ ​s​o​l​i​c​i​t​a​r​ ​e​l​ ​c​ó​d​i​g​o​.
+	 */
+	adminOtpConnectionError: string
+	/**
+	 * I​n​g​r​e​s​a​ ​e​l​ ​c​ó​d​i​g​o​ ​T​O​T​P​ ​d​e​ ​6​ ​d​í​g​i​t​o​s​ ​p​r​o​v​i​s​t​o​ ​p​o​r​ ​e​l​ ​A​d​m​i​n​i​s​t​r​a​d​o​r​:
+	 */
+	adminTotpManualPrompt: string
+	/**
+	 * C​ó​d​i​g​o​ ​i​n​v​á​l​i​d​o​.​ ​D​e​b​e​ ​s​e​r​ ​d​e​ ​6​ ​d​í​g​i​t​o​s​.
+	 */
+	adminCodeInvalidLength: string
+	/**
+	 * c​o​r​r​e​o
+	 */
+	adminMethodEmail: string
+	/**
+	 * T​O​T​P​ ​m​a​n​u​a​l
+	 */
+	adminMethodTotp: string
+	/**
+	 * ¡​R​o​l​ ​d​e​ ​a​d​m​i​n​i​s​t​r​a​d​o​r​ ​a​c​t​i​v​a​d​o​ ​c​o​n​ ​é​x​i​t​o​ ​v​í​a​ ​{​m​e​t​h​o​d​}​!
+	 * @param {unknown} method
+	 */
+	adminActivateSuccess: RequiredParams<'method'>
+	/**
+	 * C​ó​d​i​g​o​ ​i​n​c​o​r​r​e​c​t​o​ ​o​ ​e​x​p​i​r​a​d​o​.
+	 */
+	adminCodeIncorrectOrExpired: string
+	/**
+	 * E​r​r​o​r​ ​d​e​ ​c​o​n​e​x​i​ó​n​ ​a​l​ ​a​c​t​i​v​a​r​ ​a​d​m​i​n​i​s​t​r​a​d​o​r​.
+	 */
+	adminActivateConnectionError: string
 	/**
 	 * I​n​t​e​l​l​i​g​e​n​t​ ​A​s​s​i​s​t​a​n​t
 	 */
@@ -859,6 +940,10 @@ type RootTranslation = {
 	 * →​ ​V​e​r​ ​d​ó​n​d​e​ ​a​p​a​r​e​c​e​ ​e​n​ ​l​a​ ​v​i​s​t​a​ ​p​r​e​v​i​a​ ​d​e​ ​l​a​ ​d​e​r​e​c​h​a​.
 	 */
 	adminFormGeoInfoHint: string
+	/**
+	 * ✓​ ​U​b​i​c​a​c​i​ó​n​ ​s​e​l​e​c​c​i​o​n​a​d​a​ ​d​e​ ​G​o​o​g​l​e​ ​(​c​o​o​r​d​e​n​a​d​a​s​ ​c​a​p​t​u​r​a​d​a​s​)​.
+	 */
+	adminFormLocationSelected: string
 	/**
 	 * H​o​r​a​r​i​o​s​ ​y​ ​f​e​c​h​a​s
 	 */
@@ -1313,6 +1398,34 @@ export type TranslationFunctions = {
 	 */
 	calculatingTrend: () => LocalizedString
 	/**
+	 * Todavía no hay usuarios registrados.
+	 */
+	adminNoUsersYet: () => LocalizedString
+	/**
+	 * Todavía no hay panoramas creados.
+	 */
+	adminNoActivitiesYet: () => LocalizedString
+	/**
+	 * Dashboard
+	 */
+	adminTabDashboard: () => LocalizedString
+	/**
+	 * Crear panorama
+	 */
+	adminTabCreate: () => LocalizedString
+	/**
+	 * Administrar panoramas
+	 */
+	adminTabManage: () => LocalizedString
+	/**
+	 * Panorama Más Popular (Likes)
+	 */
+	statPopularActivity: () => LocalizedString
+	/**
+	 * Evento en Tendencia
+	 */
+	statTrendingEvent: () => LocalizedString
+	/**
 	 * Reservar
 	 */
 	seeDetailsCta: () => LocalizedString
@@ -1673,53 +1786,33 @@ export type TranslationFunctions = {
 	 */
 	backToRealTimeCta: () => LocalizedString
 	/**
-	 * Toda la región
+	 * Cerca de ti
 	 */
-	filterRadiusAll: () => LocalizedString
+	filterNearbyRadius: () => LocalizedString
 	/**
-	 * A menos de 10km
+	 * Precio: sin orden
 	 */
-	filterRadius10: () => LocalizedString
+	priceSortNone: () => LocalizedString
 	/**
-	 * A menos de 5km
+	 * Precio: menor a mayor
 	 */
-	filterRadius5: () => LocalizedString
+	priceSortAsc: () => LocalizedString
 	/**
-	 * A menos de 2km
+	 * Precio: mayor a menor
 	 */
-	filterRadius2: () => LocalizedString
+	priceSortDesc: () => LocalizedString
 	/**
-	 * Cualquier precio
+	 * Precio: rango personalizado
 	 */
-	filterAnyPrice: () => LocalizedString
+	priceSortRange: () => LocalizedString
 	/**
-	 * Económico ($)
+	 * Mín $
 	 */
-	filterPriceCheap: () => LocalizedString
+	priceMinPlaceholder: () => LocalizedString
 	/**
-	 * Moderado ($$)
+	 * Máx $
 	 */
-	filterPriceModerate: () => LocalizedString
-	/**
-	 * Costoso ($$$)
-	 */
-	filterPriceExpensive: () => LocalizedString
-	/**
-	 * Muy Costoso ($$$$)
-	 */
-	filterPriceVeryExpensive: () => LocalizedString
-	/**
-	 * Gratis ($0)
-	 */
-	filterFreePrice: () => LocalizedString
-	/**
-	 * De pago
-	 */
-	filterPaidPrice: () => LocalizedString
-	/**
-	 * Solo Abiertos Ahora
-	 */
-	filterOpenNow: () => LocalizedString
+	priceMaxPlaceholder: () => LocalizedString
 	/**
 	 * Buscando...
 	 */
@@ -1756,6 +1849,78 @@ export type TranslationFunctions = {
 	 * ¡Reserva completada con éxito!
 	 */
 	toastReservationSuccess: () => LocalizedString
+	/**
+	 * Tu sesión ha expirado o es inválida. Por favor, inicia sesión nuevamente.
+	 */
+	sessionExpiredToast: () => LocalizedString
+	/**
+	 * Sesión expirada. Por favor, vuelve a ingresar.
+	 */
+	sessionExpiredRetryToast: () => LocalizedString
+	/**
+	 * No tienes permisos para realizar esta acción.
+	 */
+	noPermissionToast: () => LocalizedString
+	/**
+	 * Selecciona el método para activar Admin:
+1. Enviar código automáticamente a mi correo (solo si tu correo está autorizado)
+2. Ingresar código manual del Administrador (TOTP)
+
+Ingresa 1 o 2:
+	 */
+	adminActivatePromptChoice: () => LocalizedString
+	/**
+	 * Opción inválida. Debes ingresar 1 o 2.
+	 */
+	adminActivateInvalidChoice: () => LocalizedString
+	/**
+	 * Solicitando envío de código a tu correo...
+	 */
+	adminOtpRequestingToast: () => LocalizedString
+	/**
+	 * No se pudo solicitar el código por correo.
+	 */
+	adminOtpRequestError: () => LocalizedString
+	/**
+	 * Código enviado con éxito.
+	 */
+	adminOtpSentSuccess: () => LocalizedString
+	/**
+	 * Ingresa el código de 6 dígitos que enviamos a tu correo:
+	 */
+	adminOtpEnterCodePrompt: () => LocalizedString
+	/**
+	 * Error de conexión al solicitar el código.
+	 */
+	adminOtpConnectionError: () => LocalizedString
+	/**
+	 * Ingresa el código TOTP de 6 dígitos provisto por el Administrador:
+	 */
+	adminTotpManualPrompt: () => LocalizedString
+	/**
+	 * Código inválido. Debe ser de 6 dígitos.
+	 */
+	adminCodeInvalidLength: () => LocalizedString
+	/**
+	 * correo
+	 */
+	adminMethodEmail: () => LocalizedString
+	/**
+	 * TOTP manual
+	 */
+	adminMethodTotp: () => LocalizedString
+	/**
+	 * ¡Rol de administrador activado con éxito vía {method}!
+	 */
+	adminActivateSuccess: (arg: { method: unknown }) => LocalizedString
+	/**
+	 * Código incorrecto o expirado.
+	 */
+	adminCodeIncorrectOrExpired: () => LocalizedString
+	/**
+	 * Error de conexión al activar administrador.
+	 */
+	adminActivateConnectionError: () => LocalizedString
 	/**
 	 * Intelligent Assistant
 	 */
@@ -1880,6 +2045,10 @@ export type TranslationFunctions = {
 	 * → Ver dónde aparece en la vista previa de la derecha.
 	 */
 	adminFormGeoInfoHint: () => LocalizedString
+	/**
+	 * ✓ Ubicación seleccionada de Google (coordenadas capturadas).
+	 */
+	adminFormLocationSelected: () => LocalizedString
 	/**
 	 * Horarios y fechas
 	 */
