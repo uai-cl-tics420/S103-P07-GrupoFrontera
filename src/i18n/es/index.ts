@@ -337,7 +337,7 @@ const es = {
 	serviceFeeLabel: 'Cargo por servicio',
 	totalLabel: 'Total',
 	backLabel: 'Volver',
-	soldOutLabel: 'Agotado',
+	soldOutLabel: 'No disponible',
 	continueToPaymentCta: 'Continuar con el pago',
 	backToDetailLink: 'Volver al detalle',
 	onlySlotsLeftAlert: '¡Solo quedan {n} cupos!',

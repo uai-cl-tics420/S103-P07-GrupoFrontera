@@ -337,7 +337,7 @@ const en = {
 	serviceFeeLabel: 'Service fee',
 	totalLabel: 'Total',
 	backLabel: 'Back',
-	soldOutLabel: 'Sold out',
+	soldOutLabel: 'Not available',
 	continueToPaymentCta: 'Continue to payment',
 	backToDetailLink: 'Back to details',
 	onlySlotsLeftAlert: 'Only {n} spots left!',
