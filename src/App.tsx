@@ -112,6 +112,8 @@ export function App() {
 
   //estado local para los filtros de búsqueda en servidor
   const [apiFilters, setApiFilters] = React.useState(DEFAULT_API_FILTERS);
+  //estado aplicado de los filtros
+  const [appliedFilters, setAppliedFilters] = React.useState(DEFAULT_API_FILTERS);
 
   const { activities, loading, error } = useActivities();
   const { preferredCategory, setPreferredCategory, role } = useUserPreferences(session?.user?.id);
@@ -204,7 +206,7 @@ export function App() {
   const fetchFilteredActivities = async (categoryOverride?: string | null, filtersOverride?: typeof apiFilters) => {
     try {
       setLoadingWeather(true);
-      const activeFilters = filtersOverride || apiFilters;
+      const activeFilters = filtersOverride || appliedFilters;
       const activeCat = categoryOverride !== undefined ? categoryOverride : selectedCategory;
 
       let url = `/api/activities?lat=${coords.lat}&lng=${coords.lng}&radius=${activeFilters.radius}`;
@@ -269,7 +271,7 @@ export function App() {
   React.useEffect(() => {
     if (session) {
       historyLoadedRef.current = false; // Permitir recarga limpia al cambiar usuario, ubicación o planificación
-      fetchFilteredActivities(preferredCategory, apiFilters);
+      fetchFilteredActivities(preferredCategory, appliedFilters);
     }
     // session?.user?.id en vez de session completo: misma razón que el efecto de geolocalización.
   }, [coords, session?.user?.id, planningState, preferredCategory]); // Se ejecuta al cambiar ubicación, sesión o preferencia
@@ -375,7 +377,7 @@ export function App() {
     ? (planningState.date === 'today' ? undefined : (planningState.time || 'any'))
     : undefined;
 
-  const hasExplicitSort = apiFilters.priceSort === 'asc' || apiFilters.priceSort === 'desc' || apiFilters.radius !== 30000;
+  const hasExplicitSort = appliedFilters.priceSort === 'asc' || appliedFilters.priceSort === 'desc' || appliedFilters.radius !== 30000;
 
   // Motor de recomendaciones optimizado con las variables de tus compañeros
   const recommendedActivities = hasExplicitSort
@@ -390,7 +392,7 @@ export function App() {
   React.useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === 'visible' && session) {
-        fetchFilteredActivities(selectedCategory, apiFilters);
+        fetchFilteredActivities(selectedCategory, appliedFilters);
       }
     };
     document.addEventListener('visibilitychange', onVisible);
@@ -400,7 +402,7 @@ export function App() {
       window.removeEventListener('focus', onVisible);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategory, apiFilters, coords, planningState, session]);
+  }, [selectedCategory, appliedFilters, coords, planningState, session]);
 
   // Manejador unificado de pestañas con tus Toasts y el reseteo de filtros de los chicos
   const handleSelectCategory = (category: typeof selectedCategory) => {
@@ -414,6 +416,7 @@ export function App() {
 
     // Reiniciar los filtros locales para que sean independientes por categoría (Lógica de Barros/Daniel)
     setApiFilters(DEFAULT_API_FILTERS);
+    setAppliedFilters(DEFAULT_API_FILTERS);
 
     // Disparar búsqueda inmediatamente para que cargue los panoramas de la nueva pestaña
 
@@ -747,18 +750,47 @@ export function App() {
             <span className="text-xs font-bold text-gray-500 uppercase tracking-widest mr-2">{LL.filters()}:</span>
 
 
-            <select
-              className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-              value={apiFilters.radius}
-              onChange={(e) => setApiFilters({ ...apiFilters, radius: Number(e.target.value) })}
-            >
-              <option value={30000}>{LL.radiusMax()}</option>
-              <option value={20000}>{LL.radius20km()}</option>
-              <option value={10000}>{LL.radius10km()}</option>
-              <option value={7000}>{LL.radius7km()}</option>
-              <option value={5000}>{LL.radius5km()}</option>
-              <option value={2000}>{LL.radius2km()}</option>
-            </select>
+            {apiFilters.radius === 30000 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const newFilters = { ...apiFilters, radius: 5000 };
+                  setApiFilters(newFilters);
+                  setAppliedFilters(newFilters);
+                  fetchFilteredActivities(selectedCategory, newFilters);
+                }}
+                className="text-xs bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border border-zinc-200 rounded-lg px-3 py-1.5 font-bold transition flex items-center gap-1 cursor-pointer"
+              >
+                📍 {LL.filterNearbyRadius()}
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5 animate-fade-in">
+                <select
+                  className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary font-bold text-gray-700"
+                  value={apiFilters.radius}
+                  onChange={(e) => setApiFilters({ ...apiFilters, radius: Number(e.target.value) })}
+                >
+                  <option value={20000}>{LL.radius20km()}</option>
+                  <option value={10000}>{LL.radius10km()}</option>
+                  <option value={7000}>{LL.radius7km()}</option>
+                  <option value={5000}>{LL.radius5km()}</option>
+                  <option value={2000}>{LL.radius2km()}</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newFilters = { ...apiFilters, radius: 30000 };
+                    setApiFilters(newFilters);
+                    setAppliedFilters(newFilters);
+                    fetchFilteredActivities(selectedCategory, newFilters);
+                  }}
+                  className="text-xs font-semibold text-red-500 hover:text-red-700 ml-0.5 cursor-pointer"
+                  title="Quitar filtro de distancia"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
 
             <select
               className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -826,14 +858,21 @@ export function App() {
 
             <button
               type="button"
-              onClick={() => { setApiFilters(DEFAULT_API_FILTERS); fetchFilteredActivities(selectedCategory, DEFAULT_API_FILTERS); }}
+              onClick={() => {
+                setApiFilters(DEFAULT_API_FILTERS);
+                setAppliedFilters(DEFAULT_API_FILTERS);
+                fetchFilteredActivities(selectedCategory, DEFAULT_API_FILTERS);
+              }}
               className="text-xs font-medium text-gray-400 hover:text-gray-600"
             >
               {LL.resetFiltersLink()}
             </button>
 
             <button
-              onClick={() => fetchFilteredActivities(selectedCategory, apiFilters)}
+              onClick={() => {
+                setAppliedFilters(apiFilters);
+                fetchFilteredActivities(selectedCategory, apiFilters);
+              }}
               disabled={loadingWeather}
               className="ml-auto text-xs font-bold text-white bg-gray-900 px-4 py-1.5 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center gap-2"
             >
