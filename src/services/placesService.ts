@@ -7,7 +7,8 @@ export function getSimulatedOccupancy(
   hour?: number,
   dayOfWeek?: number,
   cuposPorDia?: number | null,
-  cuposUsados?: number
+  cuposUsados?: number,
+  address?: string | null
 ): "Low" | "Medium" | "High" {
   // 1. Componente real basado en cupos
   let levelCupos = 1; // 1 = Low, 2 = Medium, 3 = High
@@ -47,6 +48,31 @@ export function getSimulatedOccupancy(
   } else if (cat === 'Museo') {
     if (h >= 10 && h <= 17) {
       levelHeuristica = 2;
+    }
+  }
+
+  // 2b. Ajuste por Comuna (Concurrencia urbana en Santiago)
+  if (address) {
+    const addr = address.toLowerCase();
+    const isHighTrafficCommune = 
+      addr.includes('las condes') ||
+      addr.includes('providencia') ||
+      addr.includes('vitacura') ||
+      addr.includes('ñuñoa') ||
+      addr.includes('santiago centro');
+    
+    const isLowTrafficCommune = 
+      addr.includes('pirque') ||
+      addr.includes('san josé de maipo') ||
+      addr.includes('cajón del maipo') ||
+      addr.includes('colina') ||
+      addr.includes('lampa') ||
+      addr.includes('tiltil');
+
+    if (isHighTrafficCommune) {
+      levelHeuristica = Math.min(3, levelHeuristica + 1);
+    } else if (isLowTrafficCommune) {
+      levelHeuristica = Math.max(1, levelHeuristica - 1);
     }
   }
 

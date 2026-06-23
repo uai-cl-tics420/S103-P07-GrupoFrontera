@@ -314,7 +314,7 @@ app.get("/api/activities", async ({ query, request }) => {
 
   const placesWithOccupancy = baseList.map(a => ({
     ...a,
-    occupancy: getSimulatedOccupancy(a.category, hour, dayOfWeek, a.cuposPorDia, usadosEnOccupancy[a.id] ?? 0)
+    occupancy: getSimulatedOccupancy(a.category, hour, dayOfWeek, a.cuposPorDia, usadosEnOccupancy[a.id] ?? 0, a.vicinity)
   }));
 
   // Evaluación de condiciones climáticas adaptativas (Tu lógica + Barros)
@@ -378,7 +378,7 @@ app.get("/api/activities", async ({ query, request }) => {
 
   const userInteractedActivities = filteredInteracted.map(a => ({
     ...a,
-    occupancy: getSimulatedOccupancy(a.category, hour, dayOfWeek, a.cuposPorDia, usadosEnOccupancy[a.id] ?? 0),
+    occupancy: getSimulatedOccupancy(a.category, hour, dayOfWeek, a.cuposPorDia, usadosEnOccupancy[a.id] ?? 0, a.vicinity),
     openingHour: a.openingHour || "09:00",
     closingHour: a.closingHour || "21:00"
   }));
