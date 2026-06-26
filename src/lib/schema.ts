@@ -105,3 +105,12 @@ export const userReservations = pgTable('user_reservations', {
     reservedDate: text('reserved_date'),   // "YYYY-MM-DD" elegida por el usuario
     reservedTime: text('reserved_time'),   // "HH:MM-HH:MM"
 });
+
+// --- Tabla JWKS (de Better-Auth) ---
+export const jwks = pgTable("jwks", {
+    id: text("id").primaryKey(),
+    publicKey: text("public_key").notNull(),
+    privateKey: text("private_key").notNull(),
+    createdAt: timestamp("created_at").notNull(),
+    expiresAt: timestamp("expires_at"),
+});

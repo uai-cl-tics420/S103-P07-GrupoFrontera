@@ -29,6 +29,18 @@ const weatherIconMap: Record<string, React.ComponentType<{ className?: string }>
   'Snow': Snowflake,
 };
 
+// Valor por defecto de los filtros del toolbar de navegación. 30km es el radio más amplio
+// disponible (antes decía "Toda la región" con un valor de 50km que no era coherente con
+// las demás opciones del propio dropdown).
+const DEFAULT_API_FILTERS = {
+  radius: 30000,
+  priceSort: '' as '' | 'asc' | 'desc' | 'range', // 'range' = solo activa Mín/Máx, sin ordenar
+  priceMin: '',
+  priceMax: '',
+  filterDate: '',
+  filterTime: '',
+};
+
 type View = 'home' | 'admin' | 'reservations';
 
 function getInitialView(): View {
@@ -44,6 +56,66 @@ export function App() {
   const { data: session, isPending } = authClient.useSession();
   const [jwtToken, setJwtToken] = React.useState('');
   const [view, setView] = React.useState<View>(getInitialView);
+  const [profileOpen, setProfileOpen] = React.useState(false);
+  const profileRef = React.useRef<HTMLDivElement>(null);
+  const { LL } = useT();
+
+  // Cerrar el menu de perfil al hacer click fuera o presionar Escape
+  React.useEffect(() => {
+    if (!profileOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setProfileOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [profileOpen]);
+
+  const todayStr = React.useMemo(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
+  const maxDateStr = React.useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 5);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
+
+  // Interceptor global para capturar errores 401 y 403 de la API
+  React.useEffect(() => {
+    const originalFetch = window.fetch;
+    window.fetch = (async (input: any, init: any) => {
+      const response = await originalFetch(input, init);
+      if (response.status === 401) {
+        const urlStr = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
+        // Evitamos interceptar las llamadas del sistema de sesión de better-auth para no causar bucles infinitos
+        if (!urlStr.includes('/api/auth/')) {
+          console.warn("Sesión expirada o no válida (401). Redirigiendo a login...");
+          authClient.signOut().then(() => {
+            showToast(LL.sessionExpiredToast(), "error");
+          }).catch(() => {
+            showToast(LL.sessionExpiredRetryToast(), "error");
+          });
+        }
+      } else if (response.status === 403) {
+        showToast(LL.noPermissionToast(), "error");
+      }
+      return response;
+    }) as any;
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, [showToast, LL]);
 
   //estados para capturar las coordenadas reales del navegador
   const [coords, setCoords] = React.useState({ lat: -33.4372, lng: -70.6506 }); //Stgo. centro por defecto
@@ -66,21 +138,18 @@ export function App() {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
 
   // Estados temporales del formulario de planificación
-  const [planningDateType, setPlanningDateType] = React.useState<'today' | 'future'>('today');
+  const [planningDateType, setPlanningDateType] = React.useState<'today' | 'next5days' | 'future'>('today');
   const [planningTimeType, setPlanningTimeType] = React.useState<'any' | 'specific'>('any');
-  const [dateValue, setDateValue] = React.useState<string>(new Date().toISOString().split('T')[0] as string);
+  const [dateValue, setDateValue] = React.useState<string>(todayStr);
   const [timeValue, setTimeValue] = React.useState("20:00");
 
   //estado local para los filtros de búsqueda en servidor
-  const [apiFilters, setApiFilters] = React.useState({
-    radius: 50000,
-    exactPrice: '',
-    openNow: false
-  });
+  const [apiFilters, setApiFilters] = React.useState(DEFAULT_API_FILTERS);
+  //estado aplicado de los filtros
+  const [appliedFilters, setAppliedFilters] = React.useState(DEFAULT_API_FILTERS);
 
   const { activities, loading, error } = useActivities();
   const { preferredCategory, setPreferredCategory, role } = useUserPreferences(session?.user?.id);
-  const { LL } = useT();
 
   // Sincroniza el estado con el boton "Atras" del browser
   React.useEffect(() => {
@@ -170,12 +239,25 @@ export function App() {
   const fetchFilteredActivities = async (categoryOverride?: string | null, filtersOverride?: typeof apiFilters) => {
     try {
       setLoadingWeather(true);
-      const activeFilters = filtersOverride || apiFilters;
+      const activeFilters = filtersOverride || appliedFilters;
       const activeCat = categoryOverride !== undefined ? categoryOverride : selectedCategory;
 
       let url = `/api/activities?lat=${coords.lat}&lng=${coords.lng}&radius=${activeFilters.radius}`;
-      if (activeFilters.exactPrice !== '') url += `&exactPrice=${activeFilters.exactPrice}`;
-      if (activeFilters.openNow) url += `&openNow=true`;
+      // "range" solo habilita Mín/Máx en el frontend; al backend solo le interesa ordenar
+      // cuando el modo es realmente asc/desc.
+      if (activeFilters.priceSort === 'asc' || activeFilters.priceSort === 'desc') {
+        url += `&priceSort=${activeFilters.priceSort}`;
+      }
+      if (activeFilters.priceSort) {
+        if (activeFilters.priceMin !== '') url += `&priceMin=${activeFilters.priceMin}`;
+        if (activeFilters.priceMax !== '') url += `&priceMax=${activeFilters.priceMax}`;
+      }
+      // Filtro de fecha/hora del toolbar: independiente de "planningState" (no dispara el banner
+      // de recomendación ni el modo curado Top-6, solo acota la grilla normal)
+      if (activeFilters.filterDate) {
+        url += `&filterDate=${activeFilters.filterDate}`;
+        if (activeFilters.filterTime) url += `&filterTime=${activeFilters.filterTime}`;
+      }
 
       // Inyectar parámetros de planificación de fecha futura si están activos
       if (planningState) {
@@ -222,7 +304,7 @@ export function App() {
   React.useEffect(() => {
     if (session) {
       historyLoadedRef.current = false; // Permitir recarga limpia al cambiar usuario, ubicación o planificación
-      fetchFilteredActivities(preferredCategory, apiFilters);
+      fetchFilteredActivities(preferredCategory, appliedFilters);
     }
     // session?.user?.id en vez de session completo: misma razón que el efecto de geolocalización.
   }, [coords, session?.user?.id, planningState, preferredCategory]); // Se ejecuta al cambiar ubicación, sesión o preferencia
@@ -289,6 +371,20 @@ export function App() {
     }
   }
 
+  // Horarios reales que existen para la fecha elegida en el filtro (en vez de dejar que el
+  // usuario escriba cualquier hora a ciegas, solo se ofrecen las franjas que de verdad tienen
+  // panoramas agendados ese día).
+  const availableHorarios = React.useMemo(() => {
+    if (!apiFilters.filterDate) return [];
+    const set = new Set<string>();
+    actualActivitiesList.forEach((a: any) => {
+      (a.schedules || []).forEach((s: any) => {
+        if (s.fecha === apiFilters.filterDate && s.horaInicio) set.add(s.horaInicio);
+      });
+    });
+    return Array.from(set).sort();
+  }, [apiFilters.filterDate, actualActivitiesList]);
+
   // Panoramas ya realizados (comprados/pagados): cuentan como interés para la similitud,
   // pero el panorama en sí NO debe recomendarse de nuevo (ya se hizo).
   const purchasedIds = Object.entries(activeReservations)
@@ -314,8 +410,12 @@ export function App() {
     ? (planningState.date === 'today' ? undefined : (planningState.time || 'any'))
     : undefined;
 
+  const hasExplicitSort = appliedFilters.priceSort === 'asc' || appliedFilters.priceSort === 'desc' || appliedFilters.radius !== 30000;
+
   // Motor de recomendaciones optimizado con las variables de tus compañeros
-  const recommendedActivities = getRecommendedActivities(currentUser, actualActivitiesList, activeWeather, activeTime);
+  const recommendedActivities = hasExplicitSort
+    ? actualActivitiesList
+    : getRecommendedActivities(currentUser, actualActivitiesList, activeWeather, activeTime);
 
   // Inicializamos la categoría usando preferredCategory pero con el resguardo de filtrado dinámico
   const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(recommendedActivities, preferredCategory || null);
@@ -325,7 +425,7 @@ export function App() {
   React.useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === 'visible' && session) {
-        fetchFilteredActivities(selectedCategory, apiFilters);
+        fetchFilteredActivities(selectedCategory, appliedFilters);
       }
     };
     document.addEventListener('visibilitychange', onVisible);
@@ -335,7 +435,7 @@ export function App() {
       window.removeEventListener('focus', onVisible);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategory, apiFilters, coords, planningState, session]);
+  }, [selectedCategory, appliedFilters, coords, planningState, session]);
 
   // Manejador unificado de pestañas con tus Toasts y el reseteo de filtros de los chicos
   const handleSelectCategory = (category: typeof selectedCategory) => {
@@ -343,17 +443,17 @@ export function App() {
     if (category !== null) {
       setPreferredCategory(category);
 
-      showToast(LL.toastPrefsSaved({ category: category as string }), "info");
+      showToast(LL.toastShowingCategory({ category: category as string }), "info");
 
     }
 
     // Reiniciar los filtros locales para que sean independientes por categoría (Lógica de Barros/Daniel)
-    const resetFilters = { radius: 50000, exactPrice: '', openNow: false };
-    setApiFilters(resetFilters);
+    setApiFilters(DEFAULT_API_FILTERS);
+    setAppliedFilters(DEFAULT_API_FILTERS);
 
     // Disparar búsqueda inmediatamente para que cargue los panoramas de la nueva pestaña
 
-    fetchFilteredActivities(category, resetFilters);
+    fetchFilteredActivities(category, DEFAULT_API_FILTERS);
   };
 
   // a) Verificando sesión
@@ -462,8 +562,81 @@ export function App() {
     }
   };
 
+  const handleActivateAdmin = async () => {
+    const choice = prompt(LL.adminActivatePromptChoice());
+
+    if (!choice) return;
+
+    const trimmedChoice = choice.trim();
+    if (trimmedChoice !== '1' && trimmedChoice !== '2') {
+      showToast(LL.adminActivateInvalidChoice(), "error");
+      return;
+    }
+
+    let codeToSend = "";
+
+    if (trimmedChoice === '1') {
+      // Método 1: OTP por Correo
+      try {
+        showToast(LL.adminOtpRequestingToast(), "info");
+        const reqResponse = await fetch('/api/request-admin-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        const reqData = await reqResponse.json();
+        if (!reqResponse.ok) {
+          showToast(reqData.error || LL.adminOtpRequestError(), "error");
+          return;
+        }
+
+        showToast(reqData.message || LL.adminOtpSentSuccess(), "success");
+
+        const code = prompt(LL.adminOtpEnterCodePrompt());
+        if (!code) return;
+        codeToSend = code.trim();
+      } catch (err) {
+        console.error("Error al solicitar OTP:", err);
+        showToast(LL.adminOtpConnectionError(), "error");
+        return;
+      }
+    } else {
+      // Método 2: TOTP Manual del Administrador
+      const code = prompt(LL.adminTotpManualPrompt());
+      if (!code) return;
+      codeToSend = code.trim();
+    }
+
+    if (codeToSend.length !== 6 || Number.isNaN(Number(codeToSend))) {
+      showToast(LL.adminCodeInvalidLength(), "error");
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/activate-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: codeToSend })
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        const methodMsg = data.method === 'email' ? LL.adminMethodEmail() : LL.adminMethodTotp();
+        showToast(LL.adminActivateSuccess({ method: methodMsg }), "success");
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        showToast(data.error || LL.adminCodeIncorrectOrExpired(), "error");
+      }
+    } catch (err) {
+      console.error("Error al activar administrador:", err);
+      showToast(LL.adminActivateConnectionError(), "error");
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-[#FAFAFA] font-sans pb-20">
+    <div className="min-h-screen bg-[#FAFAFA] font-sans pb-20 overflow-x-hidden">
       <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 sm:px-6 py-4 sm:py-5 mb-8 sm:mb-12">
         <div className="max-w-5xl mx-auto flex justify-between items-center gap-3">
           <h1 className="text-xl sm:text-2xl font-black tracking-tighter text-gray-900 italic">
@@ -473,12 +646,12 @@ export function App() {
             {loadingWeather ? (
               <WeatherSkeleton />
             ) : weatherInfo ? (
-              <div className='flex items-center gap-2 bg-zinc-50 border border-gray-100 px-4 py-2 rounded-full shadow-sm select-none transition-all duration-300 hover:bg-zinc-100 animate-fade-in'>
-                <span className='text-xs font-black text-gray-500 uppercase tracking-wider flex items-center gap-1'>
+              <div className='flex items-center gap-1.5 sm:gap-2 bg-zinc-50 border border-gray-100 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full shadow-sm select-none transition-all duration-300 hover:bg-zinc-100 animate-fade-in'>
+                <span className='hidden sm:flex text-xs font-black text-gray-500 uppercase tracking-wider items-center gap-1'>
                   <span>📍</span> {weatherInfo.cityName || "Santiago"}
                 </span>
 
-                <span className='text-gray-300'>|</span>
+                <span className='hidden sm:inline text-gray-300'>|</span>
 
                 {(() => {
                   const IconComponent = weatherIconMap[weatherInfo.condition] || Cloud;
@@ -497,32 +670,57 @@ export function App() {
               </div>
             ) : null}
 
-            <button
-              onClick={() => navigate('reservations')}
-              className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-gray-900 transition-colors whitespace-nowrap px-2 py-1 border border-gray-200 rounded"
-            >
-              {LL.myReservationsLink()}
-            </button>
-
-            {role === 'admin' && (
-              <button
-                onClick={() => navigate('admin')}
-                className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-gray-900 transition-colors whitespace-nowrap px-2 py-1 border border-gray-200 rounded"
-              >
-                {LL.adminAccessLink()}
-              </button>
-            )}
             <LanguageToggle />
-            <span className="hidden md:inline text-[10px] font-bold text-gray-400 uppercase tracking-tighter truncate max-w-[160px] lg:max-w-[240px]">
-              {session?.user?.email}
-            </span>
-            <button
-              onClick={handleSignOut}
-              className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter hover:text-red-400 transition-colors whitespace-nowrap"
-            >
-              {LL.logout()}
-            </button>
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-fuchsia-600 border-2 border-white shadow-md flex-shrink-0"></div>
+
+            {/* Menu de perfil: consolida correo, reservas, admin y cierre de sesion para
+                no saturar la barra (clave para que no desborde / haga zoom en movil) */}
+            <div className="relative" ref={profileRef}>
+              <button
+                onClick={() => setProfileOpen(o => !o)}
+                aria-label={LL.myAccountLabel()}
+                aria-expanded={profileOpen}
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-yellow-400 to-fuchsia-600 border-2 border-white shadow-md flex-shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
+              ></button>
+
+              {profileOpen && (
+                <div className="absolute right-0 mt-2 w-60 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 animate-fade-in flex flex-col">
+                  <div className="px-4 py-2 border-b border-gray-50">
+                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{LL.myAccountLabel()}</p>
+                    <p className="text-xs font-bold text-gray-700 truncate">{session?.user?.email}</p>
+                  </div>
+
+                  <button
+                    onClick={() => { setProfileOpen(false); navigate('reservations'); }}
+                    className="text-left px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    {LL.myReservationsLink()}
+                  </button>
+
+                  {role === 'admin' ? (
+                    <button
+                      onClick={() => { setProfileOpen(false); navigate('admin'); }}
+                      className="text-left px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      {LL.adminAccessLink()}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { setProfileOpen(false); handleActivateAdmin(); }}
+                      className="text-left px-4 py-2.5 text-sm font-semibold text-amber-600 hover:bg-amber-50 transition-colors"
+                    >
+                      {LL.activateAdminLink()}
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => { setProfileOpen(false); handleSignOut(); }}
+                    className="text-left px-4 py-2.5 text-sm font-semibold text-red-500 hover:bg-red-50 transition-colors border-t border-gray-50 mt-1"
+                  >
+                    {LL.logout()}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </nav>
@@ -567,7 +765,12 @@ export function App() {
                 <div className="flex items-center justify-center sm:justify-start gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
                   <h3 className="text-base sm:text-lg font-black tracking-tight text-emerald-950 leading-tight">
-                    {planningState.date === 'today' ? LL.planningActiveTodayTitle() : LL.planningActiveFutureTitle()}
+                    {planningState.date === 'today'
+                      ? LL.planningActiveTodayTitle()
+                      : planningState.date === 'next5days'
+                        ? LL.planningActive5DaysTitle()
+                        : LL.planningActiveFutureTitle()
+                    }
                   </h3>
                 </div>
                 <p className="text-xs text-emerald-800 font-semibold mt-1">
@@ -575,11 +778,18 @@ export function App() {
                     <>
                       {LL.planningTodayIntro()} <span className="font-bold underline">{LL.today()}</span> {LL.inRealTime()} {LL.weatherDetectedBy()} <span className="font-bold underline">{weatherInfo?.condition === 'Clear' ? LL.weatherClear() : weatherInfo?.condition === 'Clouds' ? LL.weatherCloudy() : LL.weatherRainy()} ({weatherInfo?.temperature.toFixed(1)}°C)</span>.
                     </>
+                  ) : planningState.date === 'next5days' ? (
+                    <>
+                      {LL.planning5DaysIntro()}{' '}
+                      {weatherInfo ? (
+                        <>{LL.weatherEstimatedBy()} <span className="font-bold underline">{weatherInfo.condition === 'Clear' ? LL.weatherClear() : weatherInfo.condition === 'Clouds' ? LL.weatherCloudy() : LL.weatherRainy()} ({weatherInfo.temperature.toFixed(1)}°C)</span>.</>
+                      ) : null}
+                    </>
                   ) : (
                     <>
                     {LL.planningFutureIntro()} <span className="font-bold underline">{planningState.date}</span> {planningState.time ? <>{LL.atTime()} <span className="font-bold underline">{planningState.time}</span></> : LL.anyTimeText()}.{' '}
                     {weatherInfo?.reliable === false ? (
-                      <span className="font-bold">{LL.weatherNotConsidered || "El clima no se considera para esta fecha (fuera del pronóstico de 5 días)."}</span>
+                      <span className="font-bold">{LL.weatherNotConsidered()}</span>
                     ) : (
                       <>{LL.weatherEstimatedBy()} <span className="font-bold underline">{weatherInfo?.condition === 'Clear' ? LL.weatherClear() : weatherInfo?.condition === 'Clouds' ? LL.weatherCloudy() : LL.weatherRainy()} ({weatherInfo?.temperature.toFixed(1)}°C)</span>.</>
                     )}
@@ -596,72 +806,144 @@ export function App() {
             </div>
           )}
 
-          {/* Toolbar de Filtros: Solo visible cuando hay una categoría específica seleccionada */}
-          {selectedCategory && (
-            <div className="flex flex-wrap items-center gap-3 px-2 py-3 bg-white/50 border border-gray-100 rounded-xl shadow-sm animate-fade-in">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-widest mr-2">{LL.filters()}:</span>
+          {/* Toolbar de Filtros: visible siempre, tanto en "Todas" como en una categoría específica */}
+          <div className="flex flex-wrap items-center gap-3 px-2 py-3 bg-white/50 border border-gray-100 rounded-xl shadow-sm animate-fade-in">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest mr-2">{LL.filters()}:</span>
 
 
-              <select
-                className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-                value={apiFilters.radius}
-                onChange={(e) => setApiFilters({ ...apiFilters, radius: Number(e.target.value) })}
-              >
-                <option value={50000}>{LL.filterRadiusAll()}</option>
-                <option value={10000}>{LL.filterRadius10()}</option>
-                <option value={5000}>{LL.filterRadius5()}</option>
-                <option value={2000}>{LL.filterRadius2()}</option>
-              </select>
-
-              {(selectedCategory === 'Restaurante' || selectedCategory === 'Cine' || selectedCategory === 'Teatro' || selectedCategory === 'Museo' || selectedCategory === 'Miradores' || selectedCategory === 'Parque') && (
-                selectedCategory === 'Restaurante' ? (
-                  <select
-                    className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-                    value={apiFilters.exactPrice}
-                    onChange={(e) => setApiFilters({ ...apiFilters, exactPrice: e.target.value })}
-                  >
-                    <option value="">{LL.filterAnyPrice()}</option>
-                    <option value="1">{LL.filterPriceCheap()}</option>
-                    <option value="2">{LL.filterPriceModerate()}</option>
-                    <option value="3">{LL.filterPriceExpensive()}</option>
-                    <option value="4">{LL.filterPriceVeryExpensive()}</option>
-                  </select>
-                ) : (
-                  <select
-                    className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-                    value={apiFilters.exactPrice}
-                    onChange={(e) => setApiFilters({ ...apiFilters, exactPrice: e.target.value })}
-                  >
-                    <option value="">{LL.filterAnyPrice()}</option>
-                    <option value="0">{LL.filterFreePrice()}</option>
-                    <option value="1">{LL.filterPaidPrice()}</option>
-                  </select>
-                )
-              )}
-
-              <label className="flex items-center gap-2 text-xs font-medium text-gray-600 cursor-pointer bg-white border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
-                <input
-                  type="checkbox"
-                  checked={apiFilters.openNow}
-                  onChange={(e) => setApiFilters({ ...apiFilters, openNow: e.target.checked })}
-                  className="accent-primary"
-                />
-                {LL.filterOpenNow()}
-              </label>
-
+            {apiFilters.radius === 30000 ? (
               <button
-                onClick={() => fetchFilteredActivities(selectedCategory, apiFilters)}
-                disabled={loadingWeather}
-                className="ml-auto text-xs font-bold text-white bg-gray-900 px-4 py-1.5 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center gap-2"
+                type="button"
+                onClick={() => {
+                  const newFilters = { ...apiFilters, radius: 5000 };
+                  setApiFilters(newFilters);
+                  setAppliedFilters(newFilters);
+                  fetchFilteredActivities(selectedCategory, newFilters);
+                }}
+                className="text-xs bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border border-zinc-200 rounded-lg px-3 py-1.5 font-bold transition flex items-center gap-1 cursor-pointer"
               >
-                {loadingWeather ? (
-                  <span className="animate-pulse">{LL.searching()}</span>
-                ) : (
-                  LL.applyFilters()
-                )}
+                📍 {LL.filterNearbyRadius()}
               </button>
-            </div>
-          )}
+            ) : (
+              <div className="flex items-center gap-1.5 animate-fade-in">
+                <select
+                  className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary font-bold text-gray-700"
+                  value={apiFilters.radius}
+                  onChange={(e) => setApiFilters({ ...apiFilters, radius: Number(e.target.value) })}
+                >
+                  <option value={20000}>{LL.radius20km()}</option>
+                  <option value={10000}>{LL.radius10km()}</option>
+                  <option value={7000}>{LL.radius7km()}</option>
+                  <option value={5000}>{LL.radius5km()}</option>
+                  <option value={2000}>{LL.radius2km()}</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newFilters = { ...apiFilters, radius: 30000 };
+                    setApiFilters(newFilters);
+                    setAppliedFilters(newFilters);
+                    fetchFilteredActivities(selectedCategory, newFilters);
+                  }}
+                  className="text-xs font-semibold text-red-500 hover:text-red-700 ml-0.5 cursor-pointer"
+                  title="Quitar filtro de distancia"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            <select
+              className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+              value={apiFilters.priceSort}
+              onChange={(e) => setApiFilters({ ...apiFilters, priceSort: e.target.value as '' | 'asc' | 'desc' | 'range' })}
+            >
+              <option value="">{LL.priceSortNone()}</option>
+              <option value="asc">{LL.priceSortAsc()}</option>
+              <option value="desc">{LL.priceSortDesc()}</option>
+              <option value="range">{LL.priceSortRange()}</option>
+            </select>
+
+            {apiFilters.priceSort && (
+              <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2 py-1">
+                <input
+                  type="number"
+                  min={0}
+                  placeholder={LL.priceMinPlaceholder()}
+                  value={apiFilters.priceMin}
+                  onChange={(e) => setApiFilters({ ...apiFilters, priceMin: e.target.value })}
+                  className="w-16 text-xs focus:outline-none"
+                />
+                <span className="text-gray-300">—</span>
+                <input
+                  type="number"
+                  min={0}
+                  placeholder={LL.priceMaxPlaceholder()}
+                  value={apiFilters.priceMax}
+                  onChange={(e) => setApiFilters({ ...apiFilters, priceMax: e.target.value })}
+                  className="w-16 text-xs focus:outline-none"
+                />
+              </div>
+            )}
+
+            <input
+              type="date"
+              min={todayStr}
+              value={apiFilters.filterDate}
+              onChange={(e) => setApiFilters({ ...apiFilters, filterDate: e.target.value, filterTime: '' })}
+              className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+
+            {apiFilters.filterDate && (
+              <select
+                value={apiFilters.filterTime}
+                onChange={(e) => setApiFilters({ ...apiFilters, filterTime: e.target.value })}
+                className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">{LL.anyTimeText()}</option>
+                {availableHorarios.map(h => (
+                  <option key={h} value={h}>{h}</option>
+                ))}
+              </select>
+            )}
+
+            {apiFilters.filterDate && (
+              <button
+                type="button"
+                onClick={() => setApiFilters({ ...apiFilters, filterDate: '', filterTime: '' })}
+                className="text-xs font-medium text-gray-400 hover:text-gray-600"
+              >
+                {LL.removeDateLink()}
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setApiFilters(DEFAULT_API_FILTERS);
+                setAppliedFilters(DEFAULT_API_FILTERS);
+                fetchFilteredActivities(selectedCategory, DEFAULT_API_FILTERS);
+              }}
+              className="text-xs font-medium text-gray-400 hover:text-gray-600"
+            >
+              {LL.resetFiltersLink()}
+            </button>
+
+            <button
+              onClick={() => {
+                setAppliedFilters(apiFilters);
+                fetchFilteredActivities(selectedCategory, apiFilters);
+              }}
+              disabled={loadingWeather}
+              className="ml-auto text-xs font-bold text-white bg-gray-900 px-4 py-1.5 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              {loadingWeather ? (
+                <span className="animate-pulse">{LL.searching()}</span>
+              ) : (
+                LL.applyFilters()
+              )}
+            </button>
+          </div>
 
           {/* Mostramos el contador de panoramas, cambiando a modo curado si hay planificación activa */}
           <div className="px-2 mt-2">
@@ -694,7 +976,6 @@ export function App() {
                 reservation={activeReservations[act.id] as any}
                 onToggleFavorite={handleToggleFavorite}
                 onSeeDetails={(activity) => setSelectedActivityForDetail(activity)}
-                onReservationChanged={handleReservationChanged}
                 userCoords={coords}
                 isRecommended={!!planningState}
                 rank={index + 1}
@@ -746,7 +1027,8 @@ export function App() {
                 e.preventDefault();
                 if (planningDateType === 'today') {
                   setPlanningState({ date: 'today', time: undefined });
-
+                } else if (planningDateType === 'next5days') {
+                  setPlanningState({ date: 'next5days', time: undefined });
                 } else {
                   setPlanningState({
                     date: dateValue,
@@ -762,23 +1044,31 @@ export function App() {
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                   {LL.whenQuestion()}
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setPlanningDateType('today')}
-                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${planningDateType === 'today'
+                    className={`py-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all border text-center ${planningDateType === 'today'
                       ? 'bg-black text-white border-black shadow-md shadow-black/10'
                       : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
                       }`}
                   >
-
                     {LL.todayOptionCta()}
-
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPlanningDateType('next5days')}
+                    className={`py-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all border text-center ${planningDateType === 'next5days'
+                      ? 'bg-black text-white border-black shadow-md shadow-black/10'
+                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                      }`}
+                  >
+                    {LL.next5daysOptionCta()}
                   </button>
                   <button
                     type="button"
                     onClick={() => setPlanningDateType('future')}
-                    className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${planningDateType === 'future'
+                    className={`py-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all border text-center ${planningDateType === 'future'
                       ? 'bg-black text-white border-black shadow-md shadow-black/10'
                       : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
                       }`}
@@ -798,6 +1088,7 @@ export function App() {
                     <input
                       type="date"
                       required
+                      min={todayStr}
                       value={dateValue}
                       onChange={(e) => setDateValue(e.target.value)}
                       className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-gray-700"

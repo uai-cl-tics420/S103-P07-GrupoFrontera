@@ -1,11 +1,7 @@
 import React from 'react';
-import { useState, useEffect } from 'react';
 import { type Activity } from '../types/index';
 import { useT } from "@/i18n/context";
 import { Heart, Eye, CheckCircle2, Clock, Calendar, MapPin } from "lucide-react";
-import { ReservationModal } from "@/components/ReservationModal";
-import { DetailsModal } from "@/components/DetailsModal";
-import { PayModal } from "@/components/PayModal";
 
 export type ReservationStatus = 'pendiente' | 'pagado' | 'comprado' | 'cancelado';
 
@@ -16,14 +12,10 @@ interface ActivityCardProps {
     isTendencia?: boolean;
   };
   isFavorite?: boolean;
-  isReserved?: boolean;
   /** Reserva activa de esta actividad (no cancelada), si existe. */
   reservation?: { id: string; status: ReservationStatus } | null;
   onToggleFavorite?: (id: string) => void;
-  onReserve?: (id: string) => void;
   onSeeDetails?: (activity: Activity) => void;
-  /** Callback que dispara el padre cuando se confirmo una reserva o un pago. */
-  onReservationChanged?: () => void;
   /** Coordenadas del usuario, para calcular distancia. */
   userCoords?: { lat: number; lng: number };
   /** Marca si esta actividad esta dentro de las recomendadas. */
@@ -48,22 +40,15 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): nu
 const ActivityCard = ({ 
   activity, 
   isFavorite = false, 
-  isReserved = false, // Tu bandera de control visual
   reservation = null, // El objeto de reserva detallado de Barros
-  onToggleFavorite, 
-  onReserve, 
+  onToggleFavorite,
   onSeeDetails,       // Tu prop para levantar el modal premium
-  onReservationChanged, // El callback de refresco de Barros
-  userCoords,   
+  userCoords,
   isRecommended = false,
   rank
 }: ActivityCardProps) => {
 
   const { LL } = useT();
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [reserveOpen, setReserveOpen] = useState(false);
-  const [payOpen, setPayOpen] = useState(false);
-  const [drivingKm, setDrivingKm] = useState<number | null>(null);
 
   if (!activity) return null;
 
@@ -82,24 +67,14 @@ const ActivityCard = ({
   const categoryKey = categoryKeyMap[activity.category];
   const categoryLabel = categoryKey ? LL[categoryKey]() : activity.category;
   const hasValidCoords = !!activity.coordinates && (activity.coordinates.lat !== 0 || activity.coordinates.lng !== 0);
-  const distance = userCoords && hasValidCoords ? getDistance(userCoords.lat, userCoords.lng, activity.coordinates.lat, activity.coordinates.lng) : null;
-
-  // Distancia en auto (por carretera) via backend/Routes API; cae a linea recta si no esta disponible
-  useEffect(() => {
-    if (!userCoords || !hasValidCoords) { setDrivingKm(null); return; }
-    let cancel = false;
-    fetch(`/api/distance?fromLat=${userCoords.lat}&fromLng=${userCoords.lng}&toLat=${activity.coordinates.lat}&toLng=${activity.coordinates.lng}`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(d => { if (!cancel && typeof d?.km === 'number') setDrivingKm(d.km); })
-      .catch(() => {});
-    return () => { cancel = true; };
-  }, [userCoords?.lat, userCoords?.lng, activity.coordinates.lat, activity.coordinates.lng, hasValidCoords]);
-
-  const shownKm = drivingKm ?? distance;
+  // Distancia en linea recta (Haversine). Mostramos esta misma metrica con la que el backend
+  // ordena la grilla por cercania, para que el orden visible coincida con los km de cada tarjeta.
+  // La distancia por carretera (Routes API) se muestra en el detalle del panorama.
+  const shownKm = userCoords && hasValidCoords ? getDistance(userCoords.lat, userCoords.lng, activity.coordinates.lat, activity.coordinates.lng) : null;
 
   return (
     <>
-      <div className="group w-full bg-white rounded-[28px] sm:rounded-[32px] overflow-hidden border border-gray-100/80 shadow-sm mb-2 hover:shadow-xl hover:-translate-y-2 transition-all duration-300 ease-in-out font-sans flex flex-col h-full">
+      <div className={`group w-full bg-white rounded-[28px] sm:rounded-[32px] overflow-hidden border border-gray-100/80 shadow-sm mb-2 hover:shadow-xl hover:-translate-y-2 transition-all duration-300 ease-in-out font-sans flex flex-col h-full ${activity.disponible === false ? 'opacity-65 saturate-50' : ''}`}>
         <div className="aspect-square w-full bg-gradient-to-br from-gray-50 to-zinc-100 flex items-center justify-center relative border-b border-gray-50 overflow-hidden">
           
           {/* Renderizado de imagen de Google Places o Emoji animado (Tu UI Premium) */}
@@ -121,6 +96,12 @@ const ActivityCard = ({
           )}
 
           <div className="absolute top-3 right-3 sm:top-5 sm:right-5 flex flex-col gap-2 items-end z-10">
+            {activity.disponible === false && (
+              <div className='bg-zinc-800 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1 border border-zinc-700/20 animate-fade-in'>
+                <span>🚫</span> {LL.soldOutLabel()}
+              </div>
+            )}
+
             {activity.isPopular && (
               <div className='bg-gradient-to-r from-pink-500 to-rose-400 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1 border border-pink-400/20 animate-fade-in'>
                 <span>⭐️</span> {LL.badgePopular()}
@@ -138,7 +119,7 @@ const ActivityCard = ({
             </div>
             {shownKm !== null && (
               <div className="bg-white/80 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 border border-white/40 shadow-sm flex items-center gap-1">
-                <span>{drivingKm != null ? '🚗' : '📍'}</span> {shownKm.toFixed(1)} km
+                <span>📍</span> {shownKm.toFixed(1)} km
               </div>
             )}
           </div>
@@ -243,44 +224,6 @@ const ActivityCard = ({
           </div>
         </div>
       </div>
-
-      {/* 📥 Renderizado síncrono de los Modales del sistema de Barros */}
-      <DetailsModal
-        activity={{
-          id: activity.id,
-          name: activity.name,
-          category: activity.category,
-          tagClima: activity.tagClima,
-          openingHour: activity.openingHour,
-          closingHour: activity.closingHour,
-          coordinates: activity.coordinates,
-        }}
-        open={detailsOpen}
-        onClose={() => setDetailsOpen(false)}
-        onReserve={!isPaid && !isPending ? () => setReserveOpen(true) : undefined}
-      />
-
-      <ReservationModal
-        activity={{
-          id: activity.id,
-          name: activity.name,
-          category: activity.category,
-          tagClima: activity.tagClima,
-        }}
-        open={reserveOpen}
-        onClose={() => setReserveOpen(false)}
-        onSuccess={() => onReservationChanged?.()}
-      />
-
-      {reservation && (
-        <PayModal
-          reservationId={reservation.id}
-          activityName={activity.name}
-          open={payOpen}
-          onClose={() => setPayOpen(false)}
-          onSuccess={() => onReservationChanged?.()}
-        />
-      )}
     </>
   );
 };

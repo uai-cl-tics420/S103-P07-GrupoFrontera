@@ -154,3 +154,6 @@ public/index.html
 .gemini
 .vscode
 .idea
+
+# Archivos de handoff internos (no se suben al repo)
+HANDOFF*.md

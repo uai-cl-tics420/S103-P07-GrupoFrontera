@@ -3,7 +3,6 @@ import { Users, MapPin, Mail, TrendingUp, ArrowLeft, LayoutDashboard, PlusCircle
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/i18n/context';
 import { LanguageToggle } from '@/components/LanguageToggle';
-import { MOCK_STATS, MOCK_RECENT_USERS, MOCK_ACTIVITIES_BY_CATEGORY } from '@/mocks/adminData';
 import { Category } from '@/types';
 type CategoryKey = 'categoryCine' | 'categoryParque' | 'categoryTeatro' | 'categoryMuseo' | 'categoryRestaurante' | 'categoryMiradores';
 import { CreatePanoramaForm } from './CreatePanoramaForm';
@@ -47,14 +46,12 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
     const [loadingMetrics, setLoadingMetrics] = useState(true);
 
     useEffect(() => {
-        console.log("GATILLANDO FETCH DE MÉTRICAS ALOOOOOO");
         fetch('/api/admin/metrics')
             .then(res => {
                 if (!res.ok) throw new Error('Falló la consulta de métricas');
                 return res.json();
             })
             .then(response => {
-                console.log("DATOS RECIBIDOS DEL BE:", response);
                 if (response.success) setMetrics(response.data);
                 setLoadingMetrics(false);
             })
@@ -87,7 +84,10 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ role: newRole })
             });
-            if (!res.ok) throw new Error('Falló al cambiar el rol');
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || 'Falló al cambiar el rol');
+            }
             
             // Recargar silenciosamente los datos reales del backend
             const statsRes = await fetch('/api/admin/stats');
@@ -95,23 +95,17 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                 const data = await statsRes.json();
                 setRealData(data);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error("Error al actualizar rol del usuario:", err);
-            alert(LL.roleUpdateError());
+            alert(err.message || LL.roleUpdateError());
         }
     };
 
-    // Datos dinámicos con fallback a mock
-    const stats = realData?.stats || MOCK_STATS;
-    
-    // Si la DB tiene usuarios reales, los muestra. Si está vacía o hay error, cae al mock poblado.
-    const displayUsers = (realData?.recentUsers && realData.recentUsers.length > 0)
-        ? realData.recentUsers
-        : MOCK_RECENT_USERS;
-
-    const displayActivitiesByCategory = (realData?.activitiesByCategory && realData.activitiesByCategory.length > 0)
-        ? realData.activitiesByCategory
-        : MOCK_ACTIVITIES_BY_CATEGORY;
+    // Datos reales del backend. Mientras cargan o si la consulta falla, se muestran
+    // valores en cero/vacíos en vez de datos inventados (evita confundir con cifras falsas).
+    const stats = realData?.stats || { totalUsers: 0, totalActivities: 0, otpsSentToday: 0, topCategory: Category.PARQUE };
+    const displayUsers = realData?.recentUsers || [];
+    const displayActivitiesByCategory = realData?.activitiesByCategory || [];
 
     const topCategoryKey: CategoryKey = categoryKeys[stats.topCategory as Category] || 'categoryParque';
     const topCategoryLabel = LL[topCategoryKey]();
@@ -150,12 +144,12 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                         onChange={(e) => handleRoleChange(u.id, e.target.value as 'user' | 'admin')}
                         className="text-[10px] font-bold bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:ring-1 focus:ring-black cursor-pointer"
                     >
-                        <option value="user">Usuario</option>
-                        <option value="admin">Admin</option>
+                        <option value="user">{LL.roleUser()}</option>
+                        <option value="admin">{LL.roleAdmin()}</option>
                     </select>
                 ) : (
                     <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest px-2 py-1 select-none">
-                        Actual
+                        {LL.currentUserLabel()}
                     </span>
                 )}
             </td>
@@ -207,19 +201,19 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                         onClick={() => setActiveTab('dashboard')}
                         className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-bold tracking-tight border-b-2 -mb-px transition ${activeTab === 'dashboard' ? 'border-black text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
                     >
-                        <LayoutDashboard className="w-4 h-4" /> Dashboard
+                        <LayoutDashboard className="w-4 h-4" /> {LL.adminTabDashboard()}
                     </button>
                     <button
                         onClick={() => setActiveTab('crear')}
                         className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-bold tracking-tight border-b-2 -mb-px transition ${activeTab === 'crear' ? 'border-black text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
                     >
-                        <PlusCircle className="w-4 h-4" /> Crear panorama
+                        <PlusCircle className="w-4 h-4" /> {LL.adminTabCreate()}
                     </button>
                     <button
                         onClick={() => setActiveTab('gestionar')}
                         className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-bold tracking-tight border-b-2 -mb-px transition ${activeTab === 'gestionar' ? 'border-black text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
                     >
-                        <MapPin className="w-4 h-4" /> Administrar panoramas
+                        <MapPin className="w-4 h-4" /> {LL.adminTabManage()}
                     </button>
                 </div>
 
@@ -254,14 +248,14 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
 
                     <StatCard
                         icon={Heart}
-                        label="Panorama Más Popular (Likes)"
-                        value={metrics?.popular?.name || "Cargando datos..."}
+                        label={LL.statPopularActivity()}
+                        value={metrics?.popular?.name || LL.loading()}
                         accent='bg-gradient-to-tr from-pink-500 to-rose-400'
                     />
 
                     <StatCard
                         icon={CalendarCheck}
-                        label="Evento en Tendencia"
+                        label={LL.statTrendingEvent()}
                         value={metrics?.tendencia?.name || LL.calculatingTrend()}
                         accent="bg-gradient-to-tr from-orange-500 to-amber-400"
                     />
@@ -282,7 +276,7 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                                         <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2">{LL.tableRole()}</th>
                                         <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2 hidden sm:table-cell">{LL.tableJoined()}</th>
                                         <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2">{LL.tableStatus()}</th>
-                                        <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2">Acción</th>
+                                        <th className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 px-2">{LL.tableAction()}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -309,6 +303,14 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                                             {standardUsers.map(renderUserRow)}
                                         </>
                                     )}
+
+                                    {displayUsers.length === 0 && (
+                                        <tr>
+                                            <td colSpan={5} className="py-6 px-2 text-center text-xs text-gray-400">
+                                                {loadingData ? LL.loading() : LL.adminNoUsersYet()}
+                                            </td>
+                                        </tr>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -320,6 +322,11 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                             {LL.sectionActivityByCategory()}
                         </h2>
                         <div className="flex flex-col gap-4">
+                            {displayActivitiesByCategory.length === 0 && (
+                                <p className="text-xs text-gray-400 text-center py-6">
+                                    {loadingData ? LL.loading() : LL.adminNoActivitiesYet()}
+                                </p>
+                            )}
                             {displayActivitiesByCategory.map(({ category, count }: any) => {
                                 const percent = (count / maxCount) * 100;
                                 const catKey = categoryKeys[category as Category];

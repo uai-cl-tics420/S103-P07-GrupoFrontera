@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Plus, Trash2, MapPin, Image as ImageIcon, Clock, Ticket, Users, Info } from 'lucide-react';
 import { Category } from '@/types';
 import { useT } from '@/i18n/context';
@@ -26,16 +26,41 @@ interface DiaHorario {
 const labelCls = "block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5";
 const inputCls = "w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 outline-none focus:ring-1 focus:ring-black focus:border-black transition";
 
-export function CreatePanoramaForm() {
+interface CreatePanoramaFormProps {
+    activityToEdit?: any;
+    onSuccess?: () => void;
+    onCancel?: () => void;
+}
+
+export function CreatePanoramaForm({ activityToEdit, onSuccess, onCancel }: CreatePanoramaFormProps = {}) {
     const { LL } = useT();
-    const [imageUrl, setImageUrl] = useState('');
-    const [nombre, setNombre] = useState('');
-    const [descripcion, setDescripcion] = useState('');
-    const [categoria, setCategoria] = useState<Category>(Category.CINE);
-    const [direccion, setDireccion] = useState('');
-    const [tagClima, setTagClima] = useState<'All' | 'Sunny'>('All');
-    const [precio, setPrecio] = useState<string>('');
-    const [cuposPorDia, setCuposPorDia] = useState<string>('');
+    // Mismo mapeo que ActivityCard: traduce el valor fijo del enum (almacenado en BD) a la
+    // etiqueta visible en el idioma activo, sin alterar el value que se guarda.
+    const categoryLabel = (c: Category): string => {
+        switch (c) {
+            case Category.CINE: return LL.categoryCine();
+            case Category.TEATRO: return LL.categoryTeatro();
+            case Category.PARQUE: return LL.categoryParque();
+            case Category.MUSEO: return LL.categoryMuseo();
+            case Category.RESTAURANTE: return LL.categoryRestaurante();
+            case Category.MIRADORES: return LL.categoryMiradores();
+            default: return c;
+        }
+    };
+    // Fecha de hoy (YYYY-MM-DD) en zona local, para impedir agendar panoramas en fechas pasadas
+    const todayStr = useMemo(() => {
+        const d = new Date();
+        const off = d.getTimezoneOffset();
+        return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
+    }, []);
+    const [imageUrl, setImageUrl] = useState(activityToEdit?.imageUrl || '');
+    const [nombre, setNombre] = useState(activityToEdit?.name || '');
+    const [descripcion, setDescripcion] = useState(activityToEdit?.description || '');
+    const [categoria, setCategoria] = useState<Category>((activityToEdit?.category as Category) || Category.CINE);
+    const [direccion, setDireccion] = useState(activityToEdit?.address || '');
+    const [tagClima, setTagClima] = useState<'All' | 'Sunny'>(activityToEdit?.tag_clima || 'All');
+    const [precio, setPrecio] = useState<string>(activityToEdit?.price != null ? String(activityToEdit.price) : '');
+    const [cuposPorDia, setCuposPorDia] = useState<string>(activityToEdit?.cupos_por_dia != null ? String(activityToEdit.cupos_por_dia) : (activityToEdit?.cuposPorDia != null ? String(activityToEdit.cuposPorDia) : ''));
     const [dias, setDias] = useState<DiaHorario[]>([
         { fecha: '', franjas: [{ horaInicio: '', horaFin: '' }] },
     ]);
@@ -44,11 +69,38 @@ export function CreatePanoramaForm() {
     const [saving, setSaving] = useState(false);
     const [resultMsg, setResultMsg] = useState<{ ok: boolean; text: string } | null>(null);
     const { showToast } = useToast();
-    const [placeId, setPlaceId] = useState<string | null>(null);
+    const [placeId, setPlaceId] = useState<string | null>(activityToEdit?.placeId || null);
     const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
     const [suggestions, setSuggestions] = useState<{ placeId: string; description: string }[]>([]);
     const [showSug, setShowSug] = useState(false);
     const acTimer = useRef<any>(null);
+
+    React.useEffect(() => {
+        if (!activityToEdit) return;
+        const fetchDetails = async () => {
+            try {
+                const res = await fetch(`/api/admin/activities/${activityToEdit.id}`, { credentials: 'include' });
+                if (res.ok) {
+                    const data = await res.json();
+                    setImageUrl(data.imageUrl || '');
+                    setNombre(data.name || '');
+                    setDescripcion(data.description || '');
+                    setCategoria((data.category as Category) || Category.CINE);
+                    setDireccion(data.address || '');
+                    setTagClima(data.tag_clima || 'All');
+                    setPrecio(data.price != null ? String(data.price) : '');
+                    setCuposPorDia(data.cupos_por_dia != null ? String(data.cupos_por_dia) : '');
+                    setPlaceId(data.placeId || null);
+                    if (data.schedules && data.schedules.length > 0) {
+                        setDias(data.schedules);
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching activity schedules for edit:", err);
+            }
+        };
+        fetchDetails();
+    }, [activityToEdit]);
 
     const addDia = () =>
         setDias((d) => [...d, { fecha: '', franjas: [{ horaInicio: '', horaFin: '' }] }]);
@@ -111,21 +163,26 @@ export function CreatePanoramaForm() {
 
         // Validacion de inputs
         const errores: string[] = [];
-        if (!nombre.trim()) errores.push('El nombre es obligatorio.');
-        if (precio !== '' && Number(precio) < 0) errores.push('El precio no puede ser negativo.');
-        if (cuposPorDia !== '' && Number(cuposPorDia) < 0) errores.push('Los cupos no pueden ser negativos.');
+        if (!nombre.trim()) errores.push(LL.adminFormErrorNameRequired());
+        if (precio !== '' && Number(precio) < 0) errores.push(LL.adminFormErrorPriceNegative());
+        if (cuposPorDia !== '' && Number(cuposPorDia) < 0) errores.push(LL.adminFormErrorSlotsNegative());
         for (const d of dias) {
             if (!d.fecha) continue;
+            if (d.fecha < todayStr) {
+                errores.push(LL.adminFormErrorPastDate({ fecha: d.fecha }));
+                break;
+            }
             for (const f of d.franjas) {
                 if (f.horaInicio && f.horaFin && f.horaInicio >= f.horaFin) {
-                    errores.push(`En la fecha ${d.fecha}, la hora de inicio debe ser anterior a la de fin.`);
+                    errores.push(LL.adminFormErrorTimeRangeInvalid({ fecha: d.fecha }));
                     break;
                 }
             }
         }
         if (errores.length > 0) {
-            showToast(errores[0], 'error');
-            setResultMsg({ ok: false, text: errores[0] });
+            const firstError = errores[0] ?? 'Error';
+            showToast(firstError, 'error');
+            setResultMsg({ ok: false, text: firstError });
             return;
         }
         // Objeto que (en la próxima etapa) se enviará a POST /api/admin/activities
@@ -152,21 +209,28 @@ export function CreatePanoramaForm() {
         setSaving(true);
         setResultMsg(null);
         try {
-            const res = await fetch('/api/admin/activities', {
-                method: 'POST',
+            const url = activityToEdit
+                ? `/api/admin/activities/${activityToEdit.id}`
+                : '/api/admin/activities';
+            const method = activityToEdit ? 'PATCH' : 'POST';
+
+            const res = await fetch(url, {
+                method,
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
                 body: JSON.stringify(payload),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data?.error || LL.adminFormErrorCreating());
+            if (!res.ok) throw new Error(data?.error || (activityToEdit ? "Error al actualizar el panorama" : LL.adminFormErrorCreating()));
             
-            const okText = data.geocoded
-                ? LL.adminFormSuccessGeocoded()
-                : LL.adminFormSuccessNotGeocoded();
-                
-            setResultMsg({ ok: true, text: okText });
+            const okText = activityToEdit
+                ? (data.geocoded ? "Panorama actualizado y guardado. Dirección geocodificada." : "Panorama actualizado y guardado (la dirección no se pudo geocodificar).")
+                : (data.geocoded ? LL.adminFormSuccessGeocoded() : LL.adminFormSuccessNotGeocoded());
             showToast(okText, 'success');
+            setResultMsg({ ok: true, text: okText });
+            if (activityToEdit) {
+                onSuccess?.();
+            }
         } catch (err: any) {
             const errText = err?.message || LL.adminFormSaveErrorGeneric();
             setResultMsg({ ok: false, text: errText });
@@ -238,7 +302,7 @@ export function CreatePanoramaForm() {
                                 className={inputCls + ' cursor-pointer'}
                             >
                                 {Object.values(Category).map((c) => (
-                                    <option key={c} value={c}>{c}</option>
+                                    <option key={c} value={c}>{categoryLabel(c)}</option>
                                 ))}
                             </select>
                         </div>
@@ -290,7 +354,7 @@ export function CreatePanoramaForm() {
                         )}
                     </div>
                     {coords && (
-                        <p className="text-[11px] text-emerald-600 font-bold mt-1">✓ Ubicacion seleccionada de Google (coordenadas capturadas).</p>
+                        <p className="text-[11px] text-emerald-600 font-bold mt-1">{LL.adminFormLocationSelected()}</p>
                     )}
                     <div className="mt-3 flex items-start gap-2 bg-blue-50/60 border border-blue-100 rounded-xl p-3">
                         <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
@@ -333,7 +397,7 @@ export function CreatePanoramaForm() {
                                 <div className="grid grid-cols-12 gap-2 items-end mb-3">
                                     <div className="col-span-11">
                                         <label className={labelCls}>{LL.adminFormDateLabel()}</label>
-                                        <input type="date" value={dia.fecha}
+                                        <input type="date" value={dia.fecha} min={todayStr}
                                             onChange={(e) => updateFecha(di, e.target.value)}
                                             className={inputCls} />
                                     </div>
@@ -413,14 +477,25 @@ export function CreatePanoramaForm() {
                 </section>
 
                 {/* Submit */}
-                <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-3 flex-wrap">
                     <button
                         type="submit"
                         disabled={saving}
                         className="inline-flex items-center gap-2 bg-black text-white text-sm font-bold px-6 py-3 rounded-2xl hover:bg-gray-800 transition shadow-sm disabled:opacity-50"
                     >
-                        <Plus className="w-4 h-4" /> {saving ? LL.adminFormSavingCta() : LL.adminFormSubmitCta()}
+                        {!activityToEdit && <Plus className="w-4 h-4" />}
+                        {saving ? LL.adminFormSavingCta() : (activityToEdit ? "Guardar cambios" : LL.adminFormSubmitCta())}
                     </button>
+                    {activityToEdit && onCancel && (
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            disabled={saving}
+                            className="bg-gray-100 text-gray-700 text-sm font-bold px-6 py-3 rounded-2xl hover:bg-gray-200 transition disabled:opacity-50"
+                        >
+                            Cancelar
+                        </button>
+                    )}
                     {resultMsg && (
                         <span className={`text-xs font-bold ${resultMsg.ok ? 'text-emerald-600' : 'text-red-500'}`}>
                             {resultMsg.text}

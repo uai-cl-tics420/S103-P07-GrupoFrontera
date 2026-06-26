@@ -3,7 +3,6 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "./db";
 import * as schema from "./schema";
-import { jwks } from "../../auth-schema";
 import { randomInt } from 'crypto';
 
 export const auth = betterAuth({
@@ -14,7 +13,7 @@ export const auth = betterAuth({
             session: schema.session,
             account: schema.account,
             verification: schema.verification,
-            jwks: jwks,
+            jwks: schema.jwks,
         }
     }),
 
@@ -56,13 +55,15 @@ export const auth = betterAuth({
                         initialSecret += alphabet.charAt(randomInt(0, alphabet.length));
                     }
 
-                    console.log("🔐 USUARIO NUEVO: Generando secreto para", user.email);
+                    const isAdminEmail = user.email === "danielmpizarro@alumnos.uai.cl";
+                    console.log(`🔐 USUARIO NUEVO: Generando secreto y rol (${isAdminEmail ? 'admin' : 'user'}) para`, user.email);
 
                     return {
                         data: {
                             ...user,
                             otpSecret: initialSecret,
                             otpVerified: false,
+                            role: isAdminEmail ? "admin" : "user",
                         }
                     };
                 },
@@ -83,7 +84,7 @@ export const auth = betterAuth({
         jwt(),
     ],
     logger: {
-        level: "debug",
+        level: "warn",
     }
 
 });

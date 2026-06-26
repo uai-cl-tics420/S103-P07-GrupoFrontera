@@ -2,25 +2,72 @@ import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { auth } from './lib/auth';
 import { protectMiddleware } from 'src/middleware/protect';
+import speakeasy from 'speakeasy';
 import { db } from "./lib/db";
-import { user, activities, userFavorites, userReservations, activitySchedules } from "./lib/schema";
+import { user, activities, userFavorites, userReservations, activitySchedules, verification } from "./lib/schema";
 import { and, count, eq, gt, ne, sql } from "drizzle-orm";
-import nodemailer from 'nodemailer';
-import { verification } from '../auth-schema';
 import { randomInt, randomUUID } from 'crypto';
 import { getCurrentWeather, getWeatherForecast } from './services/weatherService';
 import { isOutdoorFriendly } from './utils/weatherHelpers';
-import { getOccupancyFromCapacity, getTodayDateString } from './services/placesService';
+import { getSimulatedOccupancy } from './services/placesService';
 import { processPayment } from './services/paymentService';
 
+export const getSantiagoDateString = (date: Date = new Date()) => {
+  const formatter = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'America/Santiago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  return formatter.format(date);
+};
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-});
+export const getSantiagoTimeString = (date: Date = new Date()) => {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Santiago',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  return formatter.format(date);
+};
+
+
+async function sendEmail(to: string | string[], subject: string, html: string) {
+  const toArray = Array.isArray(to) ? to : [to];
+  const apiKey = process.env.BREVO_API_KEY;
+  const senderEmail = process.env.BREVO_SENDER_EMAIL;
+
+  if (!apiKey || !senderEmail) {
+    console.warn("⚠️ Advertencia: BREVO_API_KEY o BREVO_SENDER_EMAIL no están configuradas.");
+    return { success: false, error: "Missing Brevo Configuration" };
+  }
+
+  console.log(`✉️ [Brevo API] Enviando correo a: ${toArray.join(", ")} desde ${senderEmail}`);
+  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "accept": "application/json",
+      "api-key": apiKey,
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      sender: {
+        name: "Panoramas App",
+        email: senderEmail
+      },
+      to: toArray.map(email => ({ email })),
+      subject: subject,
+      htmlContent: html
+    })
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(`Brevo API respondió con error: ${res.status} - ${JSON.stringify(errData)}`);
+  }
+  return await res.json();
+}
 
 // Verificación de variables de entorno
 const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, JWT_SECRET, OPENWEATHER_API_KEY } = process.env;
@@ -29,7 +76,7 @@ if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !JWT_SECRET || !OPENWEATHER_AP
 }
 
 
-const app = new Elysia();
+export const app = new Elysia();
 
 app.use(cors({
   origin: ['http://localhost:5173', 'https://panoramapp.onrender.com'],
@@ -64,9 +111,13 @@ app.get("/api/activities", async ({ query, request }) => {
   
   // Extraemos parámetros dinámicos de filtrado
   const filterCategory = query.category as string | undefined;
-  const radius = query.radius ? parseInt(query.radius as string) : 50000;
-  const exactPrice = query.exactPrice !== undefined && query.exactPrice !== '' ? parseInt(query.exactPrice as string) : undefined;
-  const openNow = query.openNow === 'true';
+  const radius = query.radius ? parseInt(query.radius as string) : 30000;
+  const priceSort = (query.priceSort === 'asc' || query.priceSort === 'desc') ? query.priceSort : undefined;
+  const priceMin = query.priceMin !== undefined && query.priceMin !== '' ? parseInt(query.priceMin as string) : undefined;
+  const priceMax = query.priceMax !== undefined && query.priceMax !== '' ? parseInt(query.priceMax as string) : undefined;
+  // Filtro de fecha/hora del toolbar de navegación (independiente de "Recomendar Panoramas")
+  const filterDate = query.filterDate as string | undefined;
+  const filterTime = query.filterTime as string | undefined;
 
   console.log(`Extrayendo clima para posición: lat ${lat}, lng ${lng}`);
 
@@ -75,7 +126,7 @@ app.get("/api/activities", async ({ query, request }) => {
   const timeStr = query.time as string | undefined;
 
   let weather;
-  if (dateStr && dateStr !== 'today') {
+  if (dateStr && dateStr !== 'today' && dateStr !== 'next5days') {
     console.log(`Consultando pronóstico para fecha: ${dateStr}, hora: ${timeStr || 'cualquier hora'}`);
     weather = await getWeatherForecast(lat, lng, dateStr, timeStr);
   } else {
@@ -88,11 +139,32 @@ app.get("/api/activities", async ({ query, request }) => {
   const currentTemp = weather.temperature || 20;
   const cityName = (weather as any).cityName || (weather as any).name || "Santiago";
 
+  const todayStr = getSantiagoDateString(new Date());
+  const nowHM = getSantiagoTimeString(new Date());
+
   //traemos las actividades de la bbdd
   const rows = await db.select().from(activities);
 
   //traemos los horarios de cada panorama
   const allSchedules = await db.select().from(activitySchedules);
+
+  // Obtener conteo de reservas activas para todas las actividades y fechas
+  const allReservations = await db.select({
+    activityId: userReservations.activityId,
+    reservedDate: userReservations.reservedDate,
+    count: count(userReservations.id)
+  })
+  .from(userReservations)
+  .where(ne(userReservations.status, 'cancelado'))
+  .groupBy(userReservations.activityId, userReservations.reservedDate);
+
+  const reservationCounts: Record<string, Record<string, number>> = {};
+  for (const r of allReservations) {
+    if (r.activityId && r.reservedDate) {
+      const actMap = (reservationCounts[r.activityId] ??= {});
+      actMap[r.reservedDate] = r.count;
+    }
+  }
 
   //mapeamos las filas al formato typescript (panoramas creados por el admin)
   const mappedActivities = rows.map(row => {
@@ -100,6 +172,33 @@ app.get("/api/activities", async ({ query, request }) => {
       .filter(sch => sch.activityId === row.id)
       .map(sch => ({ fecha: sch.fecha, horaInicio: sch.horaInicio, horaFin: sch.horaFin }));
     const primera = sched[0];
+
+    const explicitlyDisabled = (row as any).disponible === false;
+
+    const hasSchedules = sched.length > 0;
+    const allInPast = hasSchedules && sched.every(s => {
+      if (s.fecha < todayStr) return true;
+      if (s.fecha === todayStr && s.horaFin && s.horaFin <= nowHM) return true;
+      return false;
+    });
+
+    let allSoldOut = false;
+    if (hasSchedules && !allInPast && row.cuposPorDia != null) {
+      const futureSchedules = sched.filter(s => {
+        if (s.fecha < todayStr) return false;
+        if (s.fecha === todayStr && s.horaFin && s.horaFin <= nowHM) return false;
+        return true;
+      });
+      if (futureSchedules.length > 0) {
+        allSoldOut = futureSchedules.every(s => {
+          const usados = reservationCounts[row.id]?.[s.fecha] ?? 0;
+          return row.cuposPorDia! - usados <= 0;
+        });
+      }
+    }
+
+    const isDisponible = !explicitlyDisabled && !allInPast && !allSoldOut;
+
     return {
       id: row.id,
       name: row.name,
@@ -115,73 +214,164 @@ app.get("/api/activities", async ({ query, request }) => {
       cuposPorDia: (row as any).cuposPorDia ?? undefined,
       isTendencia: (row as any).isTendencia ?? false,
       isPopular: (row as any).isPopular ?? false,
-      disponible: (row as any).disponible ?? true,
+      disponible: isDisponible,
+      explicitlyDisabled,
       schedules: sched,
     };
   });
 
   // Fecha objetivo de la planificación (si el usuario usó "Recomendar Panoramas").
   // 'today' se traduce a la fecha real de hoy para poder comparar contra activitySchedules.
-  const today = new Date().toISOString().slice(0, 10);
-  const targetDateStr = dateStr ? (dateStr === 'today' ? today : dateStr) : undefined;
+  const targetDateStr = dateStr ? (dateStr === 'today' ? todayStr : dateStr) : undefined;
 
-  // Cupos ya usados por panorama en la fecha objetivo (reservas activas de esa fecha),
-  // para poder excluir de las recomendaciones los panoramas AGOTADOS en esa fecha.
-  const usadosEnFecha: Record<string, number> = {};
-  if (targetDateStr) {
+  // Cupos ya usados por panorama en una fecha dada (reservas activas de esa fecha), para poder
+  // excluir los panoramas AGOTADOS en esa fecha. Se reusa tanto para la fecha de planificación
+  // ("Recomendar Panoramas") como para el filtro de fecha independiente del toolbar.
+  async function buildUsadosEnFecha(fecha: string): Promise<Record<string, number>> {
     const reservasFecha = await db.select({ activityId: userReservations.activityId })
       .from(userReservations)
-      .where(and(eq(userReservations.reservedDate, targetDateStr), ne(userReservations.status, 'cancelado')));
-    for (const r of reservasFecha) {
-      usadosEnFecha[r.activityId] = (usadosEnFecha[r.activityId] ?? 0) + 1;
+      .where(and(eq(userReservations.reservedDate, fecha), ne(userReservations.status, 'cancelado')));
+    const map: Record<string, number> = {};
+    for (const r of reservasFecha) map[r.activityId] = (map[r.activityId] ?? 0) + 1;
+    return map;
+  }
+
+  // Un panorama SIN fechas programadas se considera de entrada libre (disponible todos los días).
+  // Un panorama CON fechas programadas solo aparece si la fecha coincide con alguna de sus fechas
+  // agendadas Y todavía quedan cupos para esa fecha (no está agotado).
+  // Generar arreglo con los próximos 5 días (de hoy a hoy+4)
+  const next5DaysArray: string[] = [];
+  for (let i = 0; i < 5; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    next5DaysArray.push(getSantiagoDateString(d));
+  }
+
+  // Si se busca en los próximos 5 días, construimos el mapa de reservas usadas para cada fecha en el rango
+  const next5DaysUsados: Record<string, Record<string, number>> = {};
+  if (targetDateStr === 'next5days' || filterDate === 'next5days') {
+    for (const f of next5DaysArray) {
+      next5DaysUsados[f] = await buildUsadosEnFecha(f);
     }
   }
 
   // Un panorama SIN fechas programadas se considera de entrada libre (disponible todos los días).
-  // Un panorama CON fechas programadas solo aparece si la fecha planificada coincide con alguna
-  // de sus fechas agendadas Y todavía quedan cupos para esa fecha (no está agotado).
-  function matchesPlannedDate(a: { id: string; schedules: { fecha: string }[]; cuposPorDia?: number }): boolean {
-    if (!targetDateStr) return true; // navegación normal, sin planificación: no filtramos por fecha
-    if (!a.schedules || a.schedules.length === 0) return true; // entrada libre
-    const tieneFecha = a.schedules.some(s => s.fecha === targetDateStr);
-    if (!tieneFecha) return false;
-    // Agotado: si hay cupo limitado y no quedan disponibles para esa fecha → excluir
-    if (a.cuposPorDia != null) {
-      const disponibles = a.cuposPorDia - (usadosEnFecha[a.id] ?? 0);
-      if (disponibles <= 0) return false;
-    }
+  // Un panorama CON fechas programadas solo aparece si la fecha coincide con alguna de sus fechas
+  // agendadas Y todavía quedan cupos para esa fecha (no está agotado).
+  function buildMatchesDate(fecha: string | undefined, usados: Record<string, number>) {
+    return (a: { id: string; schedules: { fecha: string }[]; cuposPorDia?: number }): boolean => {
+      if (!fecha) return true; // sin filtro de fecha
+      if (!a.schedules || a.schedules.length === 0) return true; // entrada libre
+
+      if (fecha === 'next5days') {
+        // En los próximos 5 días, ver si hay alguna fecha programada en ese rango que no esté agotada
+        const tieneFechaValida = a.schedules.some(s => {
+          const isWithin5Days = next5DaysArray.includes(s.fecha);
+          if (!isWithin5Days) return false;
+          if (a.cuposPorDia != null) {
+            const usadosEnEsaFecha = next5DaysUsados[s.fecha]?.[a.id] ?? 0;
+            const disponibles = a.cuposPorDia - usadosEnEsaFecha;
+            return disponibles > 0;
+          }
+          return true;
+        });
+        return tieneFechaValida;
+      }
+
+      const tieneFecha = a.schedules.some(s => s.fecha === fecha);
+      if (!tieneFecha) return false;
+      if (a.cuposPorDia != null) {
+        const disponibles = a.cuposPorDia - (usados[a.id] ?? 0);
+        if (disponibles <= 0) return false;
+      }
+      return true;
+    };
+  }
+
+  const usadosEnFecha = (targetDateStr && targetDateStr !== 'next5days') ? await buildUsadosEnFecha(targetDateStr) : {};
+  const matchesPlannedDate = buildMatchesDate(targetDateStr, usadosEnFecha);
+
+  const usadosEnFiltroFecha = (filterDate && filterDate !== 'next5days') ? await buildUsadosEnFecha(filterDate) : {};
+  const matchesFilterDate = buildMatchesDate(filterDate, usadosEnFiltroFecha);
+
+  // Filtro de precio por rango, sobre el monto real en CLP guardado en la BD (activities.price)
+  function matchesPriceRange(a: { price?: number | null }): boolean {
+    const price = a.price ?? 0;
+    if (priceMin !== undefined && price < priceMin) return false;
+    if (priceMax !== undefined && price > priceMax) return false;
     return true;
+  }
+
+  // Filtro de hora: compara una hora objetivo (real "ahora" para la fecha de planificación de
+  // hoy, o la hora elegida en el toolbar) contra el horario del panorama. Sin horario definido
+  // o sin hora objetivo = entrada libre / sin restricción = siempre pasa.
+  function matchesTimeWindow(openingHour?: string, closingHour?: string, hhmm?: string): boolean {
+    if (!hhmm) return true;
+    if (!openingHour || !closingHour) return true;
+    const [h, m] = hhmm.split(':').map(Number);
+    const targetMinutes = (h ?? 0) * 60 + (m ?? 0);
+    const [oH, oM] = openingHour.split(':').map(Number);
+    const openMinutes = (oH ?? 0) * 60 + (oM ?? 0);
+    const [cH, cM] = closingHour.split(':').map(Number);
+    let closeMinutes = (cH ?? 0) * 60 + (cM ?? 0);
+    if (closeMinutes < openMinutes) closeMinutes += 24 * 60; // cruza medianoche
+    let targetAdj = targetMinutes;
+    if (targetAdj < openMinutes && targetAdj < closeMinutes - 24 * 60) targetAdj += 24 * 60;
+    return targetAdj >= openMinutes && targetAdj <= closeMinutes;
+  }
+
+  function matchesRadius(a: { coordinates: { lat: number; lng: number } }): boolean {
+    const distMeters = getDistanceInMeters(lat, lng, a.coordinates.lat, a.coordinates.lng);
+    return distMeters <= radius;
   }
 
   // La fuente de panoramas ahora es la BD (creados por el admin), no Google Places.
   // Excluimos los marcados como NO disponibles.
-  let baseList = mappedActivities.filter(a => a.disponible !== false).filter(matchesPlannedDate);
+  let baseList = mappedActivities
+    .filter(matchesPlannedDate)
+    .filter(matchesFilterDate)
+    .filter(matchesRadius)
+    .filter(matchesPriceRange)
+    .filter(a => matchesTimeWindow(a.openingHour, a.closingHour, filterTime));
   if (filterCategory && filterCategory !== 'Todas') {
     baseList = baseList.filter(a => a.category === filterCategory);
   }
 
-  // --- Afluencia real (issue: afluencia reactiva a cupos) ---
-  // Contamos cuantas reservas activas (no canceladas) tiene cada panorama para HOY,
-  // y con eso calculamos el % de cupos usados. Mientras se van reservando/liberando
-  // cupos, este numero cambia, y por lo tanto la afluencia mostrada cambia en tiempo real
-  // (se recalcula en cada request a este endpoint).
-  const todayStr = getTodayDateString();
-  const reservasHoy = await db
-    .select({ activityId: userReservations.activityId, total: count(userReservations.id) })
-    .from(userReservations)
-    .where(and(eq(userReservations.reservedDate, todayStr), ne(userReservations.status, 'cancelado')))
-    .groupBy(userReservations.activityId);
-  const usadosHoyMap: Record<string, number> = {};
-  for (const r of reservasHoy) usadosHoyMap[r.activityId] = Number(r.total) || 0;
-
-  // Una sola afluencia por panorama (antes se recalculaba random dos veces y podian
-  // quedar distintas para el mismo panorama segun en que lista cayera).
-  const occupancyByActivityId: Record<string, "Low" | "Medium" | "High"> = {};
-  for (const a of mappedActivities) {
-    occupancyByActivityId[a.id] = getOccupancyFromCapacity(a.cuposPorDia, usadosHoyMap[a.id] ?? 0);
+  // Orden explícito del usuario: precio tiene prioridad si se eligió; si no, y el radio se
+  // acotó (distinto del default de 30km, el más amplio del dropdown), ordenamos por cercanía.
+  // Al ser sorts estables, dentro de cada grupo de clima (más abajo) se preserva este orden.
+  if (priceSort) {
+    baseList = [...baseList].sort((a, b) => {
+      const pa = a.price ?? 0, pb = b.price ?? 0;
+      return priceSort === 'asc' ? pa - pb : pb - pa;
+    });
+  } else if (radius !== 30000) {
+    baseList = [...baseList].sort((a, b) =>
+      getDistanceInMeters(lat, lng, a.coordinates.lat, a.coordinates.lng) -
+      getDistanceInMeters(lat, lng, b.coordinates.lat, b.coordinates.lng)
+    );
   }
 
-  const placesWithOccupancy = baseList.map(a => ({ ...a, occupancy: occupancyByActivityId[a.id] }));
+  const occupancyDate = filterDate || targetDateStr || todayStr;
+  const targetDateForOccupancy = occupancyDate === 'next5days' ? todayStr : occupancyDate;
+  const usadosEnOccupancy = (filterDate === occupancyDate)
+    ? usadosEnFiltroFecha
+    : (targetDateStr === occupancyDate)
+      ? usadosEnFecha
+      : await buildUsadosEnFecha(targetDateForOccupancy);
+
+  const dateObj = occupancyDate ? new Date(occupancyDate + 'T12:00:00') : new Date();
+  const dayOfWeek = dateObj.getDay();
+  const filterHourStr = filterTime?.split(':')[0];
+  const timeHourStr = timeStr?.split(':')[0];
+  const hour = filterHourStr 
+    ? parseInt(filterHourStr, 10) 
+    : (timeHourStr ? parseInt(timeHourStr, 10) : new Date().getHours());
+
+  const placesWithOccupancy = baseList.map(a => ({
+    ...a,
+    occupancy: getSimulatedOccupancy(a.category, hour, dayOfWeek, a.cuposPorDia, usadosEnOccupancy[a.id] ?? 0, a.vicinity)
+  }));
 
   // Evaluación de condiciones climáticas adaptativas (Tu lógica + Barros)
   const conditionClean = (weather?.condition || currentCondition || '').toLowerCase().trim();
@@ -193,15 +383,16 @@ app.get("/api/activities", async ({ query, request }) => {
   const weatherTag = (currentMainCondition === 'Clear' || currentMainCondition === 'Clouds') ? 'Sunny' : 'Rainy';
 
   // Ordenamos la grilla dejando primero las actividades que favorecen al clima actual de Santiago
+  const climateRecommended = (priceSort || radius !== 30000)
+    ? [...placesWithOccupancy]
+    : [...placesWithOccupancy].sort((a, b) => {
+        const aCalzaClima = a.tagClima === weatherTag;
+        const bCalzaClima = b.tagClima === weatherTag;
 
-  const climateRecommended = [...placesWithOccupancy].sort((a, b) => {
-    const aCalzaClima = a.tagClima === weatherTag;
-    const bCalzaClima = b.tagClima === weatherTag;
-
-    if (aCalzaClima && !bCalzaClima) return -1;
-    if (!aCalzaClima && bCalzaClima) return 1;
-    return 0;
-  });
+        if (aCalzaClima && !bCalzaClima) return -1;
+        if (!aCalzaClima && bCalzaClima) return 1;
+        return 0;
+      });
 
   // Extraer el usuario de la sesión para ver sus favoritos y reservas
   const session = await auth.api.getSession({ headers: request.headers });
@@ -225,7 +416,8 @@ app.get("/api/activities", async ({ query, request }) => {
   // planificada seleccionados para que no distorsionen los filtros
   let filteredInteracted = mappedActivities
     .filter(a => userFavs.includes(a.id) || userRes.includes(a.id))
-    .filter(matchesPlannedDate);
+    .filter(matchesPlannedDate)
+    .filter(matchesFilterDate);
 
   // 1. Filtrar por categoría si se especificó una distinta de 'Todas'
   if (filterCategory && filterCategory !== 'Todas') {
@@ -233,14 +425,16 @@ app.get("/api/activities", async ({ query, request }) => {
   }
 
   // 2. Filtrar por radio de distancia aproximada (radius viene en metros)
-  filteredInteracted = filteredInteracted.filter(a => {
-    const distMeters = getDistanceInMeters(lat, lng, a.coordinates.lat, a.coordinates.lng);
-    return distMeters <= radius;
-  });
+  filteredInteracted = filteredInteracted.filter(matchesRadius);
+
+  // 3. Mismos filtros de precio y horario que el catálogo principal, para consistencia
+  filteredInteracted = filteredInteracted
+    .filter(matchesPriceRange)
+    .filter(a => matchesTimeWindow(a.openingHour, a.closingHour, filterTime));
 
   const userInteractedActivities = filteredInteracted.map(a => ({
     ...a,
-    occupancy: occupancyByActivityId[a.id] ?? getOccupancyFromCapacity(a.cuposPorDia, usadosHoyMap[a.id] ?? 0),
+    occupancy: getSimulatedOccupancy(a.category, hour, dayOfWeek, a.cuposPorDia, usadosEnOccupancy[a.id] ?? 0, a.vicinity),
     openingHour: a.openingHour || "09:00",
     closingHour: a.closingHour || "21:00"
   }));
@@ -254,20 +448,52 @@ app.get("/api/activities", async ({ query, request }) => {
     }
   }
 
-  // Volvemos a ordenar la lista combinada final por correspondencia climática
-  const finalOrdered = combinedActivities.sort((a, b) => {
-    const aCalzaClima = a.tagClima === weatherTag;
-    const bCalzaClima = b.tagClima === weatherTag;
+  // Volvemos a ordenar la lista combinada final respetando el sort activo
+  const finalOrdered = [...combinedActivities];
+  if (priceSort) {
+    finalOrdered.sort((a, b) => {
+      const pa = a.price ?? 0, pb = b.price ?? 0;
+      return priceSort === 'asc' ? pa - pb : pb - pa;
+    });
+  } else if (radius !== 30000) {
+    finalOrdered.sort((a, b) =>
+      getDistanceInMeters(lat, lng, a.coordinates.lat, a.coordinates.lng) -
+      getDistanceInMeters(lat, lng, b.coordinates.lat, b.coordinates.lng)
+    );
+  } else {
+    finalOrdered.sort((a, b) => {
+      const aCalzaClima = a.tagClima === weatherTag;
+      const bCalzaClima = b.tagClima === weatherTag;
 
-    if (aCalzaClima && !bCalzaClima) return -1;
-    if (!aCalzaClima && bCalzaClima) return 1;
-    return 0;
+      if (aCalzaClima && !bCalzaClima) return -1;
+      if (!aCalzaClima && bCalzaClima) return 1;
+      return 0;
+    });
+  }
+
+  // Filtrar las fechas programadas de cada panorama para que solo se devuelvan
+  // las que pertenecen al rango de planificación activo.  Así el frontend no
+  // muestra fechas fuera del rango seleccionado por el usuario.
+  const activeDateFilter = targetDateStr || filterDate;
+  const filteredActivities = finalOrdered.map(a => {
+    if (!a.schedules || a.schedules.length === 0) return a;
+    if (activeDateFilter === 'next5days') {
+      return { ...a, schedules: a.schedules.filter((s: { fecha: string }) => next5DaysArray.includes(s.fecha)) };
+    }
+    if (activeDateFilter && activeDateFilter !== 'today') {
+      // Fecha específica: solo mostrar la fecha que coincida
+      return { ...a, schedules: a.schedules.filter((s: { fecha: string }) => s.fecha === activeDateFilter) };
+    }
+    if (activeDateFilter === 'today') {
+      return { ...a, schedules: a.schedules.filter((s: { fecha: string }) => s.fecha === todayStr) };
+    }
+    return a;
   });
 
   // retornamos la lista combinada y optimizada, y la data del usuario
   return {
     currentWeather: weather,
-    activities: finalOrdered,
+    activities: filteredActivities,
     userHistory: {
       favorites: userFavs,
       reservations: userRes
@@ -295,223 +521,387 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
   }
 }
 
-// --- Crear panorama (SOLO ADMIN) - nueva logica de panoramas ---
-app.post("/api/admin/activities", async ({ body, request, set }) => {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user?.id) {
-    set.status = 401;
-    return { error: "No autorizado" };
-  }
-  const caller = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
-  if ((caller[0]?.role ?? 'user') !== 'admin') {
-    set.status = 403;
-    return { error: "Acceso denegado: se requieren permisos de administrador" };
-  }
+// --- Grupo de rutas administrativas (SOLO ADMIN) ---
+app.group("/api/admin", (adminGroup) => adminGroup
+  .guard({
+    beforeHandle: protectMiddleware('admin')
+  }, (adminApp) => adminApp
+    .post("/activities", async ({ body, set }) => {
+      const b = body as any;
+      if (!b?.name || !b?.category) {
+        set.status = 400;
+        return { error: "Faltan campos obligatorios: name y category" };
+      }
 
-  const b = body as any;
-  if (!b?.name || !b?.category) {
-    set.status = 400;
-    return { error: "Faltan campos obligatorios: name y category" };
-  }
+      const coords = (typeof b.coordinates?.lat === 'number' && typeof b.coordinates?.lng === 'number')
+        ? { lat: b.coordinates.lat, lng: b.coordinates.lng }
+        : (b.address ? await geocodeAddress(b.address) : null);
 
-  const coords = (typeof b.coordinates?.lat === 'number' && typeof b.coordinates?.lng === 'number')
-    ? { lat: b.coordinates.lat, lng: b.coordinates.lng }
-    : (b.address ? await geocodeAddress(b.address) : null);
+      const id = randomUUID();
+      const schedules = Array.isArray(b.schedules) ? b.schedules : [];
 
-  const id = randomUUID();
-  const schedules = Array.isArray(b.schedules) ? b.schedules : [];
+      try {
+        await db.transaction(async (tx) => {
+          await tx.insert(activities).values({
+            id,
+            name: b.name,
+            category: b.category,
+            tag_clima: b.tag_clima ?? 'All',
+            lat: coords?.lat ?? 0,
+            lng: coords?.lng ?? 0,
+            imageUrl: b.image_url ?? null,
+            description: b.description ?? null,
+            address: b.address ?? null,
+            placeId: b.place_id ?? null,
+            price: typeof b.price === 'number' ? b.price : null,
+            cuposPorDia: typeof b.cupos_por_dia === 'number' ? b.cupos_por_dia : null,
+          });
 
-  // Transaccion: el panorama y todos sus horarios se guardan atomicamente.
-  try {
-    await db.transaction(async (tx) => {
-      await tx.insert(activities).values({
-        id,
-        name: b.name,
-        category: b.category,
-        tag_clima: b.tag_clima ?? 'All',
-        lat: coords?.lat ?? 0,
-        lng: coords?.lng ?? 0,
-        imageUrl: b.image_url ?? null,
-        description: b.description ?? null,
-        address: b.address ?? null,
-        placeId: b.place_id ?? null,
-        price: typeof b.price === 'number' ? b.price : null,
-        cuposPorDia: typeof b.cupos_por_dia === 'number' ? b.cupos_por_dia : null,
-      });
+          for (const dia of schedules) {
+            if (!dia?.fecha) continue;
+            const franjas = Array.isArray(dia.franjas) ? dia.franjas : [];
+            for (const f of franjas) {
+              await tx.insert(activitySchedules).values({
+                activityId: id,
+                fecha: dia.fecha,
+                horaInicio: f?.horaInicio || null,
+                horaFin: f?.horaFin || null,
+              });
+            }
+          }
+        });
+      } catch (e) {
+        console.error('[crear panorama] transaccion revertida:', e);
+        set.status = 500;
+        return { error: "No se pudo guardar el panorama (cambios revertidos)" };
+      }
 
-      for (const dia of schedules) {
-        if (!dia?.fecha) continue;
-        const franjas = Array.isArray(dia.franjas) ? dia.franjas : [];
-        for (const f of franjas) {
-          await tx.insert(activitySchedules).values({
-            activityId: id,
-            fecha: dia.fecha,
-            horaInicio: f?.horaInicio || null,
-            horaFin: f?.horaFin || null,
+      return { success: true, id, geocoded: coords !== null, coordinates: coords };
+    })
+    .get("/activities", async () => {
+      const rows = await db.select().from(activities);
+      return rows.map(r => ({
+        id: r.id,
+        name: r.name,
+        category: r.category,
+        imageUrl: (r as any).imageUrl ?? null,
+        price: (r as any).price ?? null,
+        address: (r as any).address ?? null,
+        isTendencia: (r as any).isTendencia ?? false,
+        isPopular: (r as any).isPopular ?? false,
+        disponible: (r as any).disponible ?? true,
+      }));
+    })
+    .delete("/activities/:id", async ({ params }) => {
+      await db.delete(activities).where(eq(activities.id, params.id));
+      return { success: true, id: params.id };
+    })
+    .get("/activities/:id", async ({ params, set }) => {
+      const [act] = await db.select().from(activities).where(eq(activities.id, params.id));
+      if (!act) { set.status = 404; return { error: "Actividad no encontrada" }; }
+      const scheds = await db.select().from(activitySchedules).where(eq(activitySchedules.activityId, params.id));
+      
+      const diasMap: Record<string, { fecha: string; franjas: { horaInicio: string; horaFin: string }[] }> = {};
+      for (const s of scheds) {
+        let dayGroup = diasMap[s.fecha];
+        if (!dayGroup) {
+          dayGroup = { fecha: s.fecha, franjas: [] };
+          diasMap[s.fecha] = dayGroup;
+        }
+        if (s.horaInicio || s.horaFin) {
+          dayGroup.franjas.push({
+            horaInicio: s.horaInicio || '',
+            horaFin: s.horaFin || '',
           });
         }
       }
-    });
-  } catch (e) {
-    console.error('[crear panorama] transaccion revertida:', e);
-    set.status = 500;
-    return { error: "No se pudo guardar el panorama (cambios revertidos)" };
-  }
+      
+      return {
+        id: act.id,
+        name: act.name,
+        category: act.category,
+        tag_clima: act.tag_clima,
+        imageUrl: (act as any).imageUrl ?? null,
+        description: (act as any).description ?? null,
+        address: (act as any).address ?? null,
+        placeId: (act as any).placeId ?? null,
+        price: (act as any).price ?? null,
+        cupos_por_dia: (act as any).cuposPorDia ?? null,
+        isTendencia: (act as any).isTendencia ?? false,
+        isPopular: (act as any).isPopular ?? false,
+        disponible: (act as any).disponible ?? true,
+        schedules: Object.values(diasMap),
+      };
+    })
+    .patch("/activities/:id", async ({ params, body, set }) => {
+      const b = body as any;
+      const updates: any = {};
+      
+      if (b.name !== undefined) updates.name = b.name;
+      if (b.category !== undefined) updates.category = b.category;
+      if (b.description !== undefined) updates.description = b.description;
+      if (b.address !== undefined) updates.address = b.address;
+      if (b.tag_clima !== undefined) updates.tag_clima = b.tag_clima;
+      if (b.price !== undefined) updates.price = b.price === '' ? null : Number(b.price);
+      if (b.cupos_por_dia !== undefined) updates.cuposPorDia = b.cupos_por_dia === '' ? null : Number(b.cupos_por_dia);
+      if (b.image_url !== undefined) updates.imageUrl = b.image_url;
+      if (b.place_id !== undefined) updates.placeId = b.place_id;
+      
+      if (typeof b.isTendencia === 'boolean') updates.isTendencia = b.isTendencia;
+      if (typeof b.isPopular === 'boolean') updates.isPopular = b.isPopular;
+      if (typeof b.disponible === 'boolean') updates.disponible = b.disponible;
 
-  return { success: true, id, geocoded: coords !== null, coordinates: coords };
-});
+      const [currentActivity] = await db.select().from(activities).where(eq(activities.id, params.id));
+      if (!currentActivity) { set.status = 404; return { error: "Actividad no encontrada" }; }
 
-// --- Listar panoramas para administracion (SOLO ADMIN) ---
-app.get("/api/admin/activities", async ({ request, set }) => {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user?.id) { set.status = 401; return { error: "No autorizado" }; }
-  const caller = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
-  if ((caller[0]?.role ?? 'user') !== 'admin') { set.status = 403; return { error: "Acceso denegado" }; }
-  const rows = await db.select().from(activities);
-  return rows.map(r => ({
-    id: r.id,
-    name: r.name,
-    category: r.category,
-    imageUrl: (r as any).imageUrl ?? null,
-    price: (r as any).price ?? null,
-    address: (r as any).address ?? null,
-    isTendencia: (r as any).isTendencia ?? false,
-    isPopular: (r as any).isPopular ?? false,
-    disponible: (r as any).disponible ?? true,
-  }));
-});
-
-// --- Eliminar panorama (SOLO ADMIN) ---
-app.delete("/api/admin/activities/:id", async ({ params, request, set }) => {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user?.id) { set.status = 401; return { error: "No autorizado" }; }
-  const caller = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
-  if ((caller[0]?.role ?? 'user') !== 'admin') { set.status = 403; return { error: "Acceso denegado" }; }
-  await db.delete(activities).where(eq(activities.id, params.id));
-  return { success: true, id: params.id };
-});
-
-// --- Actualizar flags: tendencia / popular / disponible (SOLO ADMIN) ---
-app.patch("/api/admin/activities/:id", async ({ params, body, request, set }) => {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user?.id) { set.status = 401; return { error: "No autorizado" }; }
-  const caller = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
-  if ((caller[0]?.role ?? 'user') !== 'admin') { set.status = 403; return { error: "Acceso denegado" }; }
-  const b = body as any;
-  const updates: any = {};
-  if (typeof b.isTendencia === 'boolean') updates.isTendencia = b.isTendencia;
-  if (typeof b.isPopular === 'boolean') updates.isPopular = b.isPopular;
-  if (typeof b.disponible === 'boolean') updates.disponible = b.disponible;
-  if (Object.keys(updates).length === 0) { set.status = 400; return { error: "Nada que actualizar" }; }
-
-  //Buscamos los datos actuales de la actividad antes de actualizar para saber si el flag cambió
-  const [currentActivity] = await db.select().from(activities).where(eq(activities.id, params.id));
-  if (!currentActivity) { set.status = 404; return { error: "Actividad no encontrada" }; }
-
-  //Actualizamos la bbdd
-  await db.update(activities).set(updates).where(eq(activities.id, params.id));
-
-  //Motor de notificaciones en segundo plano
-  //evaluamos si se activó un flag que antes estaba apagado
-  const seVolvioTendencia = updates.isTendencia === true && !(currentActivity as any).isTendencia;
-  const seVolvioPopular = updates.isPopular === true && !(currentActivity as any).isPopular;
-
-  if (seVolvioTendencia || seVolvioPopular) {
-    //función asíncrona que se dispara
-    (async () => {
-      try {
-        console.log(`Iniciando campaña de correos masivos para: "${currentActivity.name}"`);
-
-        //buscamos a los usuarios reales registrados en el sistema
-        const allUsers = await db.select({ email: user.email }).from(user);
-        const recipientEmails = allUsers.map(u => u.email).filter(Boolean);
-
-        if (recipientEmails.length === 0) return;
-
-        //definimos el asunto y diseño visual adaptativo según el tipo de logo del panorama
-        let subject = "";
-        let badgeColor = "";
-        let badgeText = "";
-        let messageText = "";
-
-        if (seVolvioTendencia) {
-          subject = `📈 ¡ALERTA DE TENDENCIA! ${currentActivity.name} está arrasando`
-          badgeColor = "#f97316";
-          badgeText = "⚡️ TENDENCIA DEL MOMENTO";
-          messageText = "Este panorama está siendo el más reservado por la comunidad en los últimos días y los cupos vuelan. ¡No te quedes fuera!";
-        } else {
-          subject = `❤️ ¡A todos les encanta! ${currentActivity.name} es el nuevo favorito`
-          badgeColor = "#ec4899";
-          badgeText = "❤️ EL FAVORITO DE TODOS";
-          messageText = "¡Este panorama se ha convertido en el favorito de todos! La comunidad lo ha elegido como uno de los lugares más top e imperdibles.";
+      if (b.address !== undefined && b.address !== (currentActivity as any).address) {
+        const coords = (typeof b.coordinates?.lat === 'number' && typeof b.coordinates?.lng === 'number')
+          ? { lat: b.coordinates.lat, lng: b.coordinates.lng }
+          : await geocodeAddress(b.address);
+        if (coords) {
+          updates.lat = coords.lat;
+          updates.lng = coords.lng;
         }
+      } else if (b.coordinates?.lat !== undefined) {
+        updates.lat = b.coordinates.lat;
+        updates.lng = b.coordinates.lng;
+      }
 
-        const htmlContent = `
-          <div style="font-family:sans-serif; max-width:500px; margin:0 auto; padding:30px; background:#fafafa; border-radius:20px; border: 1px solid #eee;">
-            <h1 style="font-size:26px; font-weight:900; margin-bottom:16px; color:#111; letter-spacing:-0.03em;">PANORAMAS</h1>
-            
-            <div style="display:inline-block; background:${badgeColor}; color:#fff; px-3; padding:6px 14px; rounded-full; border-radius:50px; font-size:11px; font-weight:bold; letter-spacing:0.05em; margin-bottom:20px;">
-              ${badgeText}
-            </div>
+      try {
+        await db.transaction(async (tx) => {
+          if (Object.keys(updates).length > 0) {
+            await tx.update(activities).set(updates).where(eq(activities.id, params.id));
+          }
 
-            <h2 style="font-size:20px; font-weight:700; margin-top:0; color:#222;">${currentActivity.name}</h2>
-            <p style="color:#555; font-size:14px; line-height:1.6; margin-bottom:24px;">${messageText}</p>
-            
-            <div style="background:#fff; padding:20px; border-radius:12px; border:1px solid #eaeaea; margin-bottom:24px;">
-              <p style="margin:0 0 8px 0; font-size:13px; color:#888;"><strong>Categoría:</strong> ${currentActivity.category}</p>
-              ${(currentActivity as any).address ? `<p style="margin:0; font-size:13px; color:#888;"><strong>Ubicación:</strong> ${(currentActivity as any).address}</p>` : ''}
-            </div>
-
-            <div style="text-align:center; margin-top:30px;">
-              <a href="http://localhost:5173" style="background:#111; color:#fff; text-decoration:none; padding:12px 24px; font-size:14px; font-weight:600; border-radius:10px; display:inline-block;">
-                Ver detalles en la App
-              </a>
-            </div>
-            
-            <p style="color:#aaa; font-size:11px; text-align:center; margin-top:40px; border-top:1px solid #eee; padding-top:20px;">
-              Recibiste esta notificación automática porque formas parte de la comunidad Panoramas.
-            </p>
-          </div>
-        `;
-
-        //Enviamos el correo a la lista de distribución
-        await transporter.sendMail({
-          from: `"Panoramas App" <${process.env.GMAIL_USER}>`,
-          to: recipientEmails.join(', '),
-          subject: subject,
-          html: htmlContent,
+          if (Array.isArray(b.schedules)) {
+            await tx.delete(activitySchedules).where(eq(activitySchedules.activityId, params.id));
+            for (const dia of b.schedules) {
+              if (!dia?.fecha) continue;
+              const franjas = Array.isArray(dia.franjas) ? dia.franjas : [];
+              for (const f of franjas) {
+                await tx.insert(activitySchedules).values({
+                  activityId: params.id,
+                  fecha: dia.fecha,
+                  horaInicio: f?.horaInicio || null,
+                  horaFin: f?.horaFin || null,
+                });
+              }
+            }
+          }
         });
-
-        console.log(`¡Notificaciones enviadas con éxito a ${recipientEmails.length} usuarios!`);
-      } catch (err) {
-        console.error("Error en el proceso de envío de correos:", err);
+      } catch (e) {
+        console.error('[editar panorama] transaccion revertida:', e);
+        set.status = 500;
+        return { error: "No se pudo actualizar el panorama (cambios revertidos)" };
       }
-    })();
-  }
-  return { success: true, id: params.id, updated: updates };
-});
 
-// --- Re-geocodificar panoramas sin coordenadas (SOLO ADMIN) ---
-app.post("/api/admin/activities/regeocode", async ({ request, set }) => {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user?.id) { set.status = 401; return { error: "No autorizado" }; }
-  const caller = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
-  if ((caller[0]?.role ?? 'user') !== 'admin') { set.status = 403; return { error: "Acceso denegado" }; }
-  const rows = await db.select().from(activities);
-  let actualizados = 0;
-  for (const r of rows) {
-    const addr = (r as any).address;
-    const sinCoords = (r.lat === 0 || r.lat == null) && (r.lng === 0 || r.lng == null);
-    if (addr && sinCoords) {
-      const coords = await geocodeAddress(addr);
-      if (coords) {
-        await db.update(activities).set({ lat: coords.lat, lng: coords.lng }).where(eq(activities.id, r.id));
-        actualizados++;
+      const seVolvioTendencia = updates.isTendencia === true && !(currentActivity as any).isTendencia;
+      const seVolvioPopular = updates.isPopular === true && !(currentActivity as any).isPopular;
+
+      if (seVolvioTendencia || seVolvioPopular) {
+        (async () => {
+          try {
+            console.log(`Iniciando campaña de correos masivos para: "${currentActivity.name}"`);
+
+            const allUsers = await db.select({ email: user.email }).from(user);
+            const recipientEmails = allUsers.map(u => u.email).filter(Boolean) as string[];
+
+            if (recipientEmails.length === 0) {
+              console.log("No hay destinatarios registrados para enviar la campaña.");
+              return;
+            }
+
+            const subject = seVolvioTendencia
+              ? `🔥 ¡Panorama en Tendencia: "${currentActivity.name}"!`
+              : `⭐ ¡Panorama Popular: "${currentActivity.name}"!`;
+
+            const headingText = seVolvioTendencia
+              ? "¡Este panorama está causando furor!"
+              : "¡Este panorama es uno de los favoritos de la comunidad!";
+
+            const htmlContent = `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px;">
+                <h2 style="color: #4f46e5; text-align: center;">${headingText}</h2>
+                <p>Hola,</p>
+                <p>Queremos contarte que el panorama <strong>"${currentActivity.name}"</strong> ahora es considerado uno de los más destacados de nuestra plataforma.</p>
+                <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                  <h3 style="margin-top: 0; color: #1f2937;">${currentActivity.name}</h3>
+                  <p style="color: #4b5563; margin-bottom: 0;">${(currentActivity as any).description || "Sin descripción disponible."}</p>
+                </div>
+                <p style="text-align: center; margin-top: 30px;">
+                  <a href="https://panoramapp.onrender.com" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Ver Detalles</a>
+                </p>
+                <hr style="border: 0; border-top: 1px solid #e0e0e0; margin-top: 40px;" />
+                <p style="font-size: 12px; color: #9ca3af; text-align: center;">Recibiste este correo porque estás registrado en Panoramas App.</p>
+              </div>
+            `;
+
+            await sendEmail(recipientEmails, subject, htmlContent);
+            console.log(`¡Notificaciones enviadas con éxito a ${recipientEmails.length} usuarios!`);
+          } catch (err) {
+            console.error("Error en el proceso de envío de correos:", err);
+          }
+        })();
       }
-    }
-  }
-  return { success: true, actualizados };
-});
+      return { success: true, id: params.id, updated: updates };
+    })
+    .post("/activities/regeocode", async ({ set }) => {
+      const rows = await db.select().from(activities);
+      let actualizados = 0;
+      for (const r of rows) {
+        const addr = (r as any).address;
+        const sinCoords = (r.lat === 0 || r.lat == null) && (r.lng === 0 || r.lng == null);
+        if (addr && sinCoords) {
+          const coords = await geocodeAddress(addr);
+          if (coords) {
+            await db.update(activities).set({ lat: coords.lat, lng: coords.lng }).where(eq(activities.id, r.id));
+            actualizados++;
+          }
+        }
+      }
+      return { success: true, actualizados };
+    })
+    .get("/metrics", async ({ set }) => {
+      try {
+        const popularResult = await db
+          .select({
+            activityId: userFavorites.activityId,
+            activityName: activities.name,
+            totalLikes: count(userFavorites.id),
+          })
+          .from(userFavorites)
+          .innerJoin(activities, eq(userFavorites.activityId, activities.id))
+          .groupBy(userFavorites.activityId, activities.name)
+          .orderBy((fields) => [sql`count(${userFavorites.id}) desc`])
+          .limit(1);
+
+        const tendenciaResult = await db
+          .select({
+            activityId: userReservations.activityId,
+            activityName: activities.name,
+            totalReservas: count(userReservations.id),
+          })
+          .from(userReservations)
+          .innerJoin(activities, eq(userReservations.activityId, activities.id))
+          .where(ne(userReservations.status, 'cancelado'))
+          .groupBy(userReservations.activityId, activities.name)
+          .orderBy((fields) => [sql`count(${userReservations.id}) desc`])
+          .limit(1);
+
+        const masPopular = popularResult[0] || { activityName: "Sin likes registrados aún", totalLikes: 0 };
+        const enTendencia = tendenciaResult[0] || { activityName: "Sin reservas activas aún", totalReservas: 0 };
+
+        return {
+          success: true,
+          data: {
+            popular: {
+              name: masPopular.activityName,
+              count: masPopular.totalLikes
+            },
+            tendencia: {
+              name: enTendencia.activityName,
+              count: enTendencia.totalReservas
+            }
+          }
+        };
+      } catch (error) {
+        console.error("Error al calcular métricas:", error);
+        set.status = 500;
+        return { error: "Error interno al procesar métricas analíticas" };
+      }
+    })
+    .get("/stats", async ({ set }) => {
+      const totalUsersResult = await db.select({ value: count() }).from(user);
+      const totalUsers = totalUsersResult[0]?.value ?? 0;
+
+      const totalActivitiesResult = await db.select({ value: count() }).from(activities);
+      const totalActivities = totalActivitiesResult[0]?.value ?? 0;
+
+      const todayStart = new Date();
+      todayStart.setHours(0,0,0,0);
+      const otpsSentTodayResult = await db.select({ value: count() }).from(verification)
+        .where(gt(verification.createdAt, todayStart));
+      const otpsSentToday = otpsSentTodayResult[0]?.value ?? 0;
+
+      const categoryCounts = await db.select({
+        category: activities.category,
+        count: count()
+      }).from(activities).groupBy(activities.category);
+
+      let topCategory = "Parque";
+      let maxCount = 0;
+      for (const c of categoryCounts) {
+        if (c.count > maxCount) {
+          maxCount = c.count;
+          topCategory = c.category;
+        }
+      }
+
+      const usersList = await db.select({
+        id: user.id,
+        email: user.email,
+        otpVerified: user.otpVerified,
+        createdAt: user.createdAt,
+        role: user.role
+      })
+      .from(user)
+      .orderBy(user.createdAt);
+
+      const recentUsers = usersList.map(u => ({
+        id: u.id,
+        email: u.email,
+        role: u.role ?? 'user',
+        status: u.otpVerified ? 'active' : 'pending',
+        joinedAt: u.createdAt ? new Date(u.createdAt).toISOString().split('T')[0] : '2026-05-26'
+      }));
+
+      return {
+        stats: {
+          totalUsers,
+          totalActivities,
+          otpsSentToday,
+          topCategory,
+        },
+        recentUsers,
+        activitiesByCategory: categoryCounts.map(c => ({
+          category: c.category,
+          count: c.count
+        }))
+      };
+    })
+    .patch("/users/:targetUserId/role", async ({ params, body, request, set }) => {
+      const session = await auth.api.getSession({ headers: request.headers });
+      if (session?.user?.id === params.targetUserId) {
+        set.status = 400;
+        return { error: "No puedes cambiar tu propio rol" };
+      }
+
+      const { role } = body as { role: 'user' | 'admin' };
+      if (role !== 'user' && role !== 'admin') {
+        set.status = 400;
+        return { error: "Rol inválido" };
+      }
+
+      const SUPER_ADMIN_EMAIL = "danielmpizarro@alumnos.uai.cl";
+      const [targetUser] = await db.select().from(user).where(eq(user.id, params.targetUserId)).limit(1);
+      if (!targetUser) {
+        set.status = 404;
+        return { error: "Usuario no encontrado" };
+      }
+
+      if (targetUser.email === SUPER_ADMIN_EMAIL) {
+        set.status = 403;
+        return { error: "No está permitido modificar el rol del superadministrador principal" };
+      }
+
+      await db.update(user)
+        .set({ role: role })
+        .where(eq(user.id, params.targetUserId));
+
+      return { success: true, userId: params.targetUserId, newRole: role };
+    })
+  )
+);
 
 // --- Distancia en auto (por carretera) via Routes API ---
 app.get("/api/distance", async ({ query }) => {
@@ -558,6 +948,133 @@ app.get("/api/preferences/:userId", async ({ params }) => {
 
   return { role: u[0]?.role ?? 'user' };
 });
+
+// --- ACTIVACIÓN DE ADMINISTRADOR HÍBRIDA (OTP / TOTP) ---
+const getAuthorizedAdminEmails = () => {
+  const list = process.env.AUTHORIZED_ADMIN_EMAILS || "";
+  return list.split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
+};
+
+app.post("/api/request-admin-otp", async ({ request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id || !session.user.email) {
+    set.status = 401;
+    return { error: "No autorizado" };
+  }
+
+  const email = session.user.email.toLowerCase();
+  const authorizedEmails = getAuthorizedAdminEmails();
+  if (!authorizedEmails.includes(email)) {
+    set.status = 403;
+    return { error: "Tu correo no está en la lista de correos autorizados para activación automática. Solicita el código TOTP manual al administrador." };
+  }
+
+  const code = randomInt(100000, 999999).toString();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutos
+  const identifier = `admin-otp:${email}`;
+
+  // Eliminar OTPs anteriores para este identificador
+  await db.delete(verification).where(eq(verification.identifier, identifier));
+
+  // Guardar en la tabla de verificación
+  await db.insert(verification).values({
+    id: randomUUID(),
+    identifier,
+    value: code,
+    expiresAt,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`🔑 [Admin OTP] Código generado para ${email}: ${code}`);
+  }
+
+  try {
+    await sendEmail(session.user.email, "Código de activación Administrador - Panoramas", `
+      <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:40px;background:#fff;border-radius:16px;">
+        <h1 style="font-size:24px;font-weight:900;margin-bottom:8px;color:#d97706;">PANORAMAS</h1>
+        <p style="color:#666;margin-bottom:32px;">Tu código de verificación para activar el rol de Administrador es:</p>
+        <div style="font-size:48px;font-weight:900;letter-spacing:0.5em;text-align:center;padding:24px;background:#fef3c7;color:#d97706;border-radius:12px;margin-bottom:24px;">
+          ${code}
+        </div>
+        <p style="color:#999;font-size:12px;">Este código expira en 10 minutos.</p>
+      </div>
+    `);
+  } catch (err) {
+    console.error("❌ Error enviando OTP de Administrador:", err);
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`💡 [Desarrollo] OTP de Administrador en consola: ${code}`);
+      return { success: true, message: `Código generado en desarrollo: ${code}` };
+    }
+    set.status = 500;
+    return { error: "No se pudo enviar el código por correo. Intenta de nuevo." };
+  }
+
+  return { success: true, message: "Código enviado a tu correo" };
+});
+
+app.post("/api/activate-admin", async ({ body, request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id || !session.user.email) {
+    set.status = 401;
+    return { error: "No autorizado" };
+  }
+
+  const { token } = body as { token: string };
+  if (!token) {
+    set.status = 400;
+    return { error: "Código de verificación requerido" };
+  }
+
+  const cleanToken = token.trim();
+
+  // 1. Intentar validar como TOTP manual (Administrador)
+  const totpSecret = process.env.ADMIN_TOTP_SECRET;
+  const isValidTotp = totpSecret ? speakeasy.totp.verify({
+    secret: totpSecret,
+    encoding: 'base32',
+    token: cleanToken
+  }) : false;
+
+  let activationMethod = 'totp';
+
+  if (!isValidTotp) {
+    // 2. Si no es TOTP válido, intentar validar como OTP enviado por correo
+    const identifier = `admin-otp:${session.user.email.toLowerCase()}`;
+    const [record] = await db.select()
+      .from(verification)
+      .where(and(
+        eq(verification.identifier, identifier),
+        eq(verification.value, cleanToken)
+      ));
+
+    if (!record) {
+      set.status = 400;
+      return { error: "Código incorrecto o expirado" };
+    }
+
+    if (new Date() > record.expiresAt) {
+      // Eliminar el código expirado
+      await db.delete(verification).where(eq(verification.id, record.id));
+      set.status = 400;
+      return { error: "El código de verificación ha expirado" };
+    }
+
+    // Código válido, eliminarlo para prevenir reuso
+    await db.delete(verification).where(eq(verification.id, record.id));
+    activationMethod = 'email';
+  }
+
+  // Activar rol de administrador
+  await db.update(user)
+    .set({ role: 'admin' })
+    .where(eq(user.id, session.user.id));
+
+  console.log(`👑 Rol 'admin' activado mediante ${activationMethod.toUpperCase()} para: ${session.user.email}`);
+  return { success: true, method: activationMethod };
+});
+
 
 // --- RUTAS FAVORITOS ---
 app.post("/api/favorites", async ({ body, request, set }) => {
@@ -616,7 +1133,12 @@ app.delete("/api/favorites", async ({ body, request, set }) => {
 app.get("/api/activities/:id/availability", async ({ params }) => {
   const [act] = await db.select().from(activities).where(eq(activities.id, params.id));
   if (!act) return { error: "Panorama no encontrado", fechas: [] };
-  const cupos = (act as any).cuposPorDia ?? null;
+  
+  if (act.disponible === false) {
+    return { activityId: params.id, name: act.name, price: act.price ?? null, fechas: [] };
+  }
+
+  const cupos = act.cuposPorDia ?? null;
   const sched = await db.select().from(activitySchedules).where(eq(activitySchedules.activityId, params.id));
   const reservas = await db.select({ d: userReservations.reservedDate })
     .from(userReservations)
@@ -627,13 +1149,25 @@ app.get("/api/activities/:id/availability", async ({ params }) => {
   for (const sc of sched) {
     (fechasMap[sc.fecha] ??= []).push({ horaInicio: sc.horaInicio, horaFin: sc.horaFin });
   }
-  const fechas = Object.entries(fechasMap).map(([fecha, franjas]) => ({
-    fecha,
-    franjas,
-    cuposPorDia: cupos,
-    disponibles: cupos == null ? null : Math.max(0, cupos - (usados[fecha] ?? 0)),
-  })).sort((a, b) => a.fecha.localeCompare(b.fecha));
-  return { activityId: params.id, name: act.name, price: (act as any).price ?? null, fechas };
+  const todayStr = getSantiagoDateString(new Date());
+  const nowHM = getSantiagoTimeString(new Date());
+
+  const fechas = Object.entries(fechasMap)
+    .filter(([fecha]) => fecha >= todayStr)
+    .map(([fecha, franjas]) => {
+      const activeFranjas = fecha === todayStr
+        ? franjas.filter(fr => !fr.horaFin || fr.horaFin > nowHM)
+        : franjas;
+      return {
+        fecha,
+        franjas: activeFranjas,
+        cuposPorDia: cupos,
+        disponibles: cupos == null ? null : Math.max(0, cupos - (usados[fecha] ?? 0)),
+      };
+    })
+    .filter(f => f.franjas.length > 0 || (fechasMap[f.fecha]?.length ?? 0) === 0)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
+  return { activityId: params.id, name: act.name, price: act.price ?? null, fechas };
 });
 
 // --- Autocomplete de direcciones (Places API New) ---
@@ -902,11 +1436,12 @@ app.post("/api/otp/request", async ({ body }) => {
     updatedAt: new Date(),
   });
 
-  await transporter.sendMail({
-    from: `"Panoramas App" <${process.env.GMAIL_USER}>`,
-    to: email,
-    subject: "Tu código de verificación - Panoramas",
-    html: `
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`🔑 [OTP] Código generado para ${email}: ${code}`);
+  }
+
+  try {
+    await sendEmail(email, "Tu código de verificación - Panoramas", `
       <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:40px;background:#fff;border-radius:16px;">
         <h1 style="font-size:24px;font-weight:900;margin-bottom:8px;">PANORAMAS</h1>
         <p style="color:#666;margin-bottom:32px;">Tu código de verificación es:</p>
@@ -915,8 +1450,15 @@ app.post("/api/otp/request", async ({ body }) => {
         </div>
         <p style="color:#999;font-size:12px;">Este código expira en 10 minutos.</p>
       </div>
-    `,
-  });
+    `);
+  } catch (err) {
+    console.error("❌ Error enviando OTP por Brevo:", err);
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`💡 [Desarrollo] Usando código fallback: ${code}`);
+      return { message: "Código enviado" };
+    }
+    return { message: "No se pudo enviar el código por correo. Intenta de nuevo en unos segundos.", error: true };
+  }
 
   return { message: "Código enviado" };
 });
@@ -943,206 +1485,9 @@ app.post("/api/otp/verify", async ({ body }) => {
   return { status: "success" };
 });
 
-//ENDPOINT DE INSIGHTS PARA PANORAMA POPULAR Y TENDENCIA
-app.get("/api/admin/metrics", async ({ request, set }) => {
-  const session = await auth.api.getSession({
-    headers: request.headers
-  });
 
-  if (!session) {
-    set.status = 401;
-    return { error: "No autorizado" };
-  }
 
-  //Validamos que el solicitante sea un administrador real
-  const caller = await db.select().from(user).where(eq(user.id, session.user.id)).limit(1);
 
-  const callerRole = caller[0]?.role ?? 'user';
-  if (callerRole !== 'admin') {
-    set.status = 403;
-    return { error: "Acceso denegado: se requieren privilegios de admin." };
-  }
-
-  try {
-    //1. Encontrar el panorama más popular (mayor sumatoria en user_favorites)
-    const popularResult = await db
-      .select({
-        activityId: userFavorites.activityId,
-        activityName: activities.name,
-        totalLikes: count(userFavorites.id),
-      })
-      .from(userFavorites)
-      .innerJoin(activities, eq(userFavorites.activityId, activities.id)) //inner join para heredar el nombre del panorama
-      .groupBy(userFavorites.activityId, activities.name)
-      .orderBy((fields) => [sql`count(${userFavorites.id}) desc`])
-      .limit(1);
-    
-    //2. Encontrar el panorama en tendencia (mayor sumatoria en user_reservations)
-    //Excluimos las reservas canceladas para que la métrica sea real
-    const tendenciaResult = await db
-      .select({
-        activityId: userReservations.activityId,
-        activityName: activities.name,
-        totalReservas: count(userReservations.id),
-      })
-      .from(userReservations)
-      .innerJoin(activities, eq(userReservations.activityId, activities.id))
-      .where(ne(userReservations.status, 'cancelado'))
-      .groupBy(userReservations.activityId, activities.name)
-      .orderBy((fields) => [sql`count(${userReservations.id}) desc`])
-      .limit(1);
-    
-    //Mapeo seguro por si la bbdd está vacía en las primeras pruebas
-    const masPopular = popularResult[0] || { activityName: "Sin likes registrados aún", totalLikes: 0 };
-    const enTendencia = tendenciaResult[0] || { activityName: "Sin reservas activas aún", totalReservas: 0 };
-
-    return {
-      success: true,
-      data: {
-        popular: {
-          name: masPopular.activityName,
-          count: masPopular.totalLikes
-        },
-        tendencia: {
-          name: enTendencia.activityName,
-          count: enTendencia.totalReservas
-        }
-      }
-    };   
-  } catch (error) {
-    console.error("Error al calcular métricas:", error);
-    set.status = 500;
-    return { error: "Error interno al procesar métricas analíticas" };
-  }
-});
-
-// --- ENDPOINT DE ESTADÍSTICAS REALES PARA ADMINISTRADOR ---
-app.get("/api/admin/stats", async ({ request, set }) => {
-  const session = await auth.api.getSession({
-    headers: request.headers
-  });
-  if (!session) {
-    set.status = 401;
-    return { error: "No autorizado" };
-  }
-  const caller = await db.select().from(user)
-    .where(eq(user.id, session.user.id))
-    .limit(1);
-  const role = caller[0]?.role ?? 'user';
-  if (role !== 'admin') {
-    set.status = 403;
-    return { error: "Acceso denegado: se requieren permisos de administrador" };
-  }
-
-  // 1. Total de usuarios reales
-  const totalUsersResult = await db.select({ value: count() }).from(user);
-  const totalUsers = totalUsersResult[0]?.value ?? 0;
-
-  // 2. Total de actividades reales
-  const totalActivitiesResult = await db.select({ value: count() }).from(activities);
-  const totalActivities = totalActivitiesResult[0]?.value ?? 0;
-
-  // 3. Total de OTPs enviadas hoy
-  const todayStart = new Date();
-  todayStart.setHours(0,0,0,0);
-  const otpsSentTodayResult = await db.select({ value: count() }).from(verification)
-    .where(gt(verification.createdAt, todayStart));
-  const otpsSentToday = otpsSentTodayResult[0]?.value ?? 0;
-
-  // 4. Actividades por categoría reales
-  const categoryCounts = await db.select({ 
-    category: activities.category, 
-    count: count() 
-  }).from(activities).groupBy(activities.category);
-
-  // Determinar la categoría con más actividades
-  let topCategory = "Parque";
-  let maxCount = 0;
-  for (const c of categoryCounts) {
-    if (c.count > maxCount) {
-      maxCount = c.count;
-      topCategory = c.category;
-    }
-  }
-
-  // 5. Lista de usuarios reales con sus roles y estados (consulta directa)
-  const usersList = await db.select({
-    id: user.id,
-    email: user.email,
-    otpVerified: user.otpVerified,
-    createdAt: user.createdAt,
-    role: user.role
-  })
-  .from(user)
-  .orderBy(user.createdAt);
-
-  const recentUsers = usersList.map(u => ({
-    id: u.id,
-    email: u.email,
-    role: u.role ?? 'user',
-    status: u.otpVerified ? 'active' : 'pending',
-    joinedAt: u.createdAt ? new Date(u.createdAt).toISOString().split('T')[0] : '2026-05-26'
-  }));
-
-  return {
-    stats: {
-      totalUsers,
-      totalActivities,
-      otpsSentToday,
-      topCategory,
-    },
-    recentUsers,
-    activitiesByCategory: categoryCounts.map(c => ({
-      category: c.category,
-      count: c.count
-    }))
-  };
-});
-
-// --- ENDPOINT PARA PROMOVER O DEGRADAR ROLES DE USUARIO (SOLO ADMINS) ---
-app.patch("/api/admin/users/:targetUserId/role", async ({ params, body, request, set }) => {
-  const session = await auth.api.getSession({
-    headers: request.headers
-  });
-  if (!session) {
-    set.status = 401;
-    return { error: "No autorizado" };
-  }
-
-  // Validamos que el solicitante sea un administrador real
-  const caller = await db.select().from(user)
-    .where(eq(user.id, session.user.id))
-    .limit(1);
-  
-  const callerRole = caller[0]?.role ?? 'user';
-  if (callerRole !== 'admin') {
-    set.status = 403;
-    return { error: "Acceso denegado: se requieren privilegios de administrador" };
-  }
-
-  const { role } = body as { role: 'user' | 'admin' };
-  if (role !== 'user' && role !== 'admin') {
-    set.status = 400;
-    return { error: "Rol inválido" };
-  }
-
-  // Realizamos la promoción en la tabla 'user'
-  await db.update(user)
-    .set({ role: role })
-    .where(eq(user.id, params.targetUserId));
-
-  return { success: true, userId: params.targetUserId, newRole: role };
-});
-
-// --- PROTECCIÓN POR ROLES ---
-
-app.guard({ beforeHandle: protectMiddleware('admin') }, (subApp) => subApp
-  .get('/admin-dashboard', () => ({ status: "success", data: "Panel de control (solo Admin)" }))
-);
-
-app.guard({ beforeHandle: protectMiddleware() }, (subApp) => subApp
-  .get('/my-panoramas', () => ({ status: "success", data: "Tus reservas y recomendaciones" }))
-);
 
 app.get('/main.js', () => new Response(Bun.file("./public/main.js"), {
   headers: { 'Content-Type': 'application/javascript' }
@@ -1167,5 +1512,6 @@ const checkDatabase = async () => {
 
 await checkDatabase();
 
-app.listen(4000);
-console.log(`🚀 PROYECTO LISTO en http://localhost:4000`);
+const serverPort = process.env.PORT || 4000;
+app.listen(serverPort);
+console.log(`🚀 PROYECTO LISTO en http://localhost:${serverPort}`);
