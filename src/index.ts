@@ -5,7 +5,7 @@ import { protectMiddleware } from 'src/middleware/protect';
 import speakeasy from 'speakeasy';
 import { db } from "./lib/db";
 import { user, activities, userFavorites, userReservations, activitySchedules, verification } from "./lib/schema";
-import { and, count, eq, gt, ne, sql } from "drizzle-orm";
+import { and, count, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 import { randomInt, randomUUID } from 'crypto';
 import { getCurrentWeather, getWeatherForecast } from './services/weatherService';
 import { isOutdoorFriendly } from './utils/weatherHelpers';
@@ -148,21 +148,27 @@ app.get("/api/activities", async ({ query, request }) => {
   //traemos los horarios de cada panorama
   const allSchedules = await db.select().from(activitySchedules);
 
-  // Obtener conteo de reservas activas para todas las actividades y fechas
+  // Obtener conteo de reservas activas para todas las actividades, por fecha Y por franja horaria
+  // (los cupos ahora se cuentan de forma independiente por hora, no compartidos en todo el dia).
   const allReservations = await db.select({
     activityId: userReservations.activityId,
     reservedDate: userReservations.reservedDate,
+    reservedTime: userReservations.reservedTime,
     count: count(userReservations.id)
   })
   .from(userReservations)
   .where(ne(userReservations.status, 'cancelado'))
-  .groupBy(userReservations.activityId, userReservations.reservedDate);
+  .groupBy(userReservations.activityId, userReservations.reservedDate, userReservations.reservedTime);
+
+  // Clave compuesta fecha+franja: misma forma que el reservedTime que manda el front
+  // (`${horaInicio} - ${horaFin}`), para que el conteo calce exacto con lo guardado.
+  const franjaKey = (fecha: string, reservedTime?: string | null) => `${fecha}|${reservedTime ?? ''}`;
 
   const reservationCounts: Record<string, Record<string, number>> = {};
   for (const r of allReservations) {
     if (r.activityId && r.reservedDate) {
       const actMap = (reservationCounts[r.activityId] ??= {});
-      actMap[r.reservedDate] = r.count;
+      actMap[franjaKey(r.reservedDate, r.reservedTime)] = r.count;
     }
   }
 
@@ -190,8 +196,10 @@ app.get("/api/activities", async ({ query, request }) => {
         return true;
       });
       if (futureSchedules.length > 0) {
+        // "Agotado" = TODAS las franjas futuras de TODAS las fechas futuras sin cupo.
+        // Si una sola franja de una sola fecha tiene cupo, el evento sigue disponible.
         allSoldOut = futureSchedules.every(s => {
-          const usados = reservationCounts[row.id]?.[s.fecha] ?? 0;
+          const usados = reservationCounts[row.id]?.[franjaKey(s.fecha, `${s.horaInicio ?? ''} - ${s.horaFin ?? ''}`)] ?? 0;
           return row.cuposPorDia! - usados <= 0;
         });
       }
@@ -227,12 +235,18 @@ app.get("/api/activities", async ({ query, request }) => {
   // Cupos ya usados por panorama en una fecha dada (reservas activas de esa fecha), para poder
   // excluir los panoramas AGOTADOS en esa fecha. Se reusa tanto para la fecha de planificación
   // ("Recomendar Panoramas") como para el filtro de fecha independiente del toolbar.
-  async function buildUsadosEnFecha(fecha: string): Promise<Record<string, number>> {
-    const reservasFecha = await db.select({ activityId: userReservations.activityId })
+  // Devuelve, para una fecha dada, cuantos cupos se usaron por actividad y por franja horaria
+  // (clave `${horaInicio} - ${horaFin}`, o '' si la reserva no tiene franja especifica).
+  async function buildUsadosEnFecha(fecha: string): Promise<Record<string, Record<string, number>>> {
+    const reservasFecha = await db.select({ activityId: userReservations.activityId, reservedTime: userReservations.reservedTime })
       .from(userReservations)
       .where(and(eq(userReservations.reservedDate, fecha), ne(userReservations.status, 'cancelado')));
-    const map: Record<string, number> = {};
-    for (const r of reservasFecha) map[r.activityId] = (map[r.activityId] ?? 0) + 1;
+    const map: Record<string, Record<string, number>> = {};
+    for (const r of reservasFecha) {
+      const actMap = (map[r.activityId] ??= {});
+      const key = r.reservedTime ?? '';
+      actMap[key] = (actMap[key] ?? 0) + 1;
+    }
     return map;
   }
 
@@ -248,7 +262,8 @@ app.get("/api/activities", async ({ query, request }) => {
   }
 
   // Si se busca en los próximos 5 días, construimos el mapa de reservas usadas para cada fecha en el rango
-  const next5DaysUsados: Record<string, Record<string, number>> = {};
+  // (fecha -> activityId -> franja -> cantidad usada)
+  const next5DaysUsados: Record<string, Record<string, Record<string, number>>> = {};
   if (targetDateStr === 'next5days' || filterDate === 'next5days') {
     for (const f of next5DaysArray) {
       next5DaysUsados[f] = await buildUsadosEnFecha(f);
@@ -258,33 +273,35 @@ app.get("/api/activities", async ({ query, request }) => {
   // Un panorama SIN fechas programadas se considera de entrada libre (disponible todos los días).
   // Un panorama CON fechas programadas solo aparece si la fecha coincide con alguna de sus fechas
   // agendadas Y todavía quedan cupos para esa fecha (no está agotado).
-  function buildMatchesDate(fecha: string | undefined, usados: Record<string, number>) {
-    return (a: { id: string; schedules: { fecha: string }[]; cuposPorDia?: number }): boolean => {
+  // disponible si ALGUNA franja de esa fecha tiene cupo (no se exigen todas)
+  function franjaTieneCupo(a: { id: string; cuposPorDia?: number }, s: { horaInicio?: string | null; horaFin?: string | null }, usadosPorFranja: Record<string, number>): boolean {
+    if (a.cuposPorDia == null) return true;
+    const key = `${s.horaInicio ?? ''} - ${s.horaFin ?? ''}`;
+    const usados = usadosPorFranja[key] ?? 0;
+    return a.cuposPorDia - usados > 0;
+  }
+
+  function buildMatchesDate(fecha: string | undefined, usados: Record<string, Record<string, number>>) {
+    return (a: { id: string; schedules: { fecha: string; horaInicio?: string | null; horaFin?: string | null }[]; cuposPorDia?: number }): boolean => {
       if (!fecha) return true; // sin filtro de fecha
       if (!a.schedules || a.schedules.length === 0) return true; // entrada libre
 
       if (fecha === 'next5days') {
-        // En los próximos 5 días, ver si hay alguna fecha programada en ese rango que no esté agotada
+        // En los próximos 5 días: disponible si alguna fecha del rango tiene alguna franja con cupo
         const tieneFechaValida = a.schedules.some(s => {
           const isWithin5Days = next5DaysArray.includes(s.fecha);
           if (!isWithin5Days) return false;
-          if (a.cuposPorDia != null) {
-            const usadosEnEsaFecha = next5DaysUsados[s.fecha]?.[a.id] ?? 0;
-            const disponibles = a.cuposPorDia - usadosEnEsaFecha;
-            return disponibles > 0;
-          }
-          return true;
+          const usadosEsaFecha = next5DaysUsados[s.fecha]?.[a.id] ?? {};
+          return franjaTieneCupo(a, s, usadosEsaFecha);
         });
         return tieneFechaValida;
       }
 
-      const tieneFecha = a.schedules.some(s => s.fecha === fecha);
-      if (!tieneFecha) return false;
-      if (a.cuposPorDia != null) {
-        const disponibles = a.cuposPorDia - (usados[a.id] ?? 0);
-        if (disponibles <= 0) return false;
-      }
-      return true;
+      const schedulesEnFecha = a.schedules.filter(s => s.fecha === fecha);
+      if (schedulesEnFecha.length === 0) return false;
+      const usadosEsaFecha = usados[a.id] ?? {};
+      // La fecha es valida si AL MENOS UNA de sus franjas tiene cupo disponible
+      return schedulesEnFecha.some(s => franjaTieneCupo(a, s, usadosEsaFecha));
     };
   }
 
@@ -354,11 +371,16 @@ app.get("/api/activities", async ({ query, request }) => {
 
   const occupancyDate = filterDate || targetDateStr || todayStr;
   const targetDateForOccupancy = occupancyDate === 'next5days' ? todayStr : occupancyDate;
-  const usadosEnOccupancy = (filterDate === occupancyDate)
+  const usadosEnOccupancyPorFranja = (filterDate === occupancyDate)
     ? usadosEnFiltroFecha
     : (targetDateStr === occupancyDate)
       ? usadosEnFecha
       : await buildUsadosEnFecha(targetDateForOccupancy);
+  // La heuristica de afluencia mira el dia completo, no una franja especifica: sumamos todas las horas.
+  const usadosEnOccupancy: Record<string, number> = {};
+  for (const [actId, porFranja] of Object.entries(usadosEnOccupancyPorFranja)) {
+    usadosEnOccupancy[actId] = Object.values(porFranja).reduce((a, b) => a + b, 0);
+  }
 
   const dateObj = occupancyDate ? new Date(occupancyDate + 'T12:00:00') : new Date();
   const dayOfWeek = dateObj.getDay();
@@ -555,6 +577,7 @@ app.group("/api/admin", (adminGroup) => adminGroup
             placeId: b.place_id ?? null,
             price: typeof b.price === 'number' ? b.price : null,
             cuposPorDia: typeof b.cupos_por_dia === 'number' ? b.cupos_por_dia : null,
+            limitePorPersona: typeof b.limite_por_persona === 'number' ? b.limite_por_persona : null,
           });
 
           for (const dia of schedules) {
@@ -580,17 +603,69 @@ app.group("/api/admin", (adminGroup) => adminGroup
     })
     .get("/activities", async () => {
       const rows = await db.select().from(activities);
-      return rows.map(r => ({
-        id: r.id,
-        name: r.name,
-        category: r.category,
-        imageUrl: (r as any).imageUrl ?? null,
-        price: (r as any).price ?? null,
-        address: (r as any).address ?? null,
-        isTendencia: (r as any).isTendencia ?? false,
-        isPopular: (r as any).isPopular ?? false,
-        disponible: (r as any).disponible ?? true,
-      }));
+      const allSchedules = await db.select().from(activitySchedules);
+      const allReservas = await db.select({
+        activityId: userReservations.activityId,
+        reservedDate: userReservations.reservedDate,
+        reservedTime: userReservations.reservedTime,
+        count: count(userReservations.id),
+      }).from(userReservations)
+        .where(ne(userReservations.status, 'cancelado'))
+        .groupBy(userReservations.activityId, userReservations.reservedDate, userReservations.reservedTime);
+
+      const usados: Record<string, Record<string, number>> = {};
+      for (const r of allReservas) {
+        if (!r.activityId || !r.reservedDate) continue;
+        const actMap = (usados[r.activityId] ??= {});
+        actMap[`${r.reservedDate}|${r.reservedTime ?? ''}`] = r.count;
+      }
+
+      const todayStr = getSantiagoDateString(new Date());
+      const nowHM = getSantiagoTimeString(new Date());
+
+      return rows.map(r => {
+        const explicitlyDisabled = (r as any).disponible === false;
+        const sched = allSchedules.filter(s => s.activityId === r.id);
+        const hasSchedules = sched.length > 0;
+        const allInPast = hasSchedules && sched.every(s => {
+          if (s.fecha < todayStr) return true;
+          if (s.fecha === todayStr && s.horaFin && s.horaFin <= nowHM) return true;
+          return false;
+        });
+        const cupos = (r as any).cuposPorDia ?? null;
+        let allSoldOut = false;
+        if (hasSchedules && !allInPast && cupos != null) {
+          const futureSchedules = sched.filter(s => {
+            if (s.fecha < todayStr) return false;
+            if (s.fecha === todayStr && s.horaFin && s.horaFin <= nowHM) return false;
+            return true;
+          });
+          if (futureSchedules.length > 0) {
+            allSoldOut = futureSchedules.every(s => {
+              const usadosFr = usados[r.id]?.[`${s.fecha}|${s.horaInicio ?? ''} - ${s.horaFin ?? ''}`] ?? 0;
+              return cupos - usadosFr <= 0;
+            });
+          }
+        }
+        // motivo: por que no esta disponible (si aplica), para que el admin entienda el estado real
+        const motivo = explicitlyDisabled ? 'manual' : allInPast ? 'vencido' : allSoldOut ? 'agotado' : null;
+
+        return {
+          id: r.id,
+          name: r.name,
+          category: r.category,
+          imageUrl: (r as any).imageUrl ?? null,
+          price: (r as any).price ?? null,
+          address: (r as any).address ?? null,
+          isTendencia: (r as any).isTendencia ?? false,
+          isPopular: (r as any).isPopular ?? false,
+          // disponible = flag manual del admin (lo que controla el boton de la UI)
+          disponible: (r as any).disponible ?? true,
+          // disponibleReal = lo que el usuario final ve (considera vencido/agotado ademas del flag manual)
+          disponibleReal: !explicitlyDisabled && !allInPast && !allSoldOut,
+          motivoNoDisponible: motivo,
+        };
+      });
     })
     .delete("/activities/:id", async ({ params }) => {
       await db.delete(activities).where(eq(activities.id, params.id));
@@ -627,6 +702,7 @@ app.group("/api/admin", (adminGroup) => adminGroup
         placeId: (act as any).placeId ?? null,
         price: (act as any).price ?? null,
         cupos_por_dia: (act as any).cuposPorDia ?? null,
+        limite_por_persona: (act as any).limitePorPersona ?? null,
         isTendencia: (act as any).isTendencia ?? false,
         isPopular: (act as any).isPopular ?? false,
         disponible: (act as any).disponible ?? true,
@@ -636,14 +712,17 @@ app.group("/api/admin", (adminGroup) => adminGroup
     .patch("/activities/:id", async ({ params, body, set }) => {
       const b = body as any;
       const updates: any = {};
-      
+
       if (b.name !== undefined) updates.name = b.name;
       if (b.category !== undefined) updates.category = b.category;
       if (b.description !== undefined) updates.description = b.description;
       if (b.address !== undefined) updates.address = b.address;
       if (b.tag_clima !== undefined) updates.tag_clima = b.tag_clima;
-      if (b.price !== undefined) updates.price = b.price === '' ? null : Number(b.price);
-      if (b.cupos_por_dia !== undefined) updates.cuposPorDia = b.cupos_por_dia === '' ? null : Number(b.cupos_por_dia);
+      // El front manda `null` (no solo '') cuando se limpia el campo, asi que ambos casos
+      // deben tratarse como "sin valor" -- si no, Number(null) da 0 en vez de quedar vacio.
+      if (b.price !== undefined) updates.price = (b.price === '' || b.price == null) ? null : Number(b.price);
+      if (b.cupos_por_dia !== undefined) updates.cuposPorDia = (b.cupos_por_dia === '' || b.cupos_por_dia == null) ? null : Number(b.cupos_por_dia);
+      if (b.limite_por_persona !== undefined) updates.limitePorPersona = (b.limite_por_persona === '' || b.limite_por_persona == null) ? null : Number(b.limite_por_persona);
       if (b.image_url !== undefined) updates.imageUrl = b.image_url;
       if (b.place_id !== undefined) updates.placeId = b.place_id;
       
@@ -1135,16 +1214,21 @@ app.get("/api/activities/:id/availability", async ({ params }) => {
   if (!act) return { error: "Panorama no encontrado", fechas: [] };
   
   if (act.disponible === false) {
-    return { activityId: params.id, name: act.name, price: act.price ?? null, fechas: [] };
+    return { activityId: params.id, name: act.name, price: act.price ?? null, limitePorPersona: (act as any).limitePorPersona ?? null, fechas: [] };
   }
 
   const cupos = act.cuposPorDia ?? null;
   const sched = await db.select().from(activitySchedules).where(eq(activitySchedules.activityId, params.id));
-  const reservas = await db.select({ d: userReservations.reservedDate })
+  const reservas = await db.select({ d: userReservations.reservedDate, t: userReservations.reservedTime })
     .from(userReservations)
     .where(and(eq(userReservations.activityId, params.id), ne(userReservations.status, 'cancelado')));
-  const usados: Record<string, number> = {};
-  for (const r of reservas) { if (r.d) usados[r.d] = (usados[r.d] ?? 0) + 1; }
+  // usados por fecha+franja: los cupos ahora se cuentan por hora, no compartidos en todo el dia
+  const usadosPorFranja: Record<string, number> = {};
+  for (const r of reservas) {
+    if (!r.d) continue;
+    const key = `${r.d}|${r.t ?? ''}`;
+    usadosPorFranja[key] = (usadosPorFranja[key] ?? 0) + 1;
+  }
   const fechasMap: Record<string, { horaInicio: string | null; horaFin: string | null }[]> = {};
   for (const sc of sched) {
     (fechasMap[sc.fecha] ??= []).push({ horaInicio: sc.horaInicio, horaFin: sc.horaFin });
@@ -1158,16 +1242,28 @@ app.get("/api/activities/:id/availability", async ({ params }) => {
       const activeFranjas = fecha === todayStr
         ? franjas.filter(fr => !fr.horaFin || fr.horaFin > nowHM)
         : franjas;
+      // cupos restantes por franja (cada hora cuenta de forma independiente)
+      const franjasConCupos = activeFranjas.map(fr => {
+        const key = `${fecha}|${fr.horaInicio ?? ''} - ${fr.horaFin ?? ''}`;
+        const usadosFr = usadosPorFranja[key] ?? 0;
+        return { ...fr, disponibles: cupos == null ? null : Math.max(0, cupos - usadosFr) };
+      });
+      // La fecha esta disponible si ALGUNA franja tiene cupo (no se exigen todas)
+      const disponibles = cupos == null
+        ? null
+        : franjasConCupos.length > 0
+          ? Math.max(...franjasConCupos.map(f => f.disponibles ?? 0))
+          : Math.max(0, cupos - (usadosPorFranja[`${fecha}|`] ?? 0));
       return {
         fecha,
-        franjas: activeFranjas,
+        franjas: franjasConCupos,
         cuposPorDia: cupos,
-        disponibles: cupos == null ? null : Math.max(0, cupos - (usados[fecha] ?? 0)),
+        disponibles,
       };
     })
     .filter(f => f.franjas.length > 0 || (fechasMap[f.fecha]?.length ?? 0) === 0)
     .sort((a, b) => a.fecha.localeCompare(b.fecha));
-  return { activityId: params.id, name: act.name, price: act.price ?? null, fechas };
+  return { activityId: params.id, name: act.name, price: act.price ?? null, limitePorPersona: (act as any).limitePorPersona ?? null, fechas };
 });
 
 // --- Autocomplete de direcciones (Places API New) ---
@@ -1232,11 +1328,13 @@ app.post("/api/reservations", async ({ body, request, set }) => {
     set.status = 401;
     return { error: "No autorizado" };
   }
-  const { activityId, payNow, reservedDate, reservedTime } = body as { activityId: string; payNow?: boolean; reservedDate?: string; reservedTime?: string };
+  const { activityId, payNow, reservedDate, reservedTime, cantidad: cantidadRaw } = body as { activityId: string; payNow?: boolean; reservedDate?: string; reservedTime?: string; cantidad?: number };
   if (!activityId) {
     set.status = 400;
     return { error: "activityId requerido" };
   }
+  // Cuantos cupos de la misma franja se reservan de una sola vez (ej. comprar 3 entradas juntas)
+  const cantidad = Number.isInteger(cantidadRaw) && (cantidadRaw as number) > 0 ? Math.min(cantidadRaw as number, 20) : 1;
 
   // Validar que la actividad existe
   const [act] = await db.select().from(activities).where(eq(activities.id, activityId));
@@ -1252,12 +1350,36 @@ app.post("/api/reservations", async ({ body, request, set }) => {
       // Lock de la fila de la actividad para serializar reservas concurrentes
       const [locked] = await tx.select().from(activities).where(eq(activities.id, activityId)).for('update');
       const cuposDia = (locked as any)?.cuposPorDia ?? null;
+      const limitePorPersona = (locked as any)?.limitePorPersona ?? null;
 
+      // Los cupos se cuentan por franja horaria (fecha + reservedTime), no por todo el dia:
+      // dos personas pueden reservar el mismo dia en horas distintas sin competir por el mismo cupo.
       if (cuposDia != null && reservedDate) {
         const usados = await tx.select({ value: count() }).from(userReservations)
-          .where(and(eq(userReservations.activityId, activityId), eq(userReservations.reservedDate, reservedDate), ne(userReservations.status, 'cancelado')));
-        if ((usados[0]?.value ?? 0) >= cuposDia) {
+          .where(and(
+            eq(userReservations.activityId, activityId),
+            eq(userReservations.reservedDate, reservedDate),
+            reservedTime ? eq(userReservations.reservedTime, reservedTime) : isNull(userReservations.reservedTime),
+            ne(userReservations.status, 'cancelado'),
+          ));
+        if ((usados[0]?.value ?? 0) + cantidad > cuposDia) {
           throw Object.assign(new Error('SIN_CUPOS'), { code: 'SIN_CUPOS' });
+        }
+      }
+
+      // Limite de cupos por persona: cuenta lo que ESTE usuario ya tiene reservado en esa misma
+      // franja (sumado a lo nuevo), para que no lo evada reservando varias veces por separado.
+      if (limitePorPersona != null && reservedDate) {
+        const propios = await tx.select({ value: count() }).from(userReservations)
+          .where(and(
+            eq(userReservations.activityId, activityId),
+            eq(userReservations.userId, session.user.id),
+            eq(userReservations.reservedDate, reservedDate),
+            reservedTime ? eq(userReservations.reservedTime, reservedTime) : isNull(userReservations.reservedTime),
+            ne(userReservations.status, 'cancelado'),
+          ));
+        if ((propios[0]?.value ?? 0) + cantidad > limitePorPersona) {
+          throw Object.assign(new Error('LIMITE_PERSONA'), { code: 'LIMITE_PERSONA', limitePorPersona });
         }
       }
 
@@ -1271,20 +1393,25 @@ app.post("/api/reservations", async ({ body, request, set }) => {
         status = 'pagado';
       }
 
-      const [created] = await tx.insert(userReservations).values({
-        userId: session.user.id,
-        activityId,
-        status,
-        reservedDate: reservedDate ?? null,
-        reservedTime: reservedTime ?? null,
-      }).returning();
+      // Cada cupo comprado de una vez es su propia fila (asi el conteo por franja sigue siendo
+      // un simple COUNT(*), sin necesitar una columna de cantidad aparte).
+      const created = await tx.insert(userReservations).values(
+        Array.from({ length: cantidad }, () => ({
+          userId: session.user.id,
+          activityId,
+          status,
+          reservedDate: reservedDate ?? null,
+          reservedTime: reservedTime ?? null,
+        }))
+      ).returning();
 
       return { created, payment };
     });
 
     return {
       success: true,
-      reservation: result.created,
+      cantidad: result.created.length,
+      reservation: result.created[0],
       payment: result.payment
         ? { transactionId: result.payment.transactionId, processedAt: result.payment.processedAt }
         : null,
@@ -1293,6 +1420,10 @@ app.post("/api/reservations", async ({ body, request, set }) => {
     if (e?.code === 'SIN_CUPOS') {
       set.status = 409;
       return { error: "No quedan cupos para esa fecha" };
+    }
+    if (e?.code === 'LIMITE_PERSONA') {
+      set.status = 409;
+      return { error: `Este panorama permite reservar como máximo ${e.limitePorPersona} cupo(s) por persona`, code: 'LIMITE_PERSONA' };
     }
     if (e?.code === 'PAGO_FALLO') {
       set.status = 402;
@@ -1362,6 +1493,8 @@ app.get("/api/reservations/:userId", async ({ params, request, set }) => {
       activityId: userReservations.activityId,
       status: userReservations.status,
       createdAt: userReservations.createdAt,
+      reservedDate: userReservations.reservedDate,
+      reservedTime: userReservations.reservedTime,
       activityName: activities.name,
       activityCategory: activities.category,
       activityLat: activities.lat,
@@ -1377,6 +1510,8 @@ app.get("/api/reservations/:userId", async ({ params, request, set }) => {
     activityId: r.activityId,
     status: r.status,
     createdAt: r.createdAt,
+    reservedDate: r.reservedDate,
+    reservedTime: r.reservedTime,
     activity: r.activityName ? {
       id: r.activityId,
       name: r.activityName,
@@ -1385,6 +1520,45 @@ app.get("/api/reservations/:userId", async ({ params, request, set }) => {
       coordinates: { lat: r.activityLat, lng: r.activityLng },
     } : null,
   }));
+});
+
+// POST /api/reservations/pay-batch { ids: string[] }: paga de una sola vez un grupo de
+// reservas pendientes que se crearon juntas (ej. "reservar 3 cupos"), con un solo cobro.
+app.post("/api/reservations/pay-batch", async ({ body, request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id) {
+    set.status = 401;
+    return { error: "No autorizado" };
+  }
+  const { ids } = body as { ids?: string[] };
+  if (!Array.isArray(ids) || ids.length === 0) {
+    set.status = 400;
+    return { error: "ids requerido" };
+  }
+
+  const rows = await db.select().from(userReservations).where(inArray(userReservations.id, ids));
+  if (rows.length !== ids.length || rows.some(r => r.userId !== session.user.id)) {
+    set.status = 403;
+    return { error: "Prohibido" };
+  }
+  if (rows.some(r => r.status !== 'pendiente')) {
+    set.status = 409;
+    return { error: "Alguna de estas reservas ya no esta pendiente" };
+  }
+
+  const activityId = rows[0]!.activityId;
+  const payment = await processPayment({ userId: session.user.id, activityId });
+  if (!payment.success) {
+    set.status = 402;
+    return { error: payment.error ?? "Pago rechazado", processedAt: payment.processedAt };
+  }
+
+  await db.update(userReservations).set({ status: 'pagado' }).where(inArray(userReservations.id, ids));
+  return {
+    success: true,
+    cantidad: ids.length,
+    payment: { transactionId: payment.transactionId, processedAt: payment.processedAt },
+  };
 });
 
 // PATCH /api/reservations/:id { status }: cambiar estado (ej. cancelar)
@@ -1417,6 +1591,19 @@ app.patch("/api/reservations/:id", async ({ params, body, request, set }) => {
     .returning();
 
   return { success: true, reservation: updated };
+});
+
+// DELETE /api/reservations/cancelled : limpia (borra) las reservas canceladas del usuario
+app.delete("/api/reservations/cancelled", async ({ request, set }) => {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user?.id) {
+    set.status = 401;
+    return { error: "No autorizado" };
+  }
+  const deleted = await db.delete(userReservations)
+    .where(and(eq(userReservations.userId, session.user.id), eq(userReservations.status, 'cancelado')))
+    .returning({ id: userReservations.id });
+  return { success: true, deleted: deleted.length };
 });
 
 // --- RUTAS OTP ---

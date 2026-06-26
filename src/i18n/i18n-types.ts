@@ -407,6 +407,14 @@ type RootTranslation = {
 	 */
 	reservationCancelConfirm: string
 	/**
+	 * P​r​o​c​e​s​a​n​d​o​ ​c​a​n​c​e​l​a​c​i​ó​n​.​.​.
+	 */
+	reservationCancelProcessing: string
+	/**
+	 * L​i​m​p​i​a​r​ ​c​a​n​c​e​l​a​d​a​s
+	 */
+	reservationClearCancelledCta: string
+	/**
 	 * V​e​r​ ​e​v​e​n​t​o
 	 */
 	viewEventCta: string
@@ -414,6 +422,37 @@ type RootTranslation = {
 	 * R​e​s​e​r​v​a​r
 	 */
 	reserveOnlyCta: string
+	/**
+	 * C​a​n​t​i​d​a​d​ ​d​e​ ​c​u​p​o​s
+	 */
+	quantityLabel: string
+	/**
+	 * M​á​x​i​m​o​ ​{​n​}​ ​d​i​s​p​o​n​i​b​l​e​s
+	 * @param {number} n
+	 */
+	quantityMaxHint: RequiredParams<'n'>
+	/**
+	 * ¿​C​o​n​f​i​r​m​a​s​ ​t​u​ ​r​e​s​e​r​v​a​?
+	 */
+	confirmReserveTitle: string
+	/**
+	 * V​a​s​ ​a​ ​r​e​s​e​r​v​a​r​ ​{​n​}​ ​c​u​p​o​(​s​)​ ​p​a​r​a​ ​{​f​e​c​h​a​}​.
+	 * @param {string} fecha
+	 * @param {number} n
+	 */
+	confirmReserveQtyText: RequiredParams<'fecha' | 'n'>
+	/**
+	 * S​í​,​ ​c​o​n​t​i​n​u​a​r
+	 */
+	confirmCta: string
+	/**
+	 * N​o​,​ ​v​o​l​v​e​r
+	 */
+	cancelCta: string
+	/**
+	 * G​e​n​e​r​a​n​d​o​ ​t​u​ ​r​e​s​e​r​v​a​.​.​.
+	 */
+	generatingReservationLabel: string
 	/**
 	 * P​a​g​a​r​ ​a​h​o​r​a
 	 */
@@ -466,6 +505,26 @@ type RootTranslation = {
 	 * C​o​m​p​r​a​d​o
 	 */
 	cardStatusPaid: string
+	/**
+	 * T​o​d​a​s
+	 */
+	reservationFilterAll: string
+	/**
+	 * A​c​t​i​v​a​s
+	 */
+	reservationFilterActive: string
+	/**
+	 * P​o​r​ ​p​a​g​a​r
+	 */
+	reservationFilterPending: string
+	/**
+	 * C​a​n​c​e​l​a​d​a​s
+	 */
+	reservationFilterCancelled: string
+	/**
+	 * N​o​ ​h​a​y​ ​r​e​s​e​r​v​a​s​ ​e​n​ ​e​s​t​a​ ​c​a​t​e​g​o​r​í​a​.
+	 */
+	reservationFilterEmpty: string
 	/**
 	 * P​o​p​u​l​a​r
 	 */
@@ -1021,6 +1080,18 @@ type RootTranslation = {
 	 */
 	adminFormSlotsHint: string
 	/**
+	 * L​í​m​i​t​e​ ​p​o​r​ ​p​e​r​s​o​n​a
+	 */
+	adminFormPersonLimitLabel: string
+	/**
+	 * S​i​n​ ​l​í​m​i​t​e
+	 */
+	adminFormPersonLimitPlaceholder: string
+	/**
+	 * M​á​x​i​m​o​ ​d​e​ ​c​u​p​o​s​ ​q​u​e​ ​u​n​a​ ​m​i​s​m​a​ ​p​e​r​s​o​n​a​ ​p​u​e​d​e​ ​r​e​s​e​r​v​a​r​ ​e​n​ ​u​n​ ​m​i​s​m​o​ ​h​o​r​a​r​i​o​.​ ​V​a​c​í​o​ ​=​ ​s​i​n​ ​l​í​m​i​t​e​.
+	 */
+	adminFormPersonLimitHint: string
+	/**
 	 * G​u​a​r​d​a​n​d​o​.​.​.
 	 */
 	adminFormSavingCta: string
@@ -1139,6 +1210,14 @@ type RootTranslation = {
 	 */
 	adminManageUnavailableLabel: string
 	/**
+	 * V​e​n​c​i​d​o​ ​(​f​e​c​h​a​s​ ​p​a​s​a​d​a​s​)
+	 */
+	adminManageExpiredLabel: string
+	/**
+	 * A​g​o​t​a​d​o​ ​(​s​i​n​ ​c​u​p​o​s​)
+	 */
+	adminManageSoldOutLabel: string
+	/**
 	 * E​l​i​m​i​n​a​r
 	 */
 	adminManageDeleteTitle: string
@@ -1158,6 +1237,14 @@ type RootTranslation = {
 	 * L​o​s​ ​c​u​p​o​s​ ​n​o​ ​p​u​e​d​e​n​ ​s​e​r​ ​n​e​g​a​t​i​v​o​s​.
 	 */
 	adminFormErrorSlotsNegative: string
+	/**
+	 * E​l​ ​l​í​m​i​t​e​ ​p​o​r​ ​p​e​r​s​o​n​a​ ​d​e​b​e​ ​s​e​r​ ​m​a​y​o​r​ ​a​ ​0​.
+	 */
+	adminFormErrorPersonLimitInvalid: string
+	/**
+	 * E​l​ ​l​í​m​i​t​e​ ​p​o​r​ ​p​e​r​s​o​n​a​ ​n​o​ ​p​u​e​d​e​ ​s​e​r​ ​m​a​y​o​r​ ​q​u​e​ ​l​o​s​ ​c​u​p​o​s​ ​p​o​r​ ​d​í​a​.
+	 */
+	adminFormErrorPersonLimitExceedsSlots: string
 	/**
 	 * E​n​ ​l​a​ ​f​e​c​h​a​ ​{​f​e​c​h​a​}​,​ ​l​a​ ​h​o​r​a​ ​d​e​ ​i​n​i​c​i​o​ ​d​e​b​e​ ​s​e​r​ ​a​n​t​e​r​i​o​r​ ​a​ ​l​a​ ​d​e​ ​f​i​n​.
 	 * @param {unknown} fecha
@@ -1646,6 +1733,14 @@ export type TranslationFunctions = {
 	 */
 	reservationCancelConfirm: () => LocalizedString
 	/**
+	 * Procesando cancelación...
+	 */
+	reservationCancelProcessing: () => LocalizedString
+	/**
+	 * Limpiar canceladas
+	 */
+	reservationClearCancelledCta: () => LocalizedString
+	/**
 	 * Ver evento
 	 */
 	viewEventCta: () => LocalizedString
@@ -1653,6 +1748,34 @@ export type TranslationFunctions = {
 	 * Reservar
 	 */
 	reserveOnlyCta: () => LocalizedString
+	/**
+	 * Cantidad de cupos
+	 */
+	quantityLabel: () => LocalizedString
+	/**
+	 * Máximo {n} disponibles
+	 */
+	quantityMaxHint: (arg: { n: number }) => LocalizedString
+	/**
+	 * ¿Confirmas tu reserva?
+	 */
+	confirmReserveTitle: () => LocalizedString
+	/**
+	 * Vas a reservar {n} cupo(s) para {fecha}.
+	 */
+	confirmReserveQtyText: (arg: { fecha: string, n: number }) => LocalizedString
+	/**
+	 * Sí, continuar
+	 */
+	confirmCta: () => LocalizedString
+	/**
+	 * No, volver
+	 */
+	cancelCta: () => LocalizedString
+	/**
+	 * Generando tu reserva...
+	 */
+	generatingReservationLabel: () => LocalizedString
 	/**
 	 * Pagar ahora
 	 */
@@ -1705,6 +1828,26 @@ export type TranslationFunctions = {
 	 * Comprado
 	 */
 	cardStatusPaid: () => LocalizedString
+	/**
+	 * Todas
+	 */
+	reservationFilterAll: () => LocalizedString
+	/**
+	 * Activas
+	 */
+	reservationFilterActive: () => LocalizedString
+	/**
+	 * Por pagar
+	 */
+	reservationFilterPending: () => LocalizedString
+	/**
+	 * Canceladas
+	 */
+	reservationFilterCancelled: () => LocalizedString
+	/**
+	 * No hay reservas en esta categoría.
+	 */
+	reservationFilterEmpty: () => LocalizedString
 	/**
 	 * Popular
 	 */
@@ -2254,6 +2397,18 @@ Ingresa 1 o 2:
 	 */
 	adminFormSlotsHint: () => LocalizedString
 	/**
+	 * Límite por persona
+	 */
+	adminFormPersonLimitLabel: () => LocalizedString
+	/**
+	 * Sin límite
+	 */
+	adminFormPersonLimitPlaceholder: () => LocalizedString
+	/**
+	 * Máximo de cupos que una misma persona puede reservar en un mismo horario. Vacío = sin límite.
+	 */
+	adminFormPersonLimitHint: () => LocalizedString
+	/**
 	 * Guardando...
 	 */
 	adminFormSavingCta: () => LocalizedString
@@ -2370,6 +2525,14 @@ Ingresa 1 o 2:
 	 */
 	adminManageUnavailableLabel: () => LocalizedString
 	/**
+	 * Vencido (fechas pasadas)
+	 */
+	adminManageExpiredLabel: () => LocalizedString
+	/**
+	 * Agotado (sin cupos)
+	 */
+	adminManageSoldOutLabel: () => LocalizedString
+	/**
 	 * Eliminar
 	 */
 	adminManageDeleteTitle: () => LocalizedString
@@ -2389,6 +2552,14 @@ Ingresa 1 o 2:
 	 * Los cupos no pueden ser negativos.
 	 */
 	adminFormErrorSlotsNegative: () => LocalizedString
+	/**
+	 * El límite por persona debe ser mayor a 0.
+	 */
+	adminFormErrorPersonLimitInvalid: () => LocalizedString
+	/**
+	 * El límite por persona no puede ser mayor que los cupos por día.
+	 */
+	adminFormErrorPersonLimitExceedsSlots: () => LocalizedString
 	/**
 	 * En la fecha {fecha}, la hora de inicio debe ser anterior a la de fin.
 	 */

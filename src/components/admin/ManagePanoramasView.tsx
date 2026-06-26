@@ -14,6 +14,8 @@ interface AdminActivity {
     isTendencia: boolean;
     isPopular: boolean;
     disponible: boolean;
+    disponibleReal?: boolean;
+    motivoNoDisponible?: 'manual' | 'vencido' | 'agotado' | null;
 }
 
 type CategoryKey = 'categoryAll' | 'categoryCine' | 'categoryParque' | 'categoryTeatro' | 'categoryMuseo' | 'categoryRestaurante' | 'categoryMiradores';
@@ -56,7 +58,18 @@ export function ManagePanoramasView() {
     useEffect(() => { load(); }, []);
 
     const patchFlag = async (id: string, updates: Partial<AdminActivity>) => {
-        setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...updates } : it)));
+        setItems((prev) => prev.map((it) => {
+            if (it.id !== id) return it;
+            const next = { ...it, ...updates };
+            // Si se toca el flag manual, reflejamos de inmediato el estado real esperado:
+            // apagarlo manualmente siempre gana (real=false, motivo=manual); encenderlo manualmente
+            // solo se confirma como "disponible" si no esta vencido/agotado (eso lo corrige el load() real abajo).
+            if ('disponible' in updates) {
+                next.disponibleReal = updates.disponible ? (it.motivoNoDisponible == null || it.motivoNoDisponible === 'manual') : false;
+                next.motivoNoDisponible = updates.disponible ? (next.disponibleReal ? null : it.motivoNoDisponible) : 'manual';
+            }
+            return next;
+        }));
         try {
             await fetch(`/api/admin/activities/${id}`, {
                 method: 'PATCH',
@@ -64,6 +77,9 @@ export function ManagePanoramasView() {
                 credentials: 'include',
                 body: JSON.stringify(updates),
             });
+            // Refrescamos desde el servidor para que disponibleReal/motivo queden exactos
+            // (el optimista de arriba es solo para que el click se sienta instantaneo).
+            if ('disponible' in updates) load();
         } catch {
             load();
         }
@@ -131,7 +147,7 @@ export function ManagePanoramasView() {
             <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex flex-wrap gap-2">
                     {FILTROS.map((f) => (
-                        <button key={f} type="button" onClick={() => setFilter(f)} className={chip(filter === f)}>
+                        <button key={f} type="button" onClick={() => { setFilter(f); load(); }} className={chip(filter === f)}>
                             {filtroLabel(f)}
                         </button>
                     ))}
@@ -192,15 +208,29 @@ export function ManagePanoramasView() {
                             >
                                 <Star className="w-3.5 h-3.5" /> {LL.badgePopular()}
                             </button>
-                            <button
-                                type="button"
-                                onClick={() => patchFlag(it.id, { disponible: !it.disponible })}
-                                className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-lg transition ${it.disponible ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'}`}
-                                title={LL.adminManageAvailabilityTitle()}
-                            >
-                                {it.disponible ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                                {it.disponible ? LL.adminManageAvailableLabel() : LL.adminManageUnavailableLabel()}
-                            </button>
+                            {/* El boton refleja el estado REAL (flag manual + vencido/agotado), no solo el flag.
+                                Asi nunca se ve "Disponible" en verde si en realidad ya no se puede reservar.
+                                El click sigue controlando el flag manual de la BD (para forzar encendido/apagado). */}
+                            {(() => {
+                                const real = it.disponibleReal ?? it.disponible;
+                                const motivo = it.motivoNoDisponible;
+                                const label = real
+                                    ? LL.adminManageAvailableLabel()
+                                    : motivo === 'vencido' ? LL.adminManageExpiredLabel()
+                                    : motivo === 'agotado' ? LL.adminManageSoldOutLabel()
+                                    : LL.adminManageUnavailableLabel();
+                                return (
+                                    <button
+                                        type="button"
+                                        onClick={() => patchFlag(it.id, { disponible: !it.disponible })}
+                                        className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-lg transition ${real ? 'bg-emerald-100 text-emerald-700' : motivo && motivo !== 'manual' ? 'bg-amber-100 text-amber-700' : 'bg-gray-200 text-gray-500'}`}
+                                        title={LL.adminManageAvailabilityTitle()}
+                                    >
+                                        {real ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                                        {label}
+                                    </button>
+                                );
+                            })()}
                             <button
                                 type="button"
                                 onClick={() => setEditingActivity(it)}

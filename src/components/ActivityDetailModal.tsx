@@ -3,9 +3,9 @@ import { type Activity } from '../types/index.ts';
 import { X, MapPin, Clock, CloudSun, Ticket, Calendar, ArrowLeft, Navigation } from 'lucide-react';
 import { useT } from '@/i18n/context';
 
-interface Franja { horaInicio: string | null; horaFin: string | null; }
+interface Franja { horaInicio: string | null; horaFin: string | null; disponibles: number | null; }
 interface AvailFecha { fecha: string; franjas: Franja[]; cuposPorDia: number | null; disponibles: number | null; }
-interface AvailResp { activityId: string; name: string; price: number | null; fechas: AvailFecha[]; }
+interface AvailResp { activityId: string; name: string; price: number | null; limitePorPersona: number | null; fechas: AvailFecha[]; }
 
 interface ActivityDetailModalProps {
     activity: Activity | null;
@@ -31,13 +31,15 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
     const [loadingAvail, setLoadingAvail] = useState(false);
     const [selFecha, setSelFecha] = useState<string | null>(null);
     const [selFranja, setSelFranja] = useState<Franja | null>(null);
+    const [cantidad, setCantidad] = useState(1);
     const [busy, setBusy] = useState(false);
     const [confirmPay, setConfirmPay] = useState(false);
+    const [confirmReserveOnly, setConfirmReserveOnly] = useState(false);
     const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
     const [drivingKm, setDrivingKm] = useState<number | null>(null);
 
     useEffect(() => {
-        setStep('detalle'); setAvail(null); setSelFecha(null); setSelFranja(null); setMsg(null); setConfirmPay(false);
+        setStep('detalle'); setAvail(null); setSelFecha(null); setSelFranja(null); setMsg(null); setConfirmPay(false); setConfirmReserveOnly(false); setCantidad(1);
     }, [activity]);
 
     useEffect(() => {
@@ -67,8 +69,17 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
     const distMostrar = drivingKm ?? distanciaKm;
     const fechaSel = avail?.fechas.find((f) => f.fecha === selFecha) || null;
     const franjasDeFecha = fechaSel?.franjas || [];
-    const agotadoSel = fechaSel?.disponibles === 0;
+    // Si hay franjas, el cupo relevante es el de la franja elegida (cada hora cuenta por separado).
+    // Si no hay franjas (entrada libre todo el dia), se usa el cupo de la fecha completa.
+    const agotadoSel = franjasDeFecha.length > 0 ? selFranja?.disponibles === 0 : fechaSel?.disponibles === 0;
     const puedeReservar = !!selFecha && !agotadoSel && (selFranja !== null || franjasDeFecha.length === 0);
+    // Tope real de cupos que se pueden comprar de una vez en la franja/fecha elegida
+    // (null = entrada libre sin limite de cupos, lo dejamos en un tope razonable de 20)
+    const disponiblesSel = franjasDeFecha.length > 0 ? selFranja?.disponibles : fechaSel?.disponibles;
+    const maxPorCupos = disponiblesSel == null ? 20 : Math.max(1, disponiblesSel);
+    // Si el panorama tiene limite de cupos por persona, ese tope manda sobre el cupo restante
+    const maxCantidad = avail?.limitePorPersona != null ? Math.min(maxPorCupos, avail.limitePorPersona) : maxPorCupos;
+    const cantidadClamped = Math.min(Math.max(1, cantidad), maxCantidad);
 
     const consultar = async () => {
         setLoadingAvail(true); setMsg(null);
@@ -97,6 +108,7 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                     payNow,
                     reservedDate: selFecha,
                     reservedTime: selFranja ? `${selFranja.horaInicio ?? ''} - ${selFranja.horaFin ?? ''}` : null,
+                    cantidad: cantidadClamped,
                 }),
             });
             const data = await res.json();
@@ -108,6 +120,7 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                 const av = await fetch(`/api/activities/${activity.id}/availability`, { credentials: 'include' });
                 setAvail(await av.json());
                 setSelFranja(null);
+                setCantidad(1);
             } catch { /* noop */ }
         } catch (e: any) {
             setMsg({ ok: false, text: e?.message || LL.reservationErrorGeneric() });
@@ -225,14 +238,20 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                             <div className='flex flex-wrap gap-2'>
                                 {avail?.fechas.map((f) => {
                                     const agotado = f.disponibles === 0;
+                                    // El cupo real vive en cada franja (hora), no en la fecha: si la fecha tiene
+                                    // franjas, no repetimos un numero aqui (se ve en los botones de horario abajo).
+                                    // Solo avisamos cuando la fecha completa esta agotada (todas sus franjas en 0).
+                                    const tieneFranjas = f.franjas.length > 0;
                                     return (
                                         <button key={f.fecha} type='button'
-                                            onClick={() => { setSelFecha(f.fecha); setSelFranja(null); }}
+                                            onClick={() => { setSelFecha(f.fecha); setSelFranja(null); setCantidad(1); }}
                                             className={chip(selFecha === f.fecha)}>
                                             {f.fecha}
-                                            <span className={`block text-[9px] font-bold ${agotado ? 'text-red-500' : 'opacity-70'}`}>
-                                                {f.disponibles == null ? LL.slotsFree() : agotado ? LL.soldOut() : LL.slotsCount({ n: f.disponibles })}
-                                            </span>
+                                            {(!tieneFranjas || agotado) && (
+                                                <span className={`block text-[9px] font-bold ${agotado ? 'text-red-500' : 'opacity-70'}`}>
+                                                    {f.disponibles == null ? LL.slotsFree() : agotado ? LL.soldOut() : LL.slotsCount({ n: f.disponibles })}
+                                                </span>
+                                            )}
                                         </button>
                                     );
                                 })}
@@ -241,17 +260,35 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                                 <div>
                                     <p className='text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2'>{LL.scheduleLabel()}</p>
                                     <div className='flex flex-wrap gap-2'>
-                                        {franjasDeFecha.map((fr, i) => (
-                                            <button key={i} type='button' onClick={() => setSelFranja(fr)}
-                                                className={chip(selFranja === fr)}>
-                                                {fr.horaInicio} - {fr.horaFin}
-                                            </button>
-                                        ))}
+                                        {franjasDeFecha.map((fr, i) => {
+                                            const franjaAgotada = fr.disponibles === 0;
+                                            return (
+                                                <button key={i} type='button' disabled={franjaAgotada}
+                                                    onClick={() => { setSelFranja(fr); setCantidad(1); }}
+                                                    className={`${chip(selFranja === fr)} ${franjaAgotada ? 'opacity-40 cursor-not-allowed line-through' : ''}`}>
+                                                    {fr.horaInicio} - {fr.horaFin}
+                                                    {fr.disponibles != null && (
+                                                        <span className={`block text-[9px] font-bold ${franjaAgotada ? 'text-red-500' : 'opacity-70'}`}>
+                                                            {franjaAgotada ? LL.soldOut() : LL.slotsCount({ n: fr.disponibles })}
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}
 
-                            {selFecha && fechaSel?.disponibles != null && (
+                            {selFecha && franjasDeFecha.length > 0 && selFranja?.disponibles != null && (
+                                <div className={`text-center text-xs font-black rounded-xl py-2 ${selFranja.disponibles === 0 ? 'bg-red-50 text-red-600' : selFranja.disponibles <= 5 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                                    {selFranja.disponibles === 0
+                                        ? LL.soldOutForDateAlert()
+                                        : selFranja.disponibles <= 5
+                                        ? LL.onlySlotsLeftAlert({ n: selFranja.disponibles })
+                                        : LL.slotsAvailableAlert({ n: selFranja.disponibles })}
+                                </div>
+                            )}
+                            {selFecha && franjasDeFecha.length === 0 && fechaSel?.disponibles != null && (
                                 <div className={`text-center text-xs font-black rounded-xl py-2 ${fechaSel.disponibles === 0 ? 'bg-red-50 text-red-600' : fechaSel.disponibles <= 5 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
                                     {fechaSel.disponibles === 0
                                         ? LL.soldOutForDateAlert()
@@ -260,15 +297,40 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                                         : LL.slotsAvailableAlert({ n: fechaSel.disponibles })}
                                 </div>
                             )}
+
+                            {puedeReservar && !confirmPay && (
+                                <div className='flex items-center justify-between bg-white border border-gray-100 rounded-2xl p-4'>
+                                    <div>
+                                        <p className='text-[10px] font-bold text-gray-400 uppercase tracking-widest'>{LL.quantityLabel()}</p>
+                                        <p className='text-[10px] text-gray-400'>{LL.quantityMaxHint({ n: maxCantidad })}</p>
+                                    </div>
+                                    <div className='flex items-center gap-3'>
+                                        <button type='button' onClick={() => setCantidad((c) => Math.max(1, c - 1))}
+                                            disabled={cantidadClamped <= 1}
+                                            className='w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-black text-lg flex items-center justify-center disabled:opacity-30'>
+                                            −
+                                        </button>
+                                        <span className='text-lg font-black text-gray-900 w-6 text-center'>{cantidadClamped}</span>
+                                        <button type='button' onClick={() => setCantidad((c) => Math.min(maxCantidad, c + 1))}
+                                            disabled={cantidadClamped >= maxCantidad}
+                                            className='w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-black text-lg flex items-center justify-center disabled:opacity-30'>
+                                            +
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
- 
+
                 <div className='p-6 bg-zinc-50 border-t border-gray-100 mt-auto space-y-3'>
                     {msg && (
                         <p className={`text-xs font-bold text-center ${msg.ok ? 'text-emerald-600' : 'text-red-500'}`}>{msg.text}</p>
                     )}
- 
+                    {busy && (
+                        <p className='text-xs font-bold text-center text-gray-400 animate-pulse'>{LL.generatingReservationLabel()}</p>
+                    )}
+
                     {step === 'detalle' && !msg?.ok && (
                         <button type='button' onClick={consultar} disabled={loadingAvail}
                             className='w-full text-xs font-black py-4 rounded-2xl bg-black hover:bg-zinc-800 text-white uppercase tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50'>
@@ -281,12 +343,13 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                             {confirmPay ? (
                                 <>
                                     {(() => {
-                                        const base = activity.price ?? 0;
+                                        const base = (activity.price ?? 0) * cantidadClamped;
                                         const servicio = Math.round(base * 0.10);
                                         const total = base + servicio;
                                         return (
                                             <div className='bg-white border border-gray-100 rounded-2xl p-4 space-y-2'>
                                                 <p className='text-[10px] font-bold text-gray-400 uppercase tracking-widest'>{LL.paymentDetailLabel()}</p>
+                                                <div className='flex justify-between text-sm text-gray-600'><span>{LL.quantityLabel()}</span><span className='font-bold text-gray-900'>×{cantidadClamped}</span></div>
                                                 <div className='flex justify-between text-sm text-gray-600'><span>{LL.subtotalLabel()}</span><span className='font-bold text-gray-900'>${base.toLocaleString('es-CL')}</span></div>
                                                 <div className='flex justify-between text-sm text-gray-600'><span>{LL.serviceFeeLabel()}</span><span className='font-bold text-gray-900'>${servicio.toLocaleString('es-CL')}</span></div>
                                                 <div className='border-t border-gray-200 pt-2 flex justify-between items-center'><span className='text-sm font-black text-gray-900'>{LL.totalLabel()}</span><span className='text-xl font-black text-blue-600'>${total.toLocaleString('es-CL')}</span></div>
@@ -302,6 +365,21 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                                         {LL.backLabel()}
                                     </button>
                                 </>
+                            ) : confirmReserveOnly ? (
+                                <>
+                                    <div className='bg-white border border-gray-100 rounded-2xl p-4 space-y-1 text-center'>
+                                        <p className='text-sm font-black text-gray-900'>{LL.confirmReserveTitle()}</p>
+                                        <p className='text-xs text-gray-500'>{LL.confirmReserveQtyText({ n: cantidadClamped, fecha: selFecha ?? '' })}</p>
+                                    </div>
+                                    <button type='button' onClick={() => reservar(false)} disabled={busy}
+                                        className='w-full text-xs font-black py-4 rounded-2xl bg-black hover:bg-zinc-800 text-white uppercase tracking-widest active:scale-[0.98] disabled:opacity-50'>
+                                        {busy ? LL.loading() : LL.confirmCta()}
+                                    </button>
+                                    <button type='button' onClick={() => setConfirmReserveOnly(false)} disabled={busy}
+                                        className='w-full text-[11px] font-bold text-gray-400 hover:text-gray-700 uppercase tracking-widest'>
+                                        {LL.cancelCta()}
+                                    </button>
+                                </>
                             ) : (
                                 <>
                                     {agotadoSel ? (
@@ -311,7 +389,7 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                                         </button>
                                     ) : puedeReservar && (
                                         <div className='flex gap-2'>
-                                            <button type='button' onClick={() => reservar(false)} disabled={busy}
+                                            <button type='button' onClick={() => setConfirmReserveOnly(true)} disabled={busy}
                                                 className='flex-1 text-xs font-black py-4 rounded-2xl bg-gray-200 hover:bg-gray-300 text-gray-800 uppercase tracking-widest active:scale-[0.98] disabled:opacity-50'>
                                                 {LL.reserveOnlyCta()}
                                             </button>

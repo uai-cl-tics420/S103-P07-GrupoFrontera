@@ -36,6 +36,13 @@
       "when": 1782107056162,
       "tag": "0004_minor_ultimatum",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782505469656,
+      "tag": "0005_legal_scorpion",
+      "breakpoints": true
     }
   ]
 }

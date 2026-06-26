@@ -72,6 +72,7 @@ export const activities = pgTable('activities', {
     placeId: text('place_id'),
     price: integer('price'),
     cuposPorDia: integer('cupos_por_dia'),
+    limitePorPersona: integer('limite_por_persona'),
     // --- Flags de gestion (pestaña Administrar panoramas) ---
     isTendencia: boolean('is_tendencia').default(false),
     isPopular: boolean('is_popular').default(false),

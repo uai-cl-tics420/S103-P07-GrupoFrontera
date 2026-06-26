@@ -61,6 +61,7 @@ export function CreatePanoramaForm({ activityToEdit, onSuccess, onCancel }: Crea
     const [tagClima, setTagClima] = useState<'All' | 'Sunny'>(activityToEdit?.tag_clima || 'All');
     const [precio, setPrecio] = useState<string>(activityToEdit?.price != null ? String(activityToEdit.price) : '');
     const [cuposPorDia, setCuposPorDia] = useState<string>(activityToEdit?.cupos_por_dia != null ? String(activityToEdit.cupos_por_dia) : (activityToEdit?.cuposPorDia != null ? String(activityToEdit.cuposPorDia) : ''));
+    const [limitePorPersona, setLimitePorPersona] = useState<string>(activityToEdit?.limite_por_persona != null ? String(activityToEdit.limite_por_persona) : (activityToEdit?.limitePorPersona != null ? String(activityToEdit.limitePorPersona) : ''));
     const [dias, setDias] = useState<DiaHorario[]>([
         { fecha: '', franjas: [{ horaInicio: '', horaFin: '' }] },
     ]);
@@ -90,6 +91,7 @@ export function CreatePanoramaForm({ activityToEdit, onSuccess, onCancel }: Crea
                     setTagClima(data.tag_clima || 'All');
                     setPrecio(data.price != null ? String(data.price) : '');
                     setCuposPorDia(data.cupos_por_dia != null ? String(data.cupos_por_dia) : '');
+                    setLimitePorPersona(data.limite_por_persona != null ? String(data.limite_por_persona) : '');
                     setPlaceId(data.placeId || null);
                     if (data.schedules && data.schedules.length > 0) {
                         setDias(data.schedules);
@@ -166,6 +168,8 @@ export function CreatePanoramaForm({ activityToEdit, onSuccess, onCancel }: Crea
         if (!nombre.trim()) errores.push(LL.adminFormErrorNameRequired());
         if (precio !== '' && Number(precio) < 0) errores.push(LL.adminFormErrorPriceNegative());
         if (cuposPorDia !== '' && Number(cuposPorDia) < 0) errores.push(LL.adminFormErrorSlotsNegative());
+        if (limitePorPersona !== '' && Number(limitePorPersona) <= 0) errores.push(LL.adminFormErrorPersonLimitInvalid());
+        if (limitePorPersona !== '' && cuposPorDia !== '' && Number(limitePorPersona) > Number(cuposPorDia)) errores.push(LL.adminFormErrorPersonLimitExceedsSlots());
         for (const d of dias) {
             if (!d.fecha) continue;
             if (d.fecha < todayStr) {
@@ -194,6 +198,7 @@ export function CreatePanoramaForm({ activityToEdit, onSuccess, onCancel }: Crea
             tag_clima: tagClima,
             price: precio === '' ? null : Number(precio),
             cupos_por_dia: cuposPorDia === '' ? null : Number(cuposPorDia),
+            limite_por_persona: limitePorPersona === '' ? null : Number(limitePorPersona),
             image_url: imageUrl || null,
             place_id: placeId,
             schedules: dias
@@ -471,6 +476,18 @@ export function CreatePanoramaForm({ activityToEdit, onSuccess, onCancel }: Crea
                                 className={inputCls} />
                             <p className="text-[11px] text-gray-400 mt-1">
                                 {LL.adminFormSlotsHint()}
+                            </p>
+                        </div>
+                        <div>
+                            <label className={labelCls}>
+                                <span className="inline-flex items-center gap-1.5"><Users className="w-3 h-3" /> {LL.adminFormPersonLimitLabel()}</span>
+                            </label>
+                            <input type="number" min="1" value={limitePorPersona}
+                                onChange={(e) => setLimitePorPersona(e.target.value)}
+                                placeholder={LL.adminFormPersonLimitPlaceholder()}
+                                className={inputCls} />
+                            <p className="text-[11px] text-gray-400 mt-1">
+                                {LL.adminFormPersonLimitHint()}
                             </p>
                         </div>
                     </div>

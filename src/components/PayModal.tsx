@@ -4,6 +4,8 @@ import { useT } from '@/i18n/context';
 
 interface PayModalProps {
     reservationId: string;
+    /** Ids de todas las reservas del mismo lote (ej. se reservaron 3 cupos juntos). Si no se pasa, se usa solo reservationId. */
+    reservationIds?: string[];
     activityName: string;
     price?: number | null;
     open: boolean;
@@ -13,7 +15,9 @@ interface PayModalProps {
 
 type Phase = 'idle' | 'processing' | 'success' | 'error';
 
-export function PayModal({ reservationId, activityName, price, open, onClose, onSuccess }: PayModalProps) {
+export function PayModal({ reservationId, reservationIds, activityName, price, open, onClose, onSuccess }: PayModalProps) {
+    const ids = reservationIds && reservationIds.length > 0 ? reservationIds : [reservationId];
+    const cantidad = ids.length;
     const { LL } = useT();
     const [phase, setPhase] = useState<Phase>('idle');
     const [errorMsg, setErrorMsg] = useState('');
@@ -42,10 +46,17 @@ export function PayModal({ reservationId, activityName, price, open, onClose, on
         setPhase('processing');
         setErrorMsg('');
         try {
-            const res = await fetch(`/api/reservations/${reservationId}/pay`, {
-                method: 'POST',
-                credentials: 'include',
-            });
+            const res = cantidad > 1
+                ? await fetch('/api/reservations/pay-batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ ids }),
+                })
+                : await fetch(`/api/reservations/${reservationId}/pay`, {
+                    method: 'POST',
+                    credentials: 'include',
+                });
             const data = await res.json();
             if (!res.ok || !data.success) {
                 setPhase('error');
@@ -93,7 +104,7 @@ export function PayModal({ reservationId, activityName, price, open, onClose, on
 
                 <div className="px-6 sm:px-8 py-6">
                 {phase === 'idle' && (() => {
-                        const base = price ?? 0;
+                        const base = (price ?? 0) * cantidad;
                         const servicio = Math.round(base * 0.10);
                         const total = base + servicio;
                         return (
@@ -102,6 +113,12 @@ export function PayModal({ reservationId, activityName, price, open, onClose, on
                                     {LL.paymentDetailLabel()}
                                 </p>
                                 <div className="bg-gray-50 rounded-2xl p-4 space-y-2">
+                                    {cantidad > 1 && (
+                                        <div className="flex justify-between text-sm text-gray-600">
+                                            <span>{LL.quantityLabel()}</span>
+                                            <span className="font-bold text-gray-900">×{cantidad}</span>
+                                        </div>
+                                    )}
                                     <div className="flex justify-between text-sm text-gray-600">
                                         <span>{LL.subtotalLabel()}</span>
                                         <span className="font-bold text-gray-900">${base.toLocaleString('es-CL')}</span>

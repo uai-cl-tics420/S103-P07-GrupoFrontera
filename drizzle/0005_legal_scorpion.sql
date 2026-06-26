@@ -1,0 +1,1 @@
+ALTER TABLE "activities" ADD COLUMN "limite_por_persona" integer;
