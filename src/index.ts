@@ -376,24 +376,99 @@ app.get("/api/activities", async ({ query, request }) => {
     : (targetDateStr === occupancyDate)
       ? usadosEnFecha
       : await buildUsadosEnFecha(targetDateForOccupancy);
-  // La heuristica de afluencia mira el dia completo, no una franja especifica: sumamos todas las horas.
-  const usadosEnOccupancy: Record<string, number> = {};
-  for (const [actId, porFranja] of Object.entries(usadosEnOccupancyPorFranja)) {
-    usadosEnOccupancy[actId] = Object.values(porFranja).reduce((a, b) => a + b, 0);
-  }
 
   const dateObj = occupancyDate ? new Date(occupancyDate + 'T12:00:00') : new Date();
   const dayOfWeek = dateObj.getDay();
   const filterHourStr = filterTime?.split(':')[0];
   const timeHourStr = timeStr?.split(':')[0];
-  const hour = filterHourStr 
-    ? parseInt(filterHourStr, 10) 
+  const hour = filterHourStr
+    ? parseInt(filterHourStr, 10)
     : (timeHourStr ? parseInt(timeHourStr, 10) : new Date().getHours());
 
-  const placesWithOccupancy = baseList.map(a => ({
-    ...a,
-    occupancy: getSimulatedOccupancy(a.category, hour, dayOfWeek, a.cuposPorDia, usadosEnOccupancy[a.id] ?? 0, a.vicinity)
-  }));
+  // Si el usuario no fijo una fecha explicita (filtro de fecha o planificacion), cada panorama usa
+  // su propia fecha agendada mas proxima (>= hoy) para la tarjeta -- en vez de forzar "hoy" cuando
+  // el evento en realidad es, por ejemplo, en 3 dias.
+  const hasExplicitDateFilter = !!((filterDate && filterDate !== 'next5days') || (targetDateStr && targetDateStr !== 'next5days'));
+
+  function nearestScheduleDate(schedules: { fecha: string }[]): string | null {
+    const futuras = schedules.map(s => s.fecha).filter(f => f >= todayStr);
+    if (futuras.length === 0) return null;
+    return futuras.reduce((min, f) => (f < min ? f : min));
+  }
+
+  // Cache de cupos usados por fecha (la mayoria de actividades comparten "hoy", pero las que
+  // tienen su proxima fecha mas adelante necesitan su propia consulta).
+  const usadosPorFechaCache: Record<string, Record<string, Record<string, number>>> = {
+    [targetDateForOccupancy]: usadosEnOccupancyPorFranja,
+  };
+  async function getUsadosPorFecha(fecha: string) {
+    if (!usadosPorFechaCache[fecha]) usadosPorFechaCache[fecha] = await buildUsadosEnFecha(fecha);
+    return usadosPorFechaCache[fecha]!;
+  }
+
+  type ActConSchedules = { id: string; cuposPorDia?: number; schedules: { fecha: string; horaInicio?: string | null; horaFin?: string | null }[] };
+
+  // Precarga las fechas distintas que se van a necesitar (una por cada "proxima fecha" unica)
+  if (!hasExplicitDateFilter) {
+    const fechasAPrecargar = new Set<string>();
+    for (const a of mappedActivities as unknown as ActConSchedules[]) {
+      const fecha = nearestScheduleDate(a.schedules);
+      if (fecha) fechasAPrecargar.add(fecha);
+    }
+    await Promise.all(Array.from(fechasAPrecargar).map(getUsadosPorFecha));
+  }
+
+  // Ratio real de cupos usados para la afluencia (null = sin cupos, se usa heuristica como fallback).
+  // Si alguna franja de la fecha calza con la hora consultada, se usa ESA franja puntual;
+  // si no, se usa la franja mas ocupada de esa fecha (la mas representativa de "que tan lleno se pone").
+  function cuposRatioParaOcupancia(a: ActConSchedules, fecha: string, usadosMap: Record<string, number>): number | null {
+    if (a.cuposPorDia == null || a.cuposPorDia <= 0) return null;
+    const schedulesEnFecha = a.schedules.filter(s => s.fecha === fecha);
+    if (schedulesEnFecha.length === 0) return null;
+
+    let ratioEnHoraActual: number | null = null;
+    let ratioMax = 0;
+    for (const s of schedulesEnFecha) {
+      const usados = usadosMap[`${s.horaInicio ?? ''} - ${s.horaFin ?? ''}`] ?? 0;
+      const ratio = usados / a.cuposPorDia!;
+      if (ratio > ratioMax) ratioMax = ratio;
+      const oh = parseInt((s.horaInicio ?? '0').split(':')[0] ?? '0', 10);
+      const ch = parseInt((s.horaFin ?? '23').split(':')[0] ?? '23', 10);
+      if (s.horaInicio && s.horaFin && hour >= oh && hour <= ch) ratioEnHoraActual = ratio;
+    }
+    return ratioEnHoraActual ?? ratioMax;
+  }
+
+  function conOcupancyYFecha<T extends ActConSchedules>(a: T) {
+    const fechaRef = hasExplicitDateFilter ? targetDateForOccupancy : (nearestScheduleDate(a.schedules) ?? targetDateForOccupancy);
+    const usadosMap = usadosPorFechaCache[fechaRef]?.[a.id] ?? {};
+    // dedup por si la misma franja quedo guardada mas de una vez (bug de datos en la creacion/edicion),
+    // y se descartan las franjas ya agotadas: "N horarios disponibles" debe contar solo las que
+    // realmente se pueden reservar (se recalcula en cada request, asi que reacciona a cancelaciones).
+    const franjasVistas = new Set<string>();
+    const nearestFranjas = a.schedules
+      .filter(s => s.fecha === fechaRef)
+      .map(s => ({ horaInicio: s.horaInicio ?? null, horaFin: s.horaFin ?? null }))
+      .filter(f => {
+        const key = `${f.horaInicio ?? ''}|${f.horaFin ?? ''}`;
+        if (franjasVistas.has(key)) return false;
+        franjasVistas.add(key);
+        return true;
+      })
+      .filter(f => {
+        if (a.cuposPorDia == null) return true;
+        const usados = usadosMap[`${f.horaInicio ?? ''} - ${f.horaFin ?? ''}`] ?? 0;
+        return a.cuposPorDia - usados > 0;
+      });
+    return {
+      ...a,
+      occupancy: getSimulatedOccupancy((a as any).category, hour, dayOfWeek, cuposRatioParaOcupancia(a, fechaRef, usadosMap)),
+      nearestDate: nearestFranjas.length > 0 ? fechaRef : undefined,
+      nearestFranjas: nearestFranjas.length > 0 ? nearestFranjas : undefined,
+    };
+  }
+
+  const placesWithOccupancy = baseList.map(a => conOcupancyYFecha(a));
 
   // Evaluación de condiciones climáticas adaptativas (Tu lógica + Barros)
   const conditionClean = (weather?.condition || currentCondition || '').toLowerCase().trim();
@@ -455,8 +530,7 @@ app.get("/api/activities", async ({ query, request }) => {
     .filter(a => matchesTimeWindow(a.openingHour, a.closingHour, filterTime));
 
   const userInteractedActivities = filteredInteracted.map(a => ({
-    ...a,
-    occupancy: getSimulatedOccupancy(a.category, hour, dayOfWeek, a.cuposPorDia, usadosEnOccupancy[a.id] ?? 0, a.vicinity),
+    ...conOcupancyYFecha(a),
     openingHour: a.openingHour || "09:00",
     closingHour: a.closingHour || "21:00"
   }));
@@ -1239,14 +1313,30 @@ app.get("/api/activities/:id/availability", async ({ params }) => {
   const fechas = Object.entries(fechasMap)
     .filter(([fecha]) => fecha >= todayStr)
     .map(([fecha, franjas]) => {
-      const activeFranjas = fecha === todayStr
+      // dedup por si la misma franja quedo guardada mas de una vez (bug de datos en la creacion/edicion)
+      const franjasVistasDedup = new Set<string>();
+      const activeFranjas = (fecha === todayStr
         ? franjas.filter(fr => !fr.horaFin || fr.horaFin > nowHM)
-        : franjas;
-      // cupos restantes por franja (cada hora cuenta de forma independiente)
+        : franjas
+      ).filter(fr => {
+        const key = `${fr.horaInicio ?? ''}|${fr.horaFin ?? ''}`;
+        if (franjasVistasDedup.has(key)) return false;
+        franjasVistasDedup.add(key);
+        return true;
+      });
+      // cupos restantes por franja (cada hora cuenta de forma independiente), y su propia
+      // afluencia (misma logica que la tarjeta, pero aplicada a ESTA franja puntual).
+      const dayOfWeekFecha = new Date(fecha + 'T12:00:00').getDay();
       const franjasConCupos = activeFranjas.map(fr => {
         const key = `${fecha}|${fr.horaInicio ?? ''} - ${fr.horaFin ?? ''}`;
         const usadosFr = usadosPorFranja[key] ?? 0;
-        return { ...fr, disponibles: cupos == null ? null : Math.max(0, cupos - usadosFr) };
+        const ratioFr = cupos == null ? null : usadosFr / cupos;
+        const horaFr = fr.horaInicio ? parseInt(fr.horaInicio.split(':')[0] ?? '0', 10) : undefined;
+        return {
+          ...fr,
+          disponibles: cupos == null ? null : Math.max(0, cupos - usadosFr),
+          occupancy: getSimulatedOccupancy(act.category, horaFr, dayOfWeekFecha, ratioFr),
+        };
       });
       // La fecha esta disponible si ALGUNA franja tiene cupo (no se exigen todas)
       const disponibles = cupos == null
@@ -1254,11 +1344,35 @@ app.get("/api/activities/:id/availability", async ({ params }) => {
         : franjasConCupos.length > 0
           ? Math.max(...franjasConCupos.map(f => f.disponibles ?? 0))
           : Math.max(0, cupos - (usadosPorFranja[`${fecha}|`] ?? 0));
+      // Cupos totales del dia = suma de los cupos de cada horario (no el cupo de una sola franja).
+      // Si no hay franjas (entrada libre todo el dia) es un solo pool, no se suma nada.
+      const cuposTotalesFecha = cupos == null
+        ? null
+        : franjasConCupos.length > 0
+          ? cupos * franjasConCupos.length
+          : cupos;
+      // Disponibles totales del dia = suma de lo que queda libre en CADA franja (no el maximo).
+      // Este SI baja al reservar y sube al cancelar, a diferencia del total que es fijo.
+      const disponiblesTotalesFecha = cupos == null
+        ? null
+        : franjasConCupos.length > 0
+          ? franjasConCupos.reduce((acc, f) => acc + (f.disponibles ?? 0), 0)
+          : disponibles;
+      // Afluencia del dia completo = la de la franja mas ocupada (mismo criterio que la tarjeta).
+      const occupancyFecha = franjasConCupos.length > 0
+        ? franjasConCupos.reduce((peor, f) => {
+            const orden = { Low: 0, Medium: 1, High: 2 } as const;
+            return orden[f.occupancy] > orden[peor] ? f.occupancy : peor;
+          }, franjasConCupos[0]!.occupancy)
+        : getSimulatedOccupancy(act.category, undefined, dayOfWeekFecha, cupos == null ? null : (usadosPorFranja[`${fecha}|`] ?? 0) / cupos);
       return {
         fecha,
         franjas: franjasConCupos,
         cuposPorDia: cupos,
+        cuposTotalesFecha,
+        disponiblesTotalesFecha,
         disponibles,
+        occupancy: occupancyFecha,
       };
     })
     .filter(f => f.franjas.length > 0 || (fechasMap[f.fecha]?.length ?? 0) === 0)

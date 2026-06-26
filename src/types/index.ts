@@ -53,5 +53,9 @@ export interface Activity {
   price?: number;
   schedules?: { fecha: string; horaInicio: string | null; horaFin: string | null }[];
   disponible?: boolean;
+  /** Fecha agendada mas proxima (>= hoy) usada para calcular la afluencia y mostrar horarios en la tarjeta. */
+  nearestDate?: string;
+  /** Franjas horarias de esa fecha mas proxima. */
+  nearestFranjas?: { horaInicio: string | null; horaFin: string | null }[];
 }
 

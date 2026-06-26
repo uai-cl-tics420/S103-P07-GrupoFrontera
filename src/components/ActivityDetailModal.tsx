@@ -3,9 +3,12 @@ import { type Activity } from '../types/index.ts';
 import { X, MapPin, Clock, CloudSun, Ticket, Calendar, ArrowLeft, Navigation } from 'lucide-react';
 import { useT } from '@/i18n/context';
 
-interface Franja { horaInicio: string | null; horaFin: string | null; disponibles: number | null; }
-interface AvailFecha { fecha: string; franjas: Franja[]; cuposPorDia: number | null; disponibles: number | null; }
+type Occupancy = 'Low' | 'Medium' | 'High';
+interface Franja { horaInicio: string | null; horaFin: string | null; disponibles: number | null; occupancy?: Occupancy; }
+interface AvailFecha { fecha: string; franjas: Franja[]; cuposPorDia: number | null; cuposTotalesFecha?: number | null; disponiblesTotalesFecha?: number | null; disponibles: number | null; occupancy?: Occupancy; }
 interface AvailResp { activityId: string; name: string; price: number | null; limitePorPersona: number | null; fechas: AvailFecha[]; }
+
+const occupancyDotClass: Record<Occupancy, string> = { High: 'bg-red-500', Medium: 'bg-yellow-500', Low: 'bg-green-500' };
 
 interface ActivityDetailModalProps {
     activity: Activity | null;
@@ -266,7 +269,10 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                                                 <button key={i} type='button' disabled={franjaAgotada}
                                                     onClick={() => { setSelFranja(fr); setCantidad(1); }}
                                                     className={`${chip(selFranja === fr)} ${franjaAgotada ? 'opacity-40 cursor-not-allowed line-through' : ''}`}>
-                                                    {fr.horaInicio} - {fr.horaFin}
+                                                    <span className='inline-flex items-center gap-1.5'>
+                                                        {fr.occupancy && <span className={`inline-block w-1.5 h-1.5 rounded-full ${occupancyDotClass[fr.occupancy]}`}></span>}
+                                                        {fr.horaInicio} - {fr.horaFin}
+                                                    </span>
                                                     {fr.disponibles != null && (
                                                         <span className={`block text-[9px] font-bold ${franjaAgotada ? 'text-red-500' : 'opacity-70'}`}>
                                                             {franjaAgotada ? LL.soldOut() : LL.slotsCount({ n: fr.disponibles })}
@@ -276,6 +282,22 @@ export function ActivityDetailModal({ activity, onClose, onReservationChanged, u
                                             );
                                         })}
                                     </div>
+                                </div>
+                            )}
+
+                            {/* Resumen de la fecha: afluencia y cupos totales se dicen UNA sola vez aqui
+                                (cada franja arriba solo muestra el punto de color, sin repetir la palabra). */}
+                            {selFecha && fechaSel && (fechaSel.occupancy || fechaSel.cuposTotalesFecha != null) && (
+                                <div className='flex items-center justify-between text-[11px] font-bold text-gray-500 px-1'>
+                                    {fechaSel.occupancy && (
+                                        <span className='flex items-center gap-1.5'>
+                                            <span className={`w-2 h-2 rounded-full ${occupancyDotClass[fechaSel.occupancy]}`}></span>
+                                            {LL.occupancyLabel({ level: fechaSel.occupancy === 'High' ? LL.occupancyHigh() : fechaSel.occupancy === 'Medium' ? LL.occupancyMedium() : LL.occupancyLow() })}
+                                        </span>
+                                    )}
+                                    {fechaSel.cuposTotalesFecha != null && (
+                                        <span>{LL.totalSlotsLabel({ disp: fechaSel.disponiblesTotalesFecha ?? 0, total: fechaSel.cuposTotalesFecha })}</span>
+                                    )}
                                 </div>
                             )}
 

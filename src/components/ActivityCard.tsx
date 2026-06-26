@@ -33,8 +33,14 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): nu
     const a = 
         Math.sin(dLat/2) * Math.sin(dLat/2) +
         Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon/2) * Math.sin(dLon/2); 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     return R * c;
+}
+
+// "2026-06-29" -> "29/06", para que quepa compacto en la tarjeta
+function formatFechaCorta(fecha: string): string {
+    const [, m, d] = fecha.split('-');
+    return d && m ? `${d}/${m}` : fecha;
 }
 
 const ActivityCard = ({ 
@@ -184,7 +190,20 @@ const ActivityCard = ({
             </h3>
             
             <div className="flex flex-col gap-2 mb-3 text-sm text-gray-600 font-medium">
-              {activity.openingHour && activity.closingHour && (
+              {activity.nearestDate ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span>📅</span>
+                    <span>{LL.nearestDateLabel({
+                        fecha: formatFechaCorta(activity.nearestDate),
+                        horarios: (activity.nearestFranjas?.length ?? 0) === 1 ? LL.slotsAvailableSingular() : LL.slotsAvailableMulti({ n: activity.nearestFranjas?.length ?? 0 }),
+                    })}</span>
+                  </div>
+                  {activity.schedules && new Set(activity.schedules.map(s => s.fecha)).size > 1 && (
+                    <p className="text-[10px] text-gray-400 -mt-1">{LL.moreDatesHint()}</p>
+                  )}
+                </>
+              ) : activity.openingHour && activity.closingHour && (
                 <div className="flex items-center gap-2">
                   <span>🕒</span> {LL.openHours({ open: activity.openingHour, close: activity.closingHour })}
                 </div>
@@ -193,7 +212,11 @@ const ActivityCard = ({
               {activity.occupancy && (
                 <div className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full animate-pulse ${activity.occupancy === 'High' ? 'bg-red-500' : activity.occupancy === 'Medium' ? 'bg-yellow-500' : 'bg-green-500'}`}></div>
-                  <span>{LL.occupancyLabel({ level: activity.occupancy === 'High' ? LL.occupancyHigh() : activity.occupancy === 'Medium' ? LL.occupancyMedium() : LL.occupancyLow() })}</span>
+                  <span>
+                    {activity.nearestDate
+                      ? LL.occupancyLabelWithDate({ fecha: formatFechaCorta(activity.nearestDate), level: activity.occupancy === 'High' ? LL.occupancyHigh() : activity.occupancy === 'Medium' ? LL.occupancyMedium() : LL.occupancyLow() })
+                      : LL.occupancyLabel({ level: activity.occupancy === 'High' ? LL.occupancyHigh() : activity.occupancy === 'Medium' ? LL.occupancyMedium() : LL.occupancyLow() })}
+                  </span>
                 </div>
               )}
             </div>

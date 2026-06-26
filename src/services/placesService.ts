@@ -1,85 +1,59 @@
 /**
- * Calcula el nivel de ocupación (afluencia) basándose en una combinación de
- * cupos reales reservados y una heurística de demanda por categoría y hora.
+ * Calcula el nivel de ocupación (afluencia) de un panorama.
+ *
+ * Si el panorama tiene cupos (cuposRatio no es null), la afluencia es 100% ese dato real
+ * y en tiempo real: cupos usados / cupos totales de la franja horaria correspondiente.
+ * No se mezcla con ninguna heurística -- es el dato más fiel posible a "ocupación real".
+ *
+ * Si el panorama es de entrada libre (sin cupos registrados, ej. un parque o mirador sin
+ * límite), no existe ningún dato real de ocupación para él. En ese caso se usa una
+ * heurística declarada por categoría + hora + fin de semana (no pretende ser un dato real,
+ * es una estimación de patrones típicos de uso, ya que no hay una API gratuita de afluencia).
  */
 export function getSimulatedOccupancy(
   category?: string,
   hour?: number,
   dayOfWeek?: number,
-  cuposPorDia?: number | null,
-  cuposUsados?: number,
-  address?: string | null
+  cuposRatio?: number | null
 ): "Low" | "Medium" | "High" {
-  // 1. Componente real basado en cupos
-  let levelCupos = 1; // 1 = Low, 2 = Medium, 3 = High
-  if (cuposPorDia && cuposPorDia > 0) {
-    const ratio = (cuposUsados ?? 0) / cuposPorDia;
-    if (ratio >= 0.7) {
-      levelCupos = 3;
-    } else if (ratio >= 0.3) {
-      levelCupos = 2;
-    }
+  // 1. Dato real: ocupación basada en cupos de la franja horaria
+  if (cuposRatio != null) {
+    if (cuposRatio >= 0.7) return "High";
+    if (cuposRatio >= 0.3) return "Medium";
+    return "Low";
   }
 
-  // 2. Componente heurístico simulado basado en categoría + hora + día
+  // 2. Sin cupos (entrada libre): heurística por categoría + hora + fin de semana
   const cat = category || 'Otros';
   const h = hour !== undefined ? hour : new Date().getHours();
   const day = dayOfWeek !== undefined ? dayOfWeek : new Date().getDay(); // 0 = Sunday, 6 = Saturday
   const isWeekend = day === 0 || day === 5 || day === 6; // Vie, Sab, Dom
 
-  let levelHeuristica = 1; // Default "Low"
+  let level = 1; // 1 = Low, 2 = Medium, 3 = High
 
   if (cat === 'Cine' || cat === 'Teatro') {
     if (h >= 18 && h <= 23) {
-      levelHeuristica = isWeekend ? 3 : 2; // High on weekend, Medium on weekday
+      level = isWeekend ? 3 : 2;
     } else if (h >= 14 && h < 18) {
-      levelHeuristica = 2; // Medium
+      level = 2;
     }
   } else if (cat === 'Restaurante') {
     if ((h >= 12 && h <= 15) || (h >= 19 && h <= 22)) {
-      levelHeuristica = isWeekend ? 3 : 2;
+      level = isWeekend ? 3 : 2;
     } else if (h >= 16 && h < 19) {
-      levelHeuristica = 2;
+      level = 2;
     }
   } else if (cat === 'Parque' || cat === 'Miradores') {
     if (h >= 10 && h <= 18) {
-      levelHeuristica = isWeekend ? 3 : 2;
+      level = isWeekend ? 3 : 2;
     }
   } else if (cat === 'Museo') {
     if (h >= 10 && h <= 17) {
-      levelHeuristica = 2;
+      level = 2;
     }
   }
 
-  // 2b. Ajuste por Comuna (Concurrencia urbana en Santiago)
-  if (address) {
-    const addr = address.toLowerCase();
-    const isHighTrafficCommune = 
-      addr.includes('las condes') ||
-      addr.includes('providencia') ||
-      addr.includes('vitacura') ||
-      addr.includes('ñuñoa') ||
-      addr.includes('santiago centro');
-    
-    const isLowTrafficCommune = 
-      addr.includes('pirque') ||
-      addr.includes('san josé de maipo') ||
-      addr.includes('cajón del maipo') ||
-      addr.includes('colina') ||
-      addr.includes('lampa') ||
-      addr.includes('tiltil');
-
-    if (isHighTrafficCommune) {
-      levelHeuristica = Math.min(3, levelHeuristica + 1);
-    } else if (isLowTrafficCommune) {
-      levelHeuristica = Math.max(1, levelHeuristica - 1);
-    }
-  }
-
-  // 3. Combinación: max(nivel_por_cupos, nivel_heurístico)
-  const finalLevel = Math.max(levelCupos, levelHeuristica);
-
-  if (finalLevel === 3) return "High";
-  if (finalLevel === 2) return "Medium";
+  if (level === 3) return "High";
+  if (level === 2) return "Medium";
   return "Low";
 }

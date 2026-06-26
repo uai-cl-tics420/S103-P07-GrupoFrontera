@@ -540,10 +540,41 @@ type RootTranslation = {
 	 */
 	openHours: RequiredParams<'close' | 'open'>
 	/**
+	 * F​e​c​h​a​ ​m​á​s​ ​p​r​ó​x​i​m​a​:​ ​{​f​e​c​h​a​}​ ​·​ ​{​h​o​r​a​r​i​o​s​}
+	 * @param {string} fecha
+	 * @param {string} horarios
+	 */
+	nearestDateLabel: RequiredParams<'fecha' | 'horarios'>
+	/**
+	 * 1​ ​h​o​r​a​r​i​o​ ​d​i​s​p​o​n​i​b​l​e
+	 */
+	slotsAvailableSingular: string
+	/**
+	 * {​n​}​ ​h​o​r​a​r​i​o​s​ ​d​i​s​p​o​n​i​b​l​e​s
+	 * @param {number} n
+	 */
+	slotsAvailableMulti: RequiredParams<'n'>
+	/**
+	 * M​á​s​ ​f​e​c​h​a​s​ ​y​ ​h​o​r​a​r​i​o​s​:​ ​v​e​r​ ​e​v​e​n​t​o
+	 */
+	moreDatesHint: string
+	/**
 	 * A​f​l​u​e​n​c​i​a​:​ ​{​l​e​v​e​l​}
 	 * @param {unknown} level
 	 */
 	occupancyLabel: RequiredParams<'level'>
+	/**
+	 * A​f​l​u​e​n​c​i​a​ ​(​{​f​e​c​h​a​}​)​:​ ​{​l​e​v​e​l​}
+	 * @param {string} fecha
+	 * @param {string} level
+	 */
+	occupancyLabelWithDate: RequiredParams<'fecha' | 'level'>
+	/**
+	 * C​u​p​o​s​ ​d​i​s​p​o​n​i​b​l​e​s​:​ ​{​d​i​s​p​}​/​{​t​o​t​a​l​}
+	 * @param {number} disp
+	 * @param {number} total
+	 */
+	totalSlotsLabel: RequiredParams<'disp' | 'total'>
 	/**
 	 * A​l​t​a
 	 */
@@ -1861,9 +1892,33 @@ export type TranslationFunctions = {
 	 */
 	openHours: (arg: { close: unknown, open: unknown }) => LocalizedString
 	/**
+	 * Fecha más próxima: {fecha} · {horarios}
+	 */
+	nearestDateLabel: (arg: { fecha: string, horarios: string }) => LocalizedString
+	/**
+	 * 1 horario disponible
+	 */
+	slotsAvailableSingular: () => LocalizedString
+	/**
+	 * {n} horarios disponibles
+	 */
+	slotsAvailableMulti: (arg: { n: number }) => LocalizedString
+	/**
+	 * Más fechas y horarios: ver evento
+	 */
+	moreDatesHint: () => LocalizedString
+	/**
 	 * Afluencia: {level}
 	 */
 	occupancyLabel: (arg: { level: unknown }) => LocalizedString
+	/**
+	 * Afluencia ({fecha}): {level}
+	 */
+	occupancyLabelWithDate: (arg: { fecha: string, level: string }) => LocalizedString
+	/**
+	 * Cupos disponibles: {disp}/{total}
+	 */
+	totalSlotsLabel: (arg: { disp: number, total: number }) => LocalizedString
 	/**
 	 * Alta
 	 */
