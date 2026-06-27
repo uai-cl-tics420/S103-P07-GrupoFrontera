@@ -19,5 +19,7 @@ RUN bun run build
 # Exponer el puerto de la aplicación
 EXPOSE 4000
 
-# Ejecutar migraciones de Drizzle en Supabase y arrancar el servidor en producción sin hot reload
-CMD ["sh", "-c", "bunx drizzle-kit migrate && bun run src/index.ts"]
+# Ejecutar migraciones de Drizzle en Supabase y arrancar el servidor en producción sin hot reload.
+# CI=1 desactiva el spinner animado de drizzle-kit (redibuja la linea con \r), que en los logs de
+# Render puede perder el mensaje de error real si el proceso muere a mitad del redibujado.
+CMD ["sh", "-c", "CI=1 bunx drizzle-kit migrate; code=$?; if [ $code -ne 0 ]; then echo \"MIGRATION FAILED exit_code=$code\"; exit $code; fi; bun run src/index.ts"]
