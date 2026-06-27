@@ -1,1 +1,1 @@
-ALTER TABLE "activities" ADD COLUMN "limite_por_persona" integer;
+ALTER TABLE "activities" ADD COLUMN IF NOT EXISTS "limite_por_persona" integer;
