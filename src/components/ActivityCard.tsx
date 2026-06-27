@@ -81,7 +81,7 @@ const ActivityCard = ({
   return (
     <>
       <div className={`group w-full bg-white rounded-[28px] sm:rounded-[32px] overflow-hidden border border-gray-100/80 shadow-sm mb-2 hover:shadow-xl hover:-translate-y-2 transition-all duration-300 ease-in-out font-sans flex flex-col h-full ${activity.disponible === false ? 'opacity-65 saturate-50' : ''}`}>
-        <div className="aspect-square w-full bg-gradient-to-br from-gray-50 to-zinc-100 flex items-center justify-center relative border-b border-gray-50 overflow-hidden">
+        <div className="aspect-[4/3] w-full bg-gradient-to-br from-gray-50 to-zinc-100 flex items-center justify-center relative border-b border-gray-50 overflow-hidden">
           
           {/* Renderizado de imagen de Google Places o Emoji animado (Tu UI Premium) */}
           {activity.imageUrl ? (
@@ -120,9 +120,26 @@ const ActivityCard = ({
               </div>
             )}
 
-            <div className="bg-white/80 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 border border-white/40 shadow-sm transition-all duration-200 group-hover:bg-white">
-               {activity.tagClima === 'Sunny' ? LL.weatherSunny() : LL.weatherAll()}
-            </div>
+            {activity.weatherCondition && activity.nearestDate && activity.weatherReliable !== false ? (() => {
+              // Clima REAL pronosticado para la fecha de este panorama (no un chip generico).
+              // Verde = coincide con lo que el panorama necesita (tagClima); gris = no coincide
+              // o el panorama acepta cualquier clima ("All").
+              const emoji = activity.weatherCondition === 'Clear' ? '☀️'
+                : activity.weatherCondition === 'Clouds' ? '☁️'
+                : activity.weatherCondition === 'Rain' || activity.weatherCondition === 'Drizzle' ? '🌧️'
+                : activity.weatherCondition === 'Thunderstorm' ? '⛈️'
+                : activity.weatherCondition === 'Snow' ? '❄️' : '🌤️';
+              const coincide = activity.tagClima === 'All' || activity.weatherTag === 'Sunny';
+              return (
+                <div className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-sm transition-all duration-200 flex items-center gap-1 ${coincide ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white/80 backdrop-blur-md border-white/40 text-gray-500 group-hover:bg-white'}`}>
+                  <span>{emoji}</span> {activity.weatherTemp?.toFixed(0)}°C · {formatFechaCorta(activity.nearestDate)}
+                </div>
+              );
+            })() : (
+              <div className="bg-white/80 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 border border-white/40 shadow-sm transition-all duration-200 group-hover:bg-white">
+                {activity.tagClima === 'Sunny' ? LL.weatherSunny() : LL.weatherAll()}
+              </div>
+            )}
             {shownKm !== null && (
               <div className="bg-white/80 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-500 border border-white/40 shadow-sm flex items-center gap-1">
                 <span>📍</span> {shownKm.toFixed(1)} km
@@ -162,7 +179,7 @@ const ActivityCard = ({
           )}
         </div>
 
-        <div className="p-6 sm:p-8 flex flex-col flex-grow">
+        <div className="p-5 sm:p-6 flex flex-col flex-grow">
           {/* 📥 Los Status Badges del sistema de reservas de Barros */}
           {reservation && (
             <div className="mb-4 flex flex-wrap gap-2">

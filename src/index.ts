@@ -7,7 +7,7 @@ import { db } from "./lib/db";
 import { user, activities, userFavorites, userReservations, activitySchedules, verification } from "./lib/schema";
 import { and, count, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 import { randomInt, randomUUID } from 'crypto';
-import { getCurrentWeather, getWeatherForecast } from './services/weatherService';
+import { getCurrentWeather, getWeatherForecast, type WeatherData } from './services/weatherService';
 import { isOutdoorFriendly } from './utils/weatherHelpers';
 import { getSimulatedOccupancy } from './services/placesService';
 import { processPayment } from './services/paymentService';
@@ -125,7 +125,7 @@ app.get("/api/activities", async ({ query, request }) => {
   const dateStr = query.date as string | undefined;
   const timeStr = query.time as string | undefined;
 
-  let weather;
+  let weather: WeatherData;
   if (dateStr && dateStr !== 'today' && dateStr !== 'next5days') {
     console.log(`Consultando pronóstico para fecha: ${dateStr}, hora: ${timeStr || 'cualquier hora'}`);
     weather = await getWeatherForecast(lat, lng, dateStr, timeStr);
@@ -408,6 +408,23 @@ app.get("/api/activities", async ({ query, request }) => {
 
   type ActConSchedules = { id: string; cuposPorDia?: number; schedules: { fecha: string; horaInicio?: string | null; horaFin?: string | null }[] };
 
+  // Clima real POR FECHA: cada panorama usa el pronostico de SU propia fecha mas proxima, no un
+  // unico clima global aplicado a todos por igual (eso era lo que pasaba antes en "Proximos 5 dias").
+  // "hoy" reutiliza el clima actual ya consultado arriba (es mas preciso que el pronostico de 3h).
+  const weatherPorFechaCache: Record<string, { condition: string; temperature: number; reliable: boolean }> = {
+    [todayStr]: { condition: weather.condition, temperature: weather.temperature, reliable: weather.reliable !== false },
+  };
+  async function getWeatherPorFecha(fecha: string) {
+    if (!weatherPorFechaCache[fecha]) {
+      const w = await getWeatherForecast(lat, lng, fecha);
+      weatherPorFechaCache[fecha] = { condition: w.condition, temperature: w.temperature, reliable: w.reliable !== false };
+    }
+    return weatherPorFechaCache[fecha]!;
+  }
+  function weatherTagFromCondition(condition: string): 'Sunny' | 'Rainy' {
+    return (condition === 'Clear' || condition === 'Clouds') ? 'Sunny' : 'Rainy';
+  }
+
   // Precarga las fechas distintas que se van a necesitar (una por cada "proxima fecha" unica)
   if (!hasExplicitDateFilter) {
     const fechasAPrecargar = new Set<string>();
@@ -415,7 +432,9 @@ app.get("/api/activities", async ({ query, request }) => {
       const fecha = nearestScheduleDate(a.schedules);
       if (fecha) fechasAPrecargar.add(fecha);
     }
-    await Promise.all(Array.from(fechasAPrecargar).map(getUsadosPorFecha));
+    await Promise.all(Array.from(fechasAPrecargar).map(fecha =>
+      Promise.all([getUsadosPorFecha(fecha), getWeatherPorFecha(fecha)])
+    ));
   }
 
   // Ratio real de cupos usados para la afluencia (null = sin cupos, se usa heuristica como fallback).
@@ -460,11 +479,18 @@ app.get("/api/activities", async ({ query, request }) => {
         const usados = usadosMap[`${f.horaInicio ?? ''} - ${f.horaFin ?? ''}`] ?? 0;
         return a.cuposPorDia - usados > 0;
       });
+    // Clima real de LA FECHA de este panorama (no el global): si no se precargo (filtro de fecha
+    // explicito, donde todos comparten la misma fecha) cae al clima ya consultado arriba.
+    const weatherFecha = weatherPorFechaCache[fechaRef] ?? { condition: weather.condition, temperature: weather.temperature, reliable: weather.reliable !== false };
     return {
       ...a,
       occupancy: getSimulatedOccupancy((a as any).category, hour, dayOfWeek, cuposRatioParaOcupancia(a, fechaRef, usadosMap)),
       nearestDate: nearestFranjas.length > 0 ? fechaRef : undefined,
       nearestFranjas: nearestFranjas.length > 0 ? nearestFranjas : undefined,
+      weatherCondition: weatherFecha.condition,
+      weatherTemp: weatherFecha.temperature,
+      weatherReliable: weatherFecha.reliable,
+      weatherTag: weatherFecha.reliable ? weatherTagFromCondition(weatherFecha.condition) : undefined,
     };
   }
 
@@ -586,9 +612,17 @@ app.get("/api/activities", async ({ query, request }) => {
     return a;
   });
 
+  // Pronostico real de los proximos 5 dias (hoy + 4), para mostrar la franja de clima del header.
+  // next5DaysArray ya se recalcula desde "hoy" en cada request, asi que esto se va corriendo solo
+  // dia a dia sin necesidad de logica extra (hoy 26 -> 26..30, manana 27 -> 27..31, etc).
+  const forecast5Days = await Promise.all(
+    next5DaysArray.map(async (fecha) => ({ fecha, ...(await getWeatherPorFecha(fecha)) }))
+  );
+
   // retornamos la lista combinada y optimizada, y la data del usuario
   return {
     currentWeather: weather,
+    forecast5Days,
     activities: filteredActivities,
     userHistory: {
       favorites: userFavs,

@@ -157,9 +157,9 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
     );
 
     return (
-        <div className="min-h-screen bg-[#FAFAFA] font-sans pb-20">
+        <div className="min-h-screen bg-[#FAFAFA] font-sans pb-20 overflow-x-hidden">
             <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 sm:px-6 py-4 sm:py-5 mb-8 sm:mb-12">
-                <div className="max-w-6xl mx-auto flex justify-between items-center gap-3">
+                <div className="w-full mx-auto flex justify-between items-center gap-3">
                     <div className="flex items-center gap-3 min-w-0">
                         <button
                             onClick={onBack}
@@ -187,7 +187,7 @@ export function AdminDashboard({ onBack, userEmail }: AdminDashboardProps) {
                 </div>
             </nav>
 
-            <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <main className="w-full mx-auto px-4 sm:px-6 lg:px-8">
                 <header className="mb-10">
                     <h1 className="text-3xl sm:text-4xl font-black tracking-tighter text-gray-900 mb-2">
                         {LL.adminPanel()}

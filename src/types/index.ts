@@ -19,7 +19,6 @@ export enum Category {
 export interface User {
   id: string; // ID único
   name: string; // Nombre del usuario
-  preferences: Category[]; // Lista de gustos o preferencias
   currentLocation: { // Ubicación actual
     lat: number;
     lng: number;
@@ -57,5 +56,10 @@ export interface Activity {
   nearestDate?: string;
   /** Franjas horarias de esa fecha mas proxima. */
   nearestFranjas?: { horaInicio: string | null; horaFin: string | null }[];
+  /** Clima real pronosticado para `nearestDate` (no un clima global aplicado a todos por igual). */
+  weatherCondition?: string;
+  weatherTemp?: number;
+  weatherReliable?: boolean;
+  weatherTag?: 'Sunny' | 'Rainy';
 }
 

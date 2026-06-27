@@ -10,7 +10,7 @@ import { LanguageToggle } from "@/components/LanguageToggle";
 import { useCategoryFilter } from "@/hooks/useCategoryFilter";
 import { useUserPreferences } from "@/hooks/useUserPreferences";
 import { useActivities } from "@/hooks/useActivities";
-import { getRecommendedActivities } from "./recommendationService";
+import { getScoredActivities } from "./recommendationService";
 import { authClient } from "./lib/auth-client";
 import { useT } from "@/i18n/context";
 import type { User } from "./types";
@@ -34,6 +34,7 @@ const weatherIconMap: Record<string, React.ComponentType<{ className?: string }>
 // las demás opciones del propio dropdown).
 const DEFAULT_API_FILTERS = {
   radius: 30000,
+  dateSort: '' as '' | 'asc' | 'desc', // misma logica que priceSort: ordena por fecha mas proxima del panorama
   priceSort: '' as '' | 'asc' | 'desc' | 'range', // 'range' = solo activa Mín/Máx, sin ordenar
   priceMin: '',
   priceMax: '',
@@ -82,6 +83,7 @@ export function App() {
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   }, []);
+
   const maxDateStr = React.useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + 5);
@@ -120,6 +122,9 @@ export function App() {
   //estados para capturar las coordenadas reales del navegador
   const [coords, setCoords] = React.useState({ lat: -33.4372, lng: -70.6506 }); //Stgo. centro por defecto
   const [weatherInfo, setWeatherInfo] = React.useState<{ condition: string; temperature: number; cityName?: string; reliable?: boolean } | null>(null);
+  // Pronostico real de los proximos 5 dias (hoy + 4), se corre solo dia a dia (lo calcula el backend
+  // desde "hoy" en cada request, asi que manana automaticamente es 27..31, sin logica extra aqui).
+  const [forecast5Days, setForecast5Days] = React.useState<{ fecha: string; condition: string; temperature: number; reliable: boolean }[]>([]);
 
   //estado local para guardar los panoramas que traemos dinámicamente
   const [dynamicActivities, setDynamicActivities] = React.useState<any[]>([]);
@@ -129,24 +134,17 @@ export function App() {
   //estado para la tarjeta de detalles
   const [selectedActivityForDetail, setSelectedActivityForDetail] = React.useState<any | null>(null);
 
-  //estado local para la planificación de recomendaciones futuras
-  const [planningState, setPlanningState] = React.useState<{
-    date: string;
-    time?: string;
-    weather?: string;
-  } | null>(null);
-  const [isModalOpen, setIsModalOpen] = React.useState(false);
-
-  // Estados temporales del formulario de planificación
-  const [planningDateType, setPlanningDateType] = React.useState<'today' | 'next5days' | 'future'>('today');
-  const [planningTimeType, setPlanningTimeType] = React.useState<'any' | 'specific'>('any');
-  const [dateValue, setDateValue] = React.useState<string>(todayStr);
-  const [timeValue, setTimeValue] = React.useState("20:00");
+  // Recomendacion por historial: ya no depende de fecha/clima (eso es un filtro aparte), asi
+  // que es un simple on/off -- "Recomendar Panoramas" la activa de inmediato, sin modal.
+  const [recommendActive, setRecommendActive] = React.useState(false);
 
   //estado local para los filtros de búsqueda en servidor
   const [apiFilters, setApiFilters] = React.useState(DEFAULT_API_FILTERS);
   //estado aplicado de los filtros
   const [appliedFilters, setAppliedFilters] = React.useState(DEFAULT_API_FILTERS);
+  // Filtro de "sugerencia por clima": independiente de la recomendacion por historial. Es
+  // 100% client-side (cada panorama ya trae su propio clima real por fecha en la respuesta).
+  const [weatherFilterActive, setWeatherFilterActive] = React.useState(false);
 
   const { activities, loading, error } = useActivities();
   const { preferredCategory, setPreferredCategory, role } = useUserPreferences(session?.user?.id);
@@ -259,14 +257,6 @@ export function App() {
         if (activeFilters.filterTime) url += `&filterTime=${activeFilters.filterTime}`;
       }
 
-      // Inyectar parámetros de planificación de fecha futura si están activos
-      if (planningState) {
-        url += `&date=${planningState.date}`;
-        if (planningState.time) {
-          url += `&time=${planningState.time}`;
-        }
-      }
-
       // Si hay una categoría seleccionada y no es "Todas" (Filtro inteligente de Barros)
       if (activeCat && activeCat !== 'Todas') {
         url += `&category=${activeCat}`;
@@ -278,6 +268,7 @@ export function App() {
       if (data && data.activities) {
         setDynamicActivities(data.activities);
         setWeatherInfo(data.currentWeather);
+        if (Array.isArray(data.forecast5Days)) setForecast5Days(data.forecast5Days);
 
         if (data.userHistory && !historyLoadedRef.current) {
           setUserHistory(prev => ({
@@ -303,11 +294,11 @@ export function App() {
 
   React.useEffect(() => {
     if (session) {
-      historyLoadedRef.current = false; // Permitir recarga limpia al cambiar usuario, ubicación o planificación
+      historyLoadedRef.current = false; // Permitir recarga limpia al cambiar usuario o ubicación
       fetchFilteredActivities(preferredCategory, appliedFilters);
     }
     // session?.user?.id en vez de session completo: misma razón que el efecto de geolocalización.
-  }, [coords, session?.user?.id, planningState, preferredCategory]); // Se ejecuta al cambiar ubicación, sesión o preferencia
+  }, [coords, session?.user?.id, preferredCategory]); // Se ejecuta al cambiar ubicación, sesión o preferencia
 
   const handleToggleFavorite = async (activityId: string) => {
     const isFav = userHistory.favorites.includes(activityId);
@@ -394,31 +385,79 @@ export function App() {
   const currentUser: User = {
     id: session?.user?.id ?? "anon",
     name: session?.user?.name ?? "Usuario",
-    preferences: [], // Eliminamos la preferencia fija heredada para usar el modelo 100% dinámico basado en likes, reservas, clima y distancia
     currentLocation: coords,
     history: { ...userHistory, purchased: purchasedIds }
   };
 
   // Parámetros avanzados de clima y tiempo
   // El clima solo se usa para ordenar/penalizar si el pronóstico es confiable (fecha <= 5 días).
-  // Para fechas lejanas el clima es solo informativo, así que no condiciona la recomendación.
-  const weatherTag = (weatherInfo && weatherInfo.reliable !== false)
-    ? ((weatherInfo.condition === 'Clear' || weatherInfo.condition === 'Clouds') ? 'Sunny' : 'Rainy')
-    : undefined;
-  const activeWeather = weatherTag;
-  const activeTime = planningState
-    ? (planningState.date === 'today' ? undefined : (planningState.time || 'any'))
-    : undefined;
+  const hasExplicitSort = appliedFilters.priceSort === 'asc' || appliedFilters.priceSort === 'desc' || appliedFilters.radius !== 30000 || !!appliedFilters.dateSort;
 
-  const hasExplicitSort = appliedFilters.priceSort === 'asc' || appliedFilters.priceSort === 'desc' || appliedFilters.radius !== 30000;
-
-  // Motor de recomendaciones optimizado con las variables de tus compañeros
-  const recommendedActivities = hasExplicitSort
-    ? actualActivitiesList
-    : getRecommendedActivities(currentUser, actualActivitiesList, activeWeather, activeTime);
+  // Motor de recomendaciones: SOLO historial (likes/reservas/compras) + distancia + disponibilidad.
+  // El clima ya no participa aqui -- es un filtro aparte (ver toolbar).
+  // Si "Recomendar" esta activo, los filtros (precio/fecha/radio) NO apagan la recomendacion --
+  // se integran como criterio adicional (filtran el universo y/o desempatan dentro del puntaje),
+  // en vez de remplazarla por completo. Si NO esta activo, los filtros funcionan independientes,
+  // igual que siempre (orden por precio/fecha real, sin tocar el motor de historial).
+  const scoredActivities = (hasExplicitSort && !recommendActive)
+    ? actualActivitiesList.map((a: any) => ({ activity: a, score: 0 }))
+    : getScoredActivities(currentUser, actualActivitiesList);
+  const scoreById = new Map(scoredActivities.map(s => [s.activity.id, s.score]));
+  const recommendedActivities = scoredActivities.map(s => s.activity);
 
   // Inicializamos la categoría usando preferredCategory pero con el resguardo de filtrado dinámico
-  const { selectedCategory, setSelectedCategory, filteredActivities } = useCategoryFilter(recommendedActivities, preferredCategory || null);
+  const { selectedCategory, setSelectedCategory, filteredActivities: filteredByCategoryActivities } = useCategoryFilter(recommendedActivities, preferredCategory || null);
+
+  // Coherencia climatica de un panorama: 'match' (clima real confirma que calza), 'mismatch'
+  // (clima real confirma que NO calza) o 'unknown' (fuera del rango de pronostico, ~5 dias --
+  // no hay como confirmar ni descartar). Solo se oculta lo confirmado como mismatch; lo
+  // desconocido no desaparece, solo no cuenta como "confirmado" (ver split Recomendados/Otros).
+  function weatherCoherence(a: any): 'match' | 'mismatch' | 'unknown' {
+    if (a.weatherReliable === false) return 'unknown';
+    return (a.tagClima === 'All' || a.weatherTag === 'Sunny') ? 'match' : 'mismatch';
+  }
+
+  // Que tan optimo es este panorama PARA el clima real de su propia fecha (no solo "calza/no
+  // calza"): mas alto = mejor sugerencia. Sol/despejado favorece a los panoramas al aire libre
+  // (Parque/Miradores); nublado/lluvia favorece a los de interior. Esto es lo que convierte el
+  // filtro en una SUGERENCIA (ordena por lo mas optimo) y no solo un descarte binario.
+  function weatherFitScore(a: any): number {
+    if (a.weatherReliable === false) return 0; // desconocido: neutro, ni se premia ni se castiga
+    const outdoor = a.category === 'Parque' || a.category === 'Miradores';
+    let score = a.tagClima === 'All' ? 5 : (a.weatherTag === 'Sunny' ? 15 : -25);
+    if (outdoor) {
+      score += a.weatherCondition === 'Clear' ? 15 : a.weatherCondition === 'Clouds' ? 0 : -15;
+    } else {
+      score += (a.weatherCondition === 'Clear' || a.weatherCondition === 'Clouds') ? 0 : 10;
+    }
+    return score;
+  }
+
+  // Filtro de sugerencia por clima (aparte de la recomendacion por historial): OCULTA lo que
+  // sabemos con certeza que no calza (dato real); lo desconocido se deja (cae a "Otros" mas
+  // abajo). Lo que queda se reordena por weatherFitScore, de mas a menos optimo -- por eso es
+  // una sugerencia y no solo un filtro binario.
+  // Los destacados (Popular/Tendencia) NUNCA se ocultan por el filtro de clima: si no calzan,
+  // no desaparecen, solo caen "al medio" (weatherFitScore bajo los manda mas abajo, y en el
+  // split de recomendacion quedan en "Otros"). El resto si se oculta si es mismatch confirmado.
+  let filteredActivities = weatherFilterActive
+    ? filteredByCategoryActivities
+        .filter((a: any) => a.isPopular || a.isTendencia || weatherCoherence(a) !== 'mismatch')
+        .sort((a: any, b: any) => weatherFitScore(b) - weatherFitScore(a))
+    : filteredByCategoryActivities;
+
+  // Ordenar por fecha (misma logica que el ordenamiento de precio): mas reciente o mas lejana
+  // primero. Los panoramas sin fecha (entrada libre, sin schedule) quedan siempre al final.
+  if (appliedFilters.dateSort) {
+    filteredActivities = [...filteredActivities].sort((a: any, b: any) => {
+      if (!a.nearestDate && !b.nearestDate) return 0;
+      if (!a.nearestDate) return 1;
+      if (!b.nearestDate) return -1;
+      return appliedFilters.dateSort === 'asc'
+        ? a.nearestDate.localeCompare(b.nearestDate)
+        : b.nearestDate.localeCompare(a.nearestDate);
+    });
+  }
 
   // Al volver a la pestaña (o recuperar el foco), recargamos la vista ACTUAL para que la
   // lista no quede vacia tras la revalidacion de sesion de better-auth.
@@ -435,7 +474,7 @@ export function App() {
       window.removeEventListener('focus', onVisible);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategory, appliedFilters, coords, planningState, session]);
+  }, [selectedCategory, appliedFilters, coords, session]);
 
   // Manejador unificado de pestañas con tus Toasts y el reseteo de filtros de los chicos
   const handleSelectCategory = (category: typeof selectedCategory) => {
@@ -638,7 +677,7 @@ export function App() {
   return (
     <div className="min-h-screen bg-[#FAFAFA] font-sans pb-20 overflow-x-hidden">
       <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 sm:px-6 py-4 sm:py-5 mb-8 sm:mb-12">
-        <div className="max-w-5xl mx-auto flex justify-between items-center gap-3">
+        <div className="w-full mx-auto flex justify-between items-center gap-3">
           <h1 className="text-xl sm:text-2xl font-black tracking-tighter text-gray-900 italic">
             PanoramApp
           </h1>
@@ -667,6 +706,21 @@ export function App() {
                 <span className='text-xs font-black text-gray-900 tracking-tighter'>
                   {Math.round(weatherInfo.temperature)}°C
                 </span>
+
+                {/* Pronostico real de los proximos dias (hoy ya esta arriba): se integra en la
+                    misma barra del header, junto al nombre/comuna, en vez de una fila aparte.
+                    Se oculta en pantallas chicas para no saturar el header movil. */}
+                {forecast5Days.slice(1).map((d) => {
+                  const IconComponent = weatherIconMap[d.condition] || Cloud;
+                  const [, m, day] = d.fecha.split('-');
+                  return (
+                    <span key={d.fecha} className='hidden lg:flex items-center gap-1 pl-2 border-l border-gray-200'>
+                      <span className='text-[10px] font-bold text-gray-400 uppercase tracking-wider'>{day}/{m}</span>
+                      <IconComponent className='w-3.5 h-3.5 text-zinc-400' />
+                      <span className='text-xs font-bold text-gray-700'>{Math.round(d.temperature)}°C</span>
+                    </span>
+                  );
+                })}
               </div>
             ) : null}
 
@@ -696,19 +750,15 @@ export function App() {
                     {LL.myReservationsLink()}
                   </button>
 
-                  {role === 'admin' ? (
+                  {/* "Activar Admin" se oculta a propósito para cuentas no-admin: a ojos de un MVP es
+                      una puerta de entrada visible para intrusos (pedido explícito del profesor).
+                      El endpoint sigue activo (sigue protegido por TOTP), solo se quita el acceso visual. */}
+                  {role === 'admin' && (
                     <button
                       onClick={() => { setProfileOpen(false); navigate('admin'); }}
                       className="text-left px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
                     >
                       {LL.adminAccessLink()}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => { setProfileOpen(false); handleActivateAdmin(); }}
-                      className="text-left px-4 py-2.5 text-sm font-semibold text-amber-600 hover:bg-amber-50 transition-colors"
-                    >
-                      {LL.activateAdminLink()}
                     </button>
                   )}
 
@@ -725,7 +775,7 @@ export function App() {
         </div>
       </nav>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <main className="w-full mx-auto px-4 sm:px-6 lg:px-8">
         {/* Acá debería ir lo de la pestaña de recomentaciones porsiaca, pero el skeleton ya está hecho */}
         {loading ? (
           <RecommendationSkeleton />
@@ -739,8 +789,10 @@ export function App() {
             onSelectCategory={handleSelectCategory}
           />
 
-          {/* Banner de Recomendación Asistida / Planificación (solo en pestaña Todas) */}
-          {!selectedCategory && !planningState && (
+
+          {/* Banner de Recomendación por Historial (solo en pestaña Todas). Ya no depende de
+              fecha/clima -- es un on/off inmediato, sin modal. */}
+          {!selectedCategory && !recommendActive && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-gradient-to-r from-orange-500/10 to-fuchsia-600/10 border border-orange-500/20 rounded-2xl shadow-sm mb-2 animate-fade-in">
               <div className="flex flex-col gap-1 text-center sm:text-left">
                 <h3 className="text-base sm:text-lg font-black tracking-tight text-gray-900 leading-tight">
@@ -751,7 +803,7 @@ export function App() {
                 </p>
               </div>
               <button
-                onClick={() => setIsModalOpen(true)}
+                onClick={() => setRecommendActive(true)}
                 className="w-full sm:w-auto bg-gradient-to-r from-orange-500 to-fuchsia-600 hover:from-orange-600 hover:to-fuchsia-700 text-white text-xs font-black px-6 py-3 rounded-xl transition-all active:scale-[0.97] shadow-md shadow-orange-500/10 uppercase tracking-wider whitespace-nowrap cursor-pointer"
               >
                 {LL.recommendBannerCta()}
@@ -759,46 +811,21 @@ export function App() {
             </div>
           )}
 
-          {!selectedCategory && planningState && (
+          {!selectedCategory && recommendActive && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-2xl shadow-sm mb-2 animate-fade-in">
               <div className="flex flex-col gap-1 text-center sm:text-left">
                 <div className="flex items-center justify-center sm:justify-start gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
                   <h3 className="text-base sm:text-lg font-black tracking-tight text-emerald-950 leading-tight">
-                    {planningState.date === 'today'
-                      ? LL.planningActiveTodayTitle()
-                      : planningState.date === 'next5days'
-                        ? LL.planningActive5DaysTitle()
-                        : LL.planningActiveFutureTitle()
-                    }
+                    {LL.recommendActiveTitle()}
                   </h3>
                 </div>
                 <p className="text-xs text-emerald-800 font-semibold mt-1">
-                  {planningState.date === 'today' ? (
-                    <>
-                      {LL.planningTodayIntro()} <span className="font-bold underline">{LL.today()}</span> {LL.inRealTime()} {LL.weatherDetectedBy()} <span className="font-bold underline">{weatherInfo?.condition === 'Clear' ? LL.weatherClear() : weatherInfo?.condition === 'Clouds' ? LL.weatherCloudy() : LL.weatherRainy()} ({weatherInfo?.temperature.toFixed(1)}°C)</span>.
-                    </>
-                  ) : planningState.date === 'next5days' ? (
-                    <>
-                      {LL.planning5DaysIntro()}{' '}
-                      {weatherInfo ? (
-                        <>{LL.weatherEstimatedBy()} <span className="font-bold underline">{weatherInfo.condition === 'Clear' ? LL.weatherClear() : weatherInfo.condition === 'Clouds' ? LL.weatherCloudy() : LL.weatherRainy()} ({weatherInfo.temperature.toFixed(1)}°C)</span>.</>
-                      ) : null}
-                    </>
-                  ) : (
-                    <>
-                    {LL.planningFutureIntro()} <span className="font-bold underline">{planningState.date}</span> {planningState.time ? <>{LL.atTime()} <span className="font-bold underline">{planningState.time}</span></> : LL.anyTimeText()}.{' '}
-                    {weatherInfo?.reliable === false ? (
-                      <span className="font-bold">{LL.weatherNotConsidered()}</span>
-                    ) : (
-                      <>{LL.weatherEstimatedBy()} <span className="font-bold underline">{weatherInfo?.condition === 'Clear' ? LL.weatherClear() : weatherInfo?.condition === 'Clouds' ? LL.weatherCloudy() : LL.weatherRainy()} ({weatherInfo?.temperature.toFixed(1)}°C)</span>.</>
-                    )}
-                    </>
-                  )}
+                  {LL.recommendActiveText()}
                 </p>
               </div>
               <button
-                onClick={() => setPlanningState(null)}
+                onClick={() => setRecommendActive(false)}
                 className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black px-6 py-3 rounded-xl transition-all active:scale-[0.97] shadow-md shadow-emerald-600/10 uppercase tracking-wider whitespace-nowrap cursor-pointer"
               >
                 {LL.backToRealTimeCta()}
@@ -853,6 +880,60 @@ export function App() {
               </div>
             )}
 
+            {/* Sugerencia por clima: filtro aparte de la recomendacion por historial. Solo deja
+                panoramas cuyo clima real (de su propia fecha, dentro de los ~5 dias de pronostico)
+                calza con lo que necesitan, y los ordena de mas a menos optimo. */}
+            <button
+              type="button"
+              onClick={() => setWeatherFilterActive(v => !v)}
+              className={`text-xs rounded-lg px-3 py-1.5 font-bold transition flex items-center gap-1 cursor-pointer border ${weatherFilterActive ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border-zinc-200'}`}
+            >
+              ☁️ {LL.weatherFilterCta()}
+            </button>
+
+            {/* Fecha: orden (misma logica que precio) + filtro exacto de fecha/horario */}
+            <select
+              className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+              value={apiFilters.dateSort}
+              onChange={(e) => setApiFilters({ ...apiFilters, dateSort: e.target.value as '' | 'asc' | 'desc' })}
+            >
+              <option value="">{LL.dateSortNone()}</option>
+              <option value="asc">{LL.dateSortAsc()}</option>
+              <option value="desc">{LL.dateSortDesc()}</option>
+            </select>
+
+            <input
+              type="date"
+              min={todayStr}
+              value={apiFilters.filterDate}
+              onChange={(e) => setApiFilters({ ...apiFilters, filterDate: e.target.value, filterTime: '' })}
+              className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+
+            {apiFilters.filterDate && (
+              <select
+                value={apiFilters.filterTime}
+                onChange={(e) => setApiFilters({ ...apiFilters, filterTime: e.target.value })}
+                className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">{LL.anyTimeText()}</option>
+                {availableHorarios.map(h => (
+                  <option key={h} value={h}>{h}</option>
+                ))}
+              </select>
+            )}
+
+            {apiFilters.filterDate && (
+              <button
+                type="button"
+                onClick={() => setApiFilters({ ...apiFilters, filterDate: '', filterTime: '' })}
+                className="text-xs font-medium text-gray-400 hover:text-gray-600"
+              >
+                {LL.removeDateLink()}
+              </button>
+            )}
+
+            {/* Precio */}
             <select
               className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
               value={apiFilters.priceSort}
@@ -886,42 +967,12 @@ export function App() {
               </div>
             )}
 
-            <input
-              type="date"
-              min={todayStr}
-              value={apiFilters.filterDate}
-              onChange={(e) => setApiFilters({ ...apiFilters, filterDate: e.target.value, filterTime: '' })}
-              className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-
-            {apiFilters.filterDate && (
-              <select
-                value={apiFilters.filterTime}
-                onChange={(e) => setApiFilters({ ...apiFilters, filterTime: e.target.value })}
-                className="text-xs bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="">{LL.anyTimeText()}</option>
-                {availableHorarios.map(h => (
-                  <option key={h} value={h}>{h}</option>
-                ))}
-              </select>
-            )}
-
-            {apiFilters.filterDate && (
-              <button
-                type="button"
-                onClick={() => setApiFilters({ ...apiFilters, filterDate: '', filterTime: '' })}
-                className="text-xs font-medium text-gray-400 hover:text-gray-600"
-              >
-                {LL.removeDateLink()}
-              </button>
-            )}
-
             <button
               type="button"
               onClick={() => {
                 setApiFilters(DEFAULT_API_FILTERS);
                 setAppliedFilters(DEFAULT_API_FILTERS);
+                setWeatherFilterActive(false);
                 fetchFilteredActivities(selectedCategory, DEFAULT_API_FILTERS);
               }}
               className="text-xs font-medium text-gray-400 hover:text-gray-600"
@@ -945,44 +996,156 @@ export function App() {
             </button>
           </div>
 
-          {/* Mostramos el contador de panoramas, cambiando a modo curado si hay planificación activa */}
+          {/* Contador de panoramas encontrados */}
           <div className="px-2 mt-2">
             <span className="text-xs font-bold text-gray-500 uppercase tracking-widest bg-gray-200/50 py-1 px-3 rounded-full">
-            {planningState
-              ? `${Math.min(6, filteredActivities.length)} ${LL.panoramasFound()}`
-              : `${filteredActivities.length} ${filteredActivities.length === 1 ? LL.panoramaFound() : LL.panoramasFound()}`
-            }
+              {`${filteredActivities.length} ${filteredActivities.length === 1 ? LL.panoramaFound() : LL.panoramasFound()}`}
             </span>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-10">
-          {((loading || loadingWeather) && actualActivitiesList.length === 0) ? (
-            //Si la base de datos está cargando, pintamos 6 tarjetas fantasma c/ animación de pulso
-            Array.from({ length: 6 }).map((_, index) => (
-              <ActivityCardSkeleton key={`main-skeleton-${index}`} />
-            ))
-          ) : filteredActivities.length === 0 ? (
-            <p className="text-muted-foreground col-span-full text-center py-8">
-              {LL.emptyState()}
-            </p>
-          ) : (
-            (planningState ? filteredActivities.slice(0, 6) : filteredActivities).map((act, index) => (
-              <ActivityCard
-                key={act.id}
-                activity={act}
+        {(() => {
+          if ((loading || loadingWeather) && actualActivitiesList.length === 0) {
+            return (
+              <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-5 lg:gap-6">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <ActivityCardSkeleton key={`main-skeleton-${index}`} />
+                ))}
+              </div>
+            );
+          }
+          if (filteredActivities.length === 0) {
+            return <p className="text-muted-foreground text-center py-8">{LL.emptyState()}</p>;
+          }
 
-                isFavorite={userHistory.favorites.includes(act.id)}
-                reservation={activeReservations[act.id] as any}
-                onToggleFavorite={handleToggleFavorite}
-                onSeeDetails={(activity) => setSelectedActivityForDetail(activity)}
-                userCoords={coords}
-                isRecommended={!!planningState}
-                rank={index + 1}
-              />
-            ))
-          )}
-        </div>
+          const renderGrid = (items: any[], opts?: { recommended?: boolean; rankOffset?: number }) => (
+            <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-5 lg:gap-6">
+              {items.map((act, index) => (
+                <ActivityCard
+                  key={act.id}
+                  activity={act}
+                  isFavorite={userHistory.favorites.includes(act.id)}
+                  reservation={activeReservations[act.id] as any}
+                  onToggleFavorite={handleToggleFavorite}
+                  onSeeDetails={(activity) => setSelectedActivityForDetail(activity)}
+                  userCoords={coords}
+                  isRecommended={!!opts?.recommended}
+                  rank={opts?.recommended ? (opts.rankOffset ?? 0) + index + 1 : undefined}
+                />
+              ))}
+            </div>
+          );
+
+          // Con el filtro de clima activo, un panorama cuya fecha esta fuera del pronostico (~5 dias)
+          // no tiene como evaluarse: en vez de mezclarlo, queda en su propia seccion con un aviso.
+          const esSinClima = (a: any) => weatherFilterActive && weatherCoherence(a) === 'unknown';
+          const renderSinClimaSection = (items: any[]) => items.length > 0 && (
+            <section>
+              <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-1 px-2">{LL.weatherUnknownSectionTitle()}</h3>
+              <p className="text-[11px] text-gray-400 mb-4 px-2">{LL.weatherUnknownSectionHint()}</p>
+              {renderGrid(items)}
+            </section>
+          );
+
+          // Los destacados (Popular/Tendencia) solo van arriba como seccion aparte cuando NO hay
+          // nada activo. Si se recomienda o se usa cualquier filtro, dejan de ir aparte y se
+          // mezclan entre los recomendados/filtrados y "otros" segun el mismo criterio de orden.
+          const algoActivo =
+            recommendActive ||
+            hasExplicitSort ||
+            weatherFilterActive ||
+            appliedFilters.priceSort === 'range' ||
+            !!appliedFilters.priceMin ||
+            !!appliedFilters.priceMax ||
+            !!appliedFilters.filterDate ||
+            !!appliedFilters.filterTime;
+          const destacados = algoActivo
+            ? []
+            : filteredActivities.filter((a: any) => a.isPopular || a.isTendencia);
+          const sinDestacados = algoActivo
+            ? filteredActivities
+            : filteredActivities.filter((a: any) => !(a.isPopular || a.isTendencia));
+
+          return (
+            <div className="flex flex-col gap-10">
+              {destacados.length > 0 && (
+                <section>
+                  <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 px-2">{LL.featuredSectionTitle()}</h3>
+                  {renderGrid(destacados)}
+                </section>
+              )}
+
+              {recommendActive ? (() => {
+                // Dentro de cada grupo, el orden es por puntaje de recomendacion (mas afin al
+                // historial primero) -- la fecha NO entra en el orden del top 3, para que el
+                // ranking refleje solo que tan recomendado es, no que tan pronto es.
+                // Si hay un orden explicito de fecha/precio activo, no remplaza el puntaje --
+                // solo desempata entre panoramas igual de recomendados (se integra, no opaca).
+                const desempate = (a: any, b: any) => {
+                  if (appliedFilters.dateSort) {
+                    if (!a.nearestDate && !b.nearestDate) return 0;
+                    if (!a.nearestDate) return 1;
+                    if (!b.nearestDate) return -1;
+                    return appliedFilters.dateSort === 'asc'
+                      ? a.nearestDate.localeCompare(b.nearestDate)
+                      : b.nearestDate.localeCompare(a.nearestDate);
+                  }
+                  if (appliedFilters.priceSort === 'asc' || appliedFilters.priceSort === 'desc') {
+                    const pa = a.price ?? 0, pb = b.price ?? 0;
+                    return appliedFilters.priceSort === 'asc' ? pa - pb : pb - pa;
+                  }
+                  return 0;
+                };
+                const byScoreDesc = (a: any, b: any) => (scoreById.get(b.id) ?? 0) - (scoreById.get(a.id) ?? 0) || desempate(a, b);
+                // Con el filtro de clima activo el orden prioriza la sugerencia (mas optimo segun
+                // el clima real primero); si no, el orden es por puntaje de recomendacion (con el
+                // filtro de fecha/precio como desempate si esta activo).
+                const ordenDentroDeGrupo = weatherFilterActive
+                  ? (a: any, b: any) => weatherFitScore(b) - weatherFitScore(a)
+                  : byScoreDesc;
+                // Con el filtro de clima activo, "Recomendados" exige ademas coherencia climatica
+                // CONFIRMADA (match real) -- lo desconocido (fuera del rango de pronostico) no se
+                // oculta, pero tampoco se cuenta como confirmado: cae a "Otros panoramas".
+                const calificaRecomendado = (a: any) =>
+                    (scoreById.get(a.id) ?? 0) > 0 && (!weatherFilterActive || weatherCoherence(a) === 'match');
+                const recomendados = sinDestacados.filter((a: any) => calificaRecomendado(a) && !esSinClima(a)).sort(ordenDentroDeGrupo);
+                // "Sin clima" (fuera del pronostico) va a su propia seccion, no a "Otros".
+                const sinClima = sinDestacados.filter(esSinClima).sort(ordenDentroDeGrupo);
+                const otros = sinDestacados.filter((a: any) => !calificaRecomendado(a) && !esSinClima(a)).sort(ordenDentroDeGrupo);
+                return (
+                  <>
+                    {recomendados.length > 0 && (
+                      <section>
+                        <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 px-2">{LL.recommendedSectionTitle({ n: recomendados.length })}</h3>
+                        {renderGrid(recomendados, { recommended: true })}
+                      </section>
+                    )}
+                    {otros.length > 0 && (
+                      <section>
+                        <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 px-2">{LL.otherActivitiesSectionTitle()}</h3>
+                        {renderGrid(otros)}
+                      </section>
+                    )}
+                    {renderSinClimaSection(sinClima)}
+                  </>
+                );
+              })() : weatherFilterActive ? (() => {
+                // Sin recomendacion pero con filtro de clima: separamos los que no tienen info de
+                // clima (fuera del pronostico) en su propia seccion, igual que en "Otros panoramas".
+                const conClima = sinDestacados.filter((a: any) => !esSinClima(a));
+                const sinClima = sinDestacados.filter(esSinClima);
+                return (
+                  <>
+                    {conClima.length > 0 && renderGrid(conClima)}
+                    {renderSinClimaSection(sinClima)}
+                  </>
+                );
+              })() : (
+                renderGrid(sinDestacados)
+              )}
+            </div>
+          );
+        })()}
 
         <ActivityDetailModal
           activity={selectedActivityForDetail}
@@ -998,159 +1161,6 @@ export function App() {
         Grupo Frontera • 2026
       </footer>
 
-      {/* MODAL DE PLANIFICACIÓN DE RECOMENDACIÓN FUTURA */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 flex flex-col gap-5 relative animate-scale-up">
-
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-900 text-lg font-bold p-1 transition-colors cursor-pointer"
-            >
-              ✕
-            </button>
-
-            <div className="flex flex-col gap-2 text-center sm:text-left">
-              <span className="text-[10px] font-bold text-orange-500 uppercase tracking-[0.2em] block">
-                {LL.planningModalKicker()}
-              </span>
-              <h2 className="text-2xl font-black text-gray-900 tracking-tighter leading-none">
-                {LL.planningModalTitle()}
-              </h2>
-              <p className="text-xs text-gray-500 font-medium">
-                {LL.planningModalDescription()}
-              </p>
-            </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (planningDateType === 'today') {
-                  setPlanningState({ date: 'today', time: undefined });
-                } else if (planningDateType === 'next5days') {
-                  setPlanningState({ date: 'next5days', time: undefined });
-                } else {
-                  setPlanningState({
-                    date: dateValue,
-                    time: planningTimeType === 'specific' ? timeValue : undefined
-                  });
-                }
-                setIsModalOpen(false);
-              }}
-              className="flex flex-col gap-5"
-            >
-              {/* Selector de tipo de fecha */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                  {LL.whenQuestion()}
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPlanningDateType('today')}
-                    className={`py-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all border text-center ${planningDateType === 'today'
-                      ? 'bg-black text-white border-black shadow-md shadow-black/10'
-                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                      }`}
-                  >
-                    {LL.todayOptionCta()}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPlanningDateType('next5days')}
-                    className={`py-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all border text-center ${planningDateType === 'next5days'
-                      ? 'bg-black text-white border-black shadow-md shadow-black/10'
-                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                      }`}
-                  >
-                    {LL.next5daysOptionCta()}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPlanningDateType('future')}
-                    className={`py-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all border text-center ${planningDateType === 'future'
-                      ? 'bg-black text-white border-black shadow-md shadow-black/10'
-                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                      }`}
-                  >
-                    {LL.otherDayOptionCta()}
-                  </button>
-                </div>
-              </div>
-
-              {/* Campos para fecha futura */}
-              {planningDateType === 'future' && (
-                <div className="flex flex-col gap-4 animate-fade-in">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                      {LL.selectDateLabel()}
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      min={todayStr}
-                      value={dateValue}
-                      onChange={(e) => setDateValue(e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-gray-700"
-                    />
-                  </div>
-
-                  {/* Selector de tipo de hora */}
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                      {LL.whatTimeQuestion()}
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setPlanningTimeType('any')}
-                        className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${planningTimeType === 'any'
-                          ? 'bg-gray-800 text-white border-gray-800'
-                          : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                          }`}
-                      >
-                        {LL.anyTimeOptionCta()}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPlanningTimeType('specific')}
-                        className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${planningTimeType === 'specific'
-                          ? 'bg-gray-800 text-white border-gray-800'
-                          : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                          }`}
-                      >
-                        {LL.specificTimeOptionCta()}
-                      </button>
-                    </div>
-                  </div>
-
-                  {planningTimeType === 'specific' && (
-                    <div className="flex flex-col gap-1 animate-fade-in">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                        {LL.specificTimeLabel()}
-                      </label>
-                      <input
-                        type="time"
-                        required
-                        value={timeValue}
-                        onChange={(e) => setTimeValue(e.target.value)}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-gray-700"
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="w-full bg-gradient-to-r from-orange-500 to-fuchsia-600 hover:from-orange-600 hover:to-fuchsia-700 text-white text-xs font-black py-4 rounded-2xl transition-all active:scale-[0.97] uppercase tracking-widest shadow-lg shadow-orange-500/10 cursor-pointer mt-2"
-              >
-                {LL.getRecommendationCta()}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

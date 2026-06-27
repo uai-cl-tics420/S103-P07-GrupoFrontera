@@ -204,18 +204,23 @@ const es = {
 
 	// App.tsx: banner de recomendacion asistida
 	recommendBannerTitle: '🧠 ¿No sabes que hacer? Nosotros te Recomendamos !!!',
-	recommendBannerText: 'Encuentra las mejores opciones según el clima y horarios de hoy o de cualquier fecha que elijas.',
+	recommendBannerText: 'Encuentra las mejores opciones según tu historial de likes, reservas y compras.',
 	recommendBannerCta: 'Recomendar Panoramas',
+	recommendActiveTitle: '🧠 Recomendación por Historial Activa',
+	recommendActiveText: 'Mostrando panoramas según tu historial (likes, reservas y compras), ordenados de más a menos recomendado.',
 
 	// App.tsx: banner de planificacion activa
 	planningActiveTodayTitle: '📅 Recomendación para Hoy Activa',
 	planningActiveFutureTitle: '📅 Recomendación Planificada Activa',
 	planningActive5DaysTitle: '📅 Recomendación para los Próximos 5 Días Activa',
+	planningFallbackTitle: '📅 Recomendación por Historial',
+	planningFallbackNotice: 'No encontramos panoramas para {ventana:string}, pero estos son los panoramas según tu historial (sin filtrar por fecha ni clima).',
 	planning5DaysIntro: 'Mostrando panoramas con cupos disponibles para los próximos 5 días y clima estimado actual.',
 	planningTodayIntro: 'Mostrando panoramas ideales para',
 	today: 'hoy',
 	inRealTime: 'en tiempo real.',
 	weatherDetectedBy: 'Clima detectado por API:',
+	forecastRangeLabel: 'Pronóstico real hasta {fecha:string}',
 	planningFutureIntro: 'Mostrando panoramas para el día',
 	atTime: 'a las',
 	anyTimeText: 'a cualquier hora',
@@ -228,6 +233,10 @@ const es = {
 
 	// App.tsx: toolbar de filtros
 	filterNearbyRadius: 'Cerca de ti',
+	weatherFilterCta: 'Sugerencia por clima',
+	dateSortNone: 'Fecha: sin orden',
+	dateSortAsc: 'Fecha: más próxima a más lejana',
+	dateSortDesc: 'Fecha: más lejana a más próxima',
 	priceSortNone: 'Precio: sin orden',
 	priceSortAsc: 'Precio: menor a mayor',
 	priceSortDesc: 'Precio: mayor a menor',
@@ -285,6 +294,11 @@ const es = {
 	rank2Label: '#2 Recomendado',
 	rank3Label: '#3 Recomendado',
 	recommendedLabel: 'Recomendado',
+	featuredSectionTitle: 'Destacados',
+	recommendedSectionTitle: 'Recomendados ({n:number})',
+	otherActivitiesSectionTitle: 'Otros panoramas',
+	weatherUnknownSectionTitle: 'Sin información de clima',
+	weatherUnknownSectionHint: 'Su fecha está fuera del pronóstico disponible, así que no podemos evaluar el clima todavía.',
 
 	// Admin: formulario de creación de panoramas
 	adminFormSectionPanoramaData: 'Datos del panorama',
@@ -311,6 +325,8 @@ const es = {
 	adminFormEndLabel: 'Fin',
 	adminFormRemoveSlotTitle: 'Quitar horario',
 	adminFormAddSlotCta: 'Agregar horario a esta fecha',
+	adminFormCopyScheduleCta: 'Copiar horario de...',
+	adminFormCopyScheduleUntitled: 'Fecha {n:number} (sin fecha aún)',
 	adminFormPriceSection: 'Precio y disponibilidad',
 	adminFormPriceLabel: 'Precio (CLP)',
 	adminFormPricePlaceholder: '0 = gratis',

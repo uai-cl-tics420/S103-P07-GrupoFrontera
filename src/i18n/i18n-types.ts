@@ -709,13 +709,21 @@ type RootTranslation = {
 	 */
 	recommendBannerTitle: string
 	/**
-	 * E​n​c​u​e​n​t​r​a​ ​l​a​s​ ​m​e​j​o​r​e​s​ ​o​p​c​i​o​n​e​s​ ​s​e​g​ú​n​ ​e​l​ ​c​l​i​m​a​ ​y​ ​h​o​r​a​r​i​o​s​ ​d​e​ ​h​o​y​ ​o​ ​d​e​ ​c​u​a​l​q​u​i​e​r​ ​f​e​c​h​a​ ​q​u​e​ ​e​l​i​j​a​s​.
+	 * E​n​c​u​e​n​t​r​a​ ​l​a​s​ ​m​e​j​o​r​e​s​ ​o​p​c​i​o​n​e​s​ ​s​e​g​ú​n​ ​t​u​ ​h​i​s​t​o​r​i​a​l​ ​d​e​ ​l​i​k​e​s​,​ ​r​e​s​e​r​v​a​s​ ​y​ ​c​o​m​p​r​a​s​.
 	 */
 	recommendBannerText: string
 	/**
 	 * R​e​c​o​m​e​n​d​a​r​ ​P​a​n​o​r​a​m​a​s
 	 */
 	recommendBannerCta: string
+	/**
+	 * �​�​ ​R​e​c​o​m​e​n​d​a​c​i​ó​n​ ​p​o​r​ ​H​i​s​t​o​r​i​a​l​ ​A​c​t​i​v​a
+	 */
+	recommendActiveTitle: string
+	/**
+	 * M​o​s​t​r​a​n​d​o​ ​p​a​n​o​r​a​m​a​s​ ​s​e​g​ú​n​ ​t​u​ ​h​i​s​t​o​r​i​a​l​ ​(​l​i​k​e​s​,​ ​r​e​s​e​r​v​a​s​ ​y​ ​c​o​m​p​r​a​s​)​,​ ​o​r​d​e​n​a​d​o​s​ ​d​e​ ​m​á​s​ ​a​ ​m​e​n​o​s​ ​r​e​c​o​m​e​n​d​a​d​o​.
+	 */
+	recommendActiveText: string
 	/**
 	 * �​�​ ​R​e​c​o​m​e​n​d​a​c​i​ó​n​ ​p​a​r​a​ ​H​o​y​ ​A​c​t​i​v​a
 	 */
@@ -728,6 +736,15 @@ type RootTranslation = {
 	 * �​�​ ​R​e​c​o​m​e​n​d​a​c​i​ó​n​ ​p​a​r​a​ ​l​o​s​ ​P​r​ó​x​i​m​o​s​ ​5​ ​D​í​a​s​ ​A​c​t​i​v​a
 	 */
 	planningActive5DaysTitle: string
+	/**
+	 * �​�​ ​R​e​c​o​m​e​n​d​a​c​i​ó​n​ ​p​o​r​ ​H​i​s​t​o​r​i​a​l
+	 */
+	planningFallbackTitle: string
+	/**
+	 * N​o​ ​e​n​c​o​n​t​r​a​m​o​s​ ​p​a​n​o​r​a​m​a​s​ ​p​a​r​a​ ​{​v​e​n​t​a​n​a​}​,​ ​p​e​r​o​ ​e​s​t​o​s​ ​s​o​n​ ​l​o​s​ ​p​a​n​o​r​a​m​a​s​ ​s​e​g​ú​n​ ​t​u​ ​h​i​s​t​o​r​i​a​l​ ​(​s​i​n​ ​f​i​l​t​r​a​r​ ​p​o​r​ ​f​e​c​h​a​ ​n​i​ ​c​l​i​m​a​)​.
+	 * @param {string} ventana
+	 */
+	planningFallbackNotice: RequiredParams<'ventana'>
 	/**
 	 * M​o​s​t​r​a​n​d​o​ ​p​a​n​o​r​a​m​a​s​ ​c​o​n​ ​c​u​p​o​s​ ​d​i​s​p​o​n​i​b​l​e​s​ ​p​a​r​a​ ​l​o​s​ ​p​r​ó​x​i​m​o​s​ ​5​ ​d​í​a​s​ ​y​ ​c​l​i​m​a​ ​e​s​t​i​m​a​d​o​ ​a​c​t​u​a​l​.
 	 */
@@ -748,6 +765,11 @@ type RootTranslation = {
 	 * C​l​i​m​a​ ​d​e​t​e​c​t​a​d​o​ ​p​o​r​ ​A​P​I​:
 	 */
 	weatherDetectedBy: string
+	/**
+	 * P​r​o​n​ó​s​t​i​c​o​ ​r​e​a​l​ ​h​a​s​t​a​ ​{​f​e​c​h​a​}
+	 * @param {string} fecha
+	 */
+	forecastRangeLabel: RequiredParams<'fecha'>
 	/**
 	 * M​o​s​t​r​a​n​d​o​ ​p​a​n​o​r​a​m​a​s​ ​p​a​r​a​ ​e​l​ ​d​í​a
 	 */
@@ -788,6 +810,22 @@ type RootTranslation = {
 	 * C​e​r​c​a​ ​d​e​ ​t​i
 	 */
 	filterNearbyRadius: string
+	/**
+	 * S​u​g​e​r​e​n​c​i​a​ ​p​o​r​ ​c​l​i​m​a
+	 */
+	weatherFilterCta: string
+	/**
+	 * F​e​c​h​a​:​ ​s​i​n​ ​o​r​d​e​n
+	 */
+	dateSortNone: string
+	/**
+	 * F​e​c​h​a​:​ ​m​á​s​ ​p​r​ó​x​i​m​a​ ​a​ ​m​á​s​ ​l​e​j​a​n​a
+	 */
+	dateSortAsc: string
+	/**
+	 * F​e​c​h​a​:​ ​m​á​s​ ​l​e​j​a​n​a​ ​a​ ​m​á​s​ ​p​r​ó​x​i​m​a
+	 */
+	dateSortDesc: string
 	/**
 	 * P​r​e​c​i​o​:​ ​s​i​n​ ​o​r​d​e​n
 	 */
@@ -991,6 +1029,27 @@ type RootTranslation = {
 	 */
 	recommendedLabel: string
 	/**
+	 * D​e​s​t​a​c​a​d​o​s
+	 */
+	featuredSectionTitle: string
+	/**
+	 * R​e​c​o​m​e​n​d​a​d​o​s​ ​(​{​n​}​)
+	 * @param {number} n
+	 */
+	recommendedSectionTitle: RequiredParams<'n'>
+	/**
+	 * O​t​r​o​s​ ​p​a​n​o​r​a​m​a​s
+	 */
+	otherActivitiesSectionTitle: string
+	/**
+	 * S​i​n​ ​i​n​f​o​r​m​a​c​i​ó​n​ ​d​e​ ​c​l​i​m​a
+	 */
+	weatherUnknownSectionTitle: string
+	/**
+	 * S​u​ ​f​e​c​h​a​ ​e​s​t​á​ ​f​u​e​r​a​ ​d​e​l​ ​p​r​o​n​ó​s​t​i​c​o​ ​d​i​s​p​o​n​i​b​l​e​,​ ​a​s​í​ ​q​u​e​ ​n​o​ ​p​o​d​e​m​o​s​ ​e​v​a​l​u​a​r​ ​e​l​ ​c​l​i​m​a​ ​t​o​d​a​v​í​a​.
+	 */
+	weatherUnknownSectionHint: string
+	/**
 	 * D​a​t​o​s​ ​d​e​l​ ​p​a​n​o​r​a​m​a
 	 */
 	adminFormSectionPanoramaData: string
@@ -1086,6 +1145,15 @@ type RootTranslation = {
 	 * A​g​r​e​g​a​r​ ​h​o​r​a​r​i​o​ ​a​ ​e​s​t​a​ ​f​e​c​h​a
 	 */
 	adminFormAddSlotCta: string
+	/**
+	 * C​o​p​i​a​r​ ​h​o​r​a​r​i​o​ ​d​e​.​.​.
+	 */
+	adminFormCopyScheduleCta: string
+	/**
+	 * F​e​c​h​a​ ​{​n​}​ ​(​s​i​n​ ​f​e​c​h​a​ ​a​ú​n​)
+	 * @param {number} n
+	 */
+	adminFormCopyScheduleUntitled: RequiredParams<'n'>
 	/**
 	 * P​r​e​c​i​o​ ​y​ ​d​i​s​p​o​n​i​b​i​l​i​d​a​d
 	 */
@@ -2052,13 +2120,21 @@ export type TranslationFunctions = {
 	 */
 	recommendBannerTitle: () => LocalizedString
 	/**
-	 * Encuentra las mejores opciones según el clima y horarios de hoy o de cualquier fecha que elijas.
+	 * Encuentra las mejores opciones según tu historial de likes, reservas y compras.
 	 */
 	recommendBannerText: () => LocalizedString
 	/**
 	 * Recomendar Panoramas
 	 */
 	recommendBannerCta: () => LocalizedString
+	/**
+	 * 🧠 Recomendación por Historial Activa
+	 */
+	recommendActiveTitle: () => LocalizedString
+	/**
+	 * Mostrando panoramas según tu historial (likes, reservas y compras), ordenados de más a menos recomendado.
+	 */
+	recommendActiveText: () => LocalizedString
 	/**
 	 * 📅 Recomendación para Hoy Activa
 	 */
@@ -2071,6 +2147,14 @@ export type TranslationFunctions = {
 	 * 📅 Recomendación para los Próximos 5 Días Activa
 	 */
 	planningActive5DaysTitle: () => LocalizedString
+	/**
+	 * 📅 Recomendación por Historial
+	 */
+	planningFallbackTitle: () => LocalizedString
+	/**
+	 * No encontramos panoramas para {ventana}, pero estos son los panoramas según tu historial (sin filtrar por fecha ni clima).
+	 */
+	planningFallbackNotice: (arg: { ventana: string }) => LocalizedString
 	/**
 	 * Mostrando panoramas con cupos disponibles para los próximos 5 días y clima estimado actual.
 	 */
@@ -2091,6 +2175,10 @@ export type TranslationFunctions = {
 	 * Clima detectado por API:
 	 */
 	weatherDetectedBy: () => LocalizedString
+	/**
+	 * Pronóstico real hasta {fecha}
+	 */
+	forecastRangeLabel: (arg: { fecha: string }) => LocalizedString
 	/**
 	 * Mostrando panoramas para el día
 	 */
@@ -2131,6 +2219,22 @@ export type TranslationFunctions = {
 	 * Cerca de ti
 	 */
 	filterNearbyRadius: () => LocalizedString
+	/**
+	 * Sugerencia por clima
+	 */
+	weatherFilterCta: () => LocalizedString
+	/**
+	 * Fecha: sin orden
+	 */
+	dateSortNone: () => LocalizedString
+	/**
+	 * Fecha: más próxima a más lejana
+	 */
+	dateSortAsc: () => LocalizedString
+	/**
+	 * Fecha: más lejana a más próxima
+	 */
+	dateSortDesc: () => LocalizedString
 	/**
 	 * Precio: sin orden
 	 */
@@ -2332,6 +2436,26 @@ Ingresa 1 o 2:
 	 */
 	recommendedLabel: () => LocalizedString
 	/**
+	 * Destacados
+	 */
+	featuredSectionTitle: () => LocalizedString
+	/**
+	 * Recomendados ({n})
+	 */
+	recommendedSectionTitle: (arg: { n: number }) => LocalizedString
+	/**
+	 * Otros panoramas
+	 */
+	otherActivitiesSectionTitle: () => LocalizedString
+	/**
+	 * Sin información de clima
+	 */
+	weatherUnknownSectionTitle: () => LocalizedString
+	/**
+	 * Su fecha está fuera del pronóstico disponible, así que no podemos evaluar el clima todavía.
+	 */
+	weatherUnknownSectionHint: () => LocalizedString
+	/**
 	 * Datos del panorama
 	 */
 	adminFormSectionPanoramaData: () => LocalizedString
@@ -2427,6 +2551,14 @@ Ingresa 1 o 2:
 	 * Agregar horario a esta fecha
 	 */
 	adminFormAddSlotCta: () => LocalizedString
+	/**
+	 * Copiar horario de...
+	 */
+	adminFormCopyScheduleCta: () => LocalizedString
+	/**
+	 * Fecha {n} (sin fecha aún)
+	 */
+	adminFormCopyScheduleUntitled: (arg: { n: number }) => LocalizedString
 	/**
 	 * Precio y disponibilidad
 	 */

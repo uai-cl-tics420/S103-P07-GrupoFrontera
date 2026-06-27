@@ -129,6 +129,15 @@ export function CreatePanoramaForm({ activityToEdit, onSuccess, onCancel }: Crea
                 ? { ...row, franjas: row.franjas.map((fr, j) => (j === fi ? { ...fr, [field]: value } : fr)) }
                 : row));
 
+    // Copia las franjas (horarios) de OTRA fecha ya ingresada a esta, para no repetir el mismo
+    // horario a mano cuando varias fechas comparten el horario. Reemplaza lo que hubiera en esta
+    // fecha, pero queda como cualquier franja normal: se puede seguir editando o agregando mas.
+    const copyFranjasFrom = (di: number, sourceIndex: number) =>
+        setDias((d) => d.map((row, i) =>
+            i === di
+                ? { ...row, franjas: d[sourceIndex]!.franjas.map((fr) => ({ ...fr })) }
+                : row));
+
     const onDireccionChange = (value: string) => {
         setDireccion(value);
         setPlaceId(null);
@@ -441,10 +450,32 @@ export function CreatePanoramaForm({ activityToEdit, onSuccess, onCancel }: Crea
                                         </div>
                                     ))}
 
-                                    <button type="button" onClick={() => addFranja(di)}
-                                        className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-gray-500 hover:text-black transition mt-1">
-                                        <Plus className="w-3 h-3" /> {LL.adminFormAddSlotCta()}
-                                    </button>
+                                    <div className="flex flex-wrap items-center gap-3 mt-1">
+                                        <button type="button" onClick={() => addFranja(di)}
+                                            className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-gray-500 hover:text-black transition">
+                                            <Plus className="w-3 h-3" /> {LL.adminFormAddSlotCta()}
+                                        </button>
+
+                                        {/* Copiar el horario de otra fecha ya ingresada: reemplaza las franjas de
+                                            ESTA fecha, pero siguen siendo editables/ampliables normalmente despues. */}
+                                        {dias.length > 1 && (
+                                            <select
+                                                value=""
+                                                onChange={(e) => {
+                                                    const idx = Number(e.target.value);
+                                                    if (!Number.isNaN(idx)) copyFranjasFrom(di, idx);
+                                                }}
+                                                className="text-[11px] font-bold uppercase tracking-widest text-gray-500 bg-gray-100 border border-gray-200 rounded-lg px-2 py-1.5 hover:text-black transition cursor-pointer"
+                                            >
+                                                <option value="" disabled>{LL.adminFormCopyScheduleCta()}</option>
+                                                {dias.map((otraDia, otroIdx) => otroIdx !== di && (
+                                                    <option key={otroIdx} value={otroIdx}>
+                                                        {otraDia.fecha || LL.adminFormCopyScheduleUntitled({ n: otroIdx + 1 })}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         ))}

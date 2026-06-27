@@ -204,18 +204,23 @@ const en = {
 
 	// App.tsx: banner de recomendacion asistida
 	recommendBannerTitle: '🧠 Want personalized activity recommendations?',
-	recommendBannerText: 'Find the best options based on the weather and schedule for today or any date you choose.',
+	recommendBannerText: 'Find the best options based on your history of likes, bookings and purchases.',
 	recommendBannerCta: 'Recommend Activities',
+	recommendActiveTitle: '🧠 History-Based Recommendation Active',
+	recommendActiveText: 'Showing panoramas based on your history (likes, bookings and purchases), sorted from most to least recommended.',
 
 	// App.tsx: banner de planificacion activa
 	planningActiveTodayTitle: '📅 Recommendation for Today Active',
 	planningActiveFutureTitle: '📅 Planned Recommendation Active',
 	planningActive5DaysTitle: '📅 Recommendation for the Next 5 Days Active',
+	planningFallbackTitle: '📅 Recommendation Based on History',
+	planningFallbackNotice: 'We found no panoramas for {ventana}, so here are panoramas based on your history (not filtered by date or weather).',
 	planning5DaysIntro: 'Showing activities with available slots for the next 5 days and current weather.',
 	planningTodayIntro: 'Showing ideal activities for',
 	today: 'today',
 	inRealTime: 'in real time.',
 	weatherDetectedBy: 'Weather detected by API:',
+	forecastRangeLabel: 'Real forecast through {fecha}',
 	planningFutureIntro: 'Showing activities for',
 	atTime: 'at',
 	anyTimeText: 'at any time',
@@ -228,6 +233,10 @@ const en = {
 
 	// App.tsx: toolbar de filtros
 	filterNearbyRadius: 'Near you',
+	weatherFilterCta: 'Weather suggestion',
+	dateSortNone: 'Date: no order',
+	dateSortAsc: 'Date: nearest to farthest',
+	dateSortDesc: 'Date: farthest to nearest',
 	priceSortNone: 'Price: no order',
 	priceSortAsc: 'Price: low to high',
 	priceSortDesc: 'Price: high to low',
@@ -285,6 +294,11 @@ const en = {
 	rank2Label: '#2 Recommended',
 	rank3Label: '#3 Recommended',
 	recommendedLabel: 'Recommended',
+	featuredSectionTitle: 'Featured',
+	recommendedSectionTitle: 'Recommended ({n})',
+	otherActivitiesSectionTitle: 'Other panoramas',
+	weatherUnknownSectionTitle: 'No weather information',
+	weatherUnknownSectionHint: 'Its date is beyond the available forecast, so we can\'t assess the weather yet.',
 
 	// Admin: create activity form
 	adminFormSectionPanoramaData: 'Activity details',
@@ -311,6 +325,8 @@ const en = {
 	adminFormEndLabel: 'End',
 	adminFormRemoveSlotTitle: 'Remove time slot',
 	adminFormAddSlotCta: 'Add time slot to this date',
+	adminFormCopyScheduleCta: 'Copy schedule from...',
+	adminFormCopyScheduleUntitled: 'Date {n} (no date yet)',
 	adminFormPriceSection: 'Price and availability',
 	adminFormPriceLabel: 'Price (CLP)',
 	adminFormPricePlaceholder: '0 = free',

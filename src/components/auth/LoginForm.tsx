@@ -85,7 +85,7 @@ const LoginForm = () => {
     const passwordValid = Object.values(passwordChecks).every(Boolean);
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA] font-sans px-4 py-8">
+        <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA] font-sans px-4 py-8 overflow-x-hidden">
             <div className="max-w-md w-full p-8 sm:p-10 bg-white rounded-[32px] sm:rounded-[40px] shadow-sm border border-gray-100 text-center relative">
 
                 <div className="absolute top-4 right-4">
